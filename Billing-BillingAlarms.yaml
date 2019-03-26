@@ -1,0 +1,1097 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Billing-BillingAlarms Template.
+  This creates Billing CloudWatch Alarms, with Threshholds calculated based on Low, Normal and High limits.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - BillingTopicsStackName
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - EnvironmentType
+    ParameterLabels:
+      BillingTopicsStackName:
+        default: Billing Topics Stack Name
+      EnvironmentType:
+        default: Environment Type
+Parameters:
+  BillingTopicsStackName:
+    Description: Name of the CloudFormation Stack containing Billing Topics
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: BillingTopics
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  EnvironmentType:
+    Description: Type of the Environment to configure alarms for monitoring costs. Used to select which Alarms to create
+    Type: String
+    Default: nano
+    AllowedValues:
+      - none # To update, switch to none, then any new type - otherwise Alarms which exist will conflict with new Alarms
+      - nano
+      - micro
+      - small
+      - medium
+      - large
+      - xlarge
+      - 2xlarge
+      - 4xlarge
+      - 8xlarge
+      - 16xlarge
+      - 32xlarge
+    ConstraintDescription: must be none, nano, micro, small, medium, large, xlarge, 2xlarge, 4xlarge, 8xlarge, 16xlarge or 32xlarge.
+Mappings:
+  RegionNameMap:
+    us-east-1:
+      Name: Virginia
+    us-east-2:
+      Name: Ohio
+    us-west-1:
+      Name: California
+    us-west-2:
+      Name: Oregon
+    ca-central-1:
+      Name: Canada
+    eu-west-1:
+      Name: Ireland
+    eu-central-1:
+      Name: Frankfurt
+    eu-west-2:
+      Name: London
+    eu-west-3:
+      Name: Paris
+    ap-southeast-1:
+      Name: Singapore
+    ap-southeast-2:
+      Name: Sydney
+    ap-northeast-2:
+      Name: Seoul
+    ap-northeast-1:
+      Name: Tokyo
+    ap-south-1:
+      Name: Mumbai
+    sa-east-1:
+      Name: SaoPaulo
+  ThresholdMap:
+    Low: # 0 = Evenly-spaced NormalAlarms throughout Month - vs - 50% or 75% of Normal = Alarms only near EOM
+      none: 0
+      nano: 0
+      micro: 0
+      small: 0
+      medium: 0
+      large: 0
+      xlarge: 0
+      2xlarge: 0
+      4xlarge: 0
+      8xlarge: 0
+      16xlarge: 0
+      32xlarge: 0
+    Normal:
+      none: 0
+      nano: 50
+      micro: 100
+      small: 250
+      medium: 500
+      large: 1000
+      xlarge: 2500
+      2xlarge: 5000
+      4xlarge: 10000
+      8xlarge: 25000
+      16xlarge: 50000
+      32xlarge: 100000
+    High: # 2 * Normal
+      none: 0
+      nano: 100
+      micro: 200
+      small: 500
+      medium: 1000
+      large: 2000
+      xlarge: 5000
+      2xlarge: 10000
+      4xlarge: 20000
+      8xlarge: 50000
+      16xlarge: 100000
+      32xlarge: 200000
+  AlarmsMap:
+    Normal: # Can be 0, 5, 10 or 20 - enforced in Lambda Function
+      none: 0
+      nano: 5
+      micro: 10
+      small: 10
+      medium: 10
+      large: 10
+      xlarge: 10
+      2xlarge: 10
+      4xlarge: 20
+      8xlarge: 20
+      16xlarge: 20
+      32xlarge: 20
+    High: # Can be 0, 5, 10 or 20 - enforced in Lambda Function
+      none: 0
+      nano: 10
+      micro: 10
+      small: 10
+      medium: 10
+      large: 10
+      xlarge: 10
+      2xlarge: 10
+      4xlarge: 20
+      8xlarge: 20
+      16xlarge: 20
+      32xlarge: 20
+Rules:
+  ValidateRegion:
+    Assertions:
+      - Assert: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+        AssertDescription: This Template can only be used in Region us-east-1.
+Conditions:
+  ConfigureNormal05: !Or [ !Equals [ !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ], 5 ],
+                           !Equals [ !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ], 10 ],
+                           !Equals [ !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ], 20 ]]
+  ConfigureNormal10: !Or [ !Equals [ !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ], 10 ],
+                           !Equals [ !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ], 20 ]]
+  ConfigureNormal20: !Equals [ !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ], 20 ]
+  ConfigureHigh05: !Or [ !Equals [ !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ], 5 ],
+                         !Equals [ !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ], 10 ],
+                         !Equals [ !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ], 20 ]]
+  ConfigureHigh10: !Or [ !Equals [ !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ], 10 ],
+                         !Equals [ !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ], 20 ]]
+  ConfigureHigh20: !Equals [ !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ], 20 ]
+Resources:
+  BillingAlarmThresholdCalculatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: BillingAlarmThresholdCalculatorRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  BillingAlarmThresholdCalculatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: BilingAlarmThresholdCalculator
+      Description: A Lambda function which calculates Billing Alarm Thresholds for use in Billing Alarms. This calculates a set of Values which can be used to set Alarm Thresholds, based on Low, Normal and High Values.
+      Role: !GetAtt BillingAlarmThresholdCalculatorRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          var response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            if (event.RequestType == 'Delete') {
+              response.send(event, context, response.SUCCESS);
+              return;
+            }
+
+            var responseData = {};
+
+            console.log('Validating: Parameters...');
+            var lowAmount = (event.ResourceProperties.LowAmount) ? Number(event.ResourceProperties.LowAmount) : 0;
+            if (! Number.isInteger(lowAmount) || lowAmount < 0 || lowAmount % 10) {
+              responseData = {Error: 'LowAmount invalid: must be a positive integer divisible by 10 or 0'};
+              console.error('Error: ' + responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            var normalAmount = (event.ResourceProperties.NormalAmount) ? Number(event.ResourceProperties.NormalAmount) : 'invalid';
+            if (! Number.isInteger(normalAmount) || normalAmount < 0 || normalAmount <= lowAmount || normalAmount % 10) {
+              responseData = {Error: 'NormalAmount invalid: must be a positive integer divisible by 10 and greater than LowAmount'};
+              console.error('Error: ' + responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            var highAmount = (event.ResourceProperties.HighAmount) ? Number(event.ResourceProperties.HighAmount) : normalAmount * 1.2;
+            if (! Number.isInteger(highAmount) || highAmount < 0 || highAmount <= normalAmount || highAmount % 10) {
+              responseData = {Error: 'HighAmount invalid: must be a positive integer divisible by 10 and greater than NormalAmount'};
+              console.error('Error: ' + responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            var normalAlarms = (event.ResourceProperties.NormalAlarms) ? Number(event.ResourceProperties.NormalAlarms) : 5;
+            if (! /^(5|10|20)$/.test(normalAlarms)) {
+              responseData = {Error: 'NormalAlarms invalid: must be 5, 10 or 20'};
+              console.error('Error: ' + responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            var highAlarms = (event.ResourceProperties.HighAlarms) ? Number(event.ResourceProperties.HighAlarms) : 5;
+            if (! /^(5|10|20)$/.test(highAlarms)) {
+              responseData = {Error: 'HighAlarms invalid: must be 5, 10 or 20'};
+              console.error('Error: ' + responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            if ((normalAmount - lowAmount) < normalAlarms) {
+              responseData = {Error: 'NormalAlarms invalid: NormalAmount - LowAmount must be greater than or equal to NormalAlarms'};
+              console.error('Error: ' + responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            if ((highAmount - normalAmount) < highAlarms) {
+              responseData = {Error: 'HighAlarms invalid: HighAmount - NormalAmount must be greater than or equal to HighAlarms'};
+              console.error('Error: ' + responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            console.log('Calculating Alarm Threshholds...');
+            for (var alarm = 1; alarm <= normalAlarms; alarm++) {
+              console.log('Normal' + alarm.toString().padStart(2,'0') + ': ' + (lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm)));
+              responseData['Normal' + alarm.toString().padStart(2,'0')] = lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm);
+            }
+
+            for (var alarm = 1; alarm <= highAlarms; alarm++) {
+              console.log('High' + alarm.toString().padStart(2,'0') + ': ' + (normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm)));
+              responseData['High' + alarm.toString().padStart(2,'0')] = normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm);
+            }
+
+            response.send(event, context, response.SUCCESS, responseData);
+          };
+  BilingAlarmThresholdCalculator:
+    Type: Custom::BilingAlarmThresholdCalculator
+    Properties:
+      ServiceToken: !GetAtt BillingAlarmThresholdCalculatorFunction.Arn
+      LowAmount: !FindInMap [ ThresholdMap, Low, !Ref EnvironmentType ]
+      NormalAmount: !FindInMap [ ThresholdMap, Normal, !Ref EnvironmentType ]
+      HighAmount: !FindInMap [ ThresholdMap, High, !Ref EnvironmentType ]
+      NormalAlarms: !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ]
+      HighAlarms: !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ]
+    Condition: ConfigureNormal05
+  BillingEstimatedChargesNormalAlarm01:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal01}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal01}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal01
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal05
+  BillingEstimatedChargesNormalAlarm02:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal02}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal02}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal02
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal05
+  BillingEstimatedChargesNormalAlarm03:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal03}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal03}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal03
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal05
+  BillingEstimatedChargesNormalAlarm04:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal04}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal04}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal04
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal05
+  BillingEstimatedChargesNormalAlarm05:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal05}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal05}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal05
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal05
+  BillingEstimatedChargesNormalAlarm06:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal06}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal06}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal06
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal10
+  BillingEstimatedChargesNormalAlarm07:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal07}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal07}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal07
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal10
+  BillingEstimatedChargesNormalAlarm08:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal08}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal08}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal08
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal10
+  BillingEstimatedChargesNormalAlarm09:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal09}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal09}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal09
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal10
+  BillingEstimatedChargesNormalAlarm10:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal10}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal10}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal10
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal10
+  BillingEstimatedChargesNormalAlarm11:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal11}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal11}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal11
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm12:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal12}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal12}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal12
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm13:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal13}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal13}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal13
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm14:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal14}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal14}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal14
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm15:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal15}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal15}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal15
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm16:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal16}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal16}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal16
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm17:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal17}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal17}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal17
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm18:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal18}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal18}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal18
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm19:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal19}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal19}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal19
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesNormalAlarm20:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.Normal20}
+      AlarmDescription: !Sub Notify BillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.Normal20}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.Normal20
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureNormal20
+  BillingEstimatedChargesHighAlarm01:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High01}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High01}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High01
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh05
+  BillingEstimatedChargesHighAlarm02:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High02}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High02}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High02
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh05
+  BillingEstimatedChargesHighAlarm03:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High03}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High03}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High03
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh05
+  BillingEstimatedChargesHighAlarm04:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High04}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High04}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High04
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh05
+  BillingEstimatedChargesHighAlarm05:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High05}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High05}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High05
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh05
+  BillingEstimatedChargesHighAlarm06:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High06}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High06}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High06
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh10
+  BillingEstimatedChargesHighAlarm07:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High07}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High07}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High07
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh10
+  BillingEstimatedChargesHighAlarm08:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High08}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High08}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High08
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh10
+  BillingEstimatedChargesHighAlarm09:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High09}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High09}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High09
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh10
+  BillingEstimatedChargesHighAlarm10:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High10}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High10}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High10
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh10
+  BillingEstimatedChargesHighAlarm11:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High11}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High11}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High11
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm12:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High12}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High12}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High12
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm13:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High13}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High13}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High13
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm14:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High14}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High14}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High14
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm15:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High15}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High15}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High15
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm16:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High16}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High16}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High16
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm17:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High17}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High17}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High17
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm18:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High18}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High18}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High18
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm19:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High19}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High19}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High19
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+  BillingEstimatedChargesHighAlarm20:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High20}
+      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High20}
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+        - !ImportValue
+          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Statistic: Maximum
+      Dimensions:
+        - Name: Currency
+          Value: USD
+      Period: 21600
+      EvaluationPeriods: 1
+      Threshold: !GetAtt BilingAlarmThresholdCalculator.High20
+      ComparisonOperator: GreaterThanThreshold
+    Condition: ConfigureHigh20
+Outputs:
+  LowAmount:
+    Description: The Low Amount used to calculate Alarm Thresholds
+    Value: !FindInMap [ ThresholdMap, Low, !Ref EnvironmentType ]
+  NormalAmount:
+    Description: The Normal Amount used to calculate Alarm Thresholds
+    Value: !FindInMap [ ThresholdMap, Normal, !Ref EnvironmentType ]
+  HighAmount:
+    Description: The High Amount used to calculate Alarm Thresholds
+    Value: !FindInMap [ ThresholdMap, High, !Ref EnvironmentType ]
+  NormalAlarms:
+    Description: The number of Alarms created to monitor the LowAmount to NormalAmount range
+    Value: !FindInMap [ AlarmsMap, Normal, !Ref EnvironmentType ]
+  HighAlarms:
+    Description: The number of Alarms created to monitor the NormalAmount to HighAmount range
+    Value: !FindInMap [ AlarmsMap, High, !Ref EnvironmentType ]
