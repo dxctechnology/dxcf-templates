@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Identity-Users Template.
+  This creates IAM Users.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - GroupsStackName
+          - ManagedPoliciesStackName
+    ParameterLabels:
+      GroupsStackName:
+        default: Groups Stack Name
+      ManagedPoliciesStackName:
+        default: ManagedPolicies Stack Name
+Parameters:
+  GroupsStackName:
+    Description: Name of the CloudFormation Stack containing Groups
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Groups
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  ManagedPoliciesStackName:
+    Description: Name of the CloudFormation Stack containing ManagedPolicies
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: ManagedPolicies
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+Rules:
+  ValidateRegion:
+    Assertions:
+      - Assert: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+        AssertDescription: This Template can only be used in Region us-east-1.
+Resources:
+  AdministratorUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: administrator
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+  DeveloperUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: developer
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-DevelopersGroup
+  ManagerUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: manager
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-ManagersGroup
+  UserUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: user
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-UsersGroup

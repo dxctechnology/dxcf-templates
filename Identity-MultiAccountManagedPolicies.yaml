@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Identity-MultiAccountManagedPolicies Template.
+  This creates Multi-Account IAM ManagedPolicies.
+Rules:
+  ValidateRegion:
+    Assertions:
+      - Assert: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+        AssertDescription: This Template can only be used in Region us-east-1.
+Resources:
+  CrossAccountReadOnlyAccess:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: CrossAccountReadOnlyAccess
+      Description: Provides read-only access to a limited set of AWS services and resources. Used in Multi-Account configurations for Cross-Account lookup.
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowListExports
+            Effect: Allow
+            Action:
+              - cloudformation:ListExports
+            Resource: '*'
+          - Sid: AllowDescribeStacks
+            Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+            Resource: '*'
+          - Sid: AllowDescribeVpcs
+            Effect: Allow
+            Action:
+              - ec2:DescribeVpcs
+            Resource: '*'
+          - Sid: AllowDescribeSecurityGroups
+            Effect: Allow
+            Action:
+              - ec2:DescribeSecurityGroups
+            Resource: '*'
+          - Sid: AllowListBuckets
+            Effect: Allow
+            Action:
+              - s3:ListAllMyBuckets
+              - s3:GetBucketLocation
+              - s3:ListBucket
+            Resource: '*'
+  CrossAccountVPCPeeringConnectionAccess:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: CrossAccountVPCPeeringConnectionAccess
+      Description: Provides an ability to setup VPC Peering Connections initiated from another Account. Used in Multi-Account configurations for Cross-Account
+        VPC Peering Connections.
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowAcceptVpcPeeringConnection
+            Effect: Allow
+            Action:
+              - ec2:AcceptVpcPeeringConnection
+            Resource: '*'
+  CrossAccountHostedZoneDelegationAccess:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: CrossAccountHostedZoneDelegationAccess
+      Description: Provides an ability to call a Lambda Function which can manage Sub-Domain delegations in a HostedZone. Used in Multi-Account configurations for Cross-Account update of Parent Domain Name Server delegation records.
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowInvokeLambda
+            Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              - !Sub arn:aws:lambda:*:${AWS::AccountId}:function:HostedZoneDelegation
+  CrossAccountDomainNameServersAccess:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: CrossAccountDomainNameServersAccess
+      Description: Provides an ability to call a Lambda function which can update NameServers in a Route53 Domain. Used in Multi-Account configurations for Cross-Account update of Domain Name Servers.
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowInvokeLambda
+            Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              - !Sub arn:aws:lambda:*:${AWS::AccountId}:function:DomainNameServers
+Outputs:
+  CrossAccountReadOnlyAccess:
+    Description: The CrossAccountReadOnlyAccess ManagedPolicy ARN
+    Value: !Ref CrossAccountReadOnlyAccess
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountReadOnlyAccess
+  CrossAccountVPCPeeringConnectionAccess:
+    Description: The CrossAccountVPCPeeringConnectionAccess ManagedPolicy ARN
+    Value: !Ref CrossAccountVPCPeeringConnectionAccess
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountVPCPeeringConnectionAccess
+  CrossAccountHostedZoneDelegationAccess:
+    Description: The CrossAccountHostedZoneDelegationAccess ManagedPolicy ARN
+    Value: !Ref CrossAccountHostedZoneDelegationAccess
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountHostedZoneDelegationAccess
+  CrossAccountDomainNameServersAccess:
+    Description: The CrossAccountDomainNameServersAccess ManagedPolicy ARN
+    Value: !Ref CrossAccountDomainNameServersAccess
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountDomainNameServersAccess

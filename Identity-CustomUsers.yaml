@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Identity-CustomUsers Template.
+  This creates Custom IAM Users within the Identity Account.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - CustomGroupsStackName
+          - GroupsStackName
+          - CustomManagedPoliciesStackName
+          - ManagedPoliciesStackName
+    ParameterLabels:
+      CustomGroupsStackName:
+        default: Custom Groups Stack Name
+      GroupsStackName:
+        default: Groups Stack Name
+      CustomManagedPoliciesStackName:
+        default: Custom ManagedPolicies Stack Name
+      ManagedPoliciesStackName:
+        default: ManagedPolicies Stack Name
+Parameters:
+  CustomGroupsStackName:
+    Description: Name of the CloudFormation Stack containing Custom Groups.
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CustomGroups
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  GroupsStackName:
+    Description: Name of the CloudFormation Stack containing Groups.
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Groups
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  CustomManagedPoliciesStackName:
+    Description: Name of the CloudFormation Stack containing Custom ManagedPolicies.
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CustomManagedPolicies
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  ManagedPoliciesStackName:
+    Description: Name of the CloudFormation Stack containing ManagedPolicies.
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: ManagedPolicies
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+Rules:
+  ValidateRegion:
+    Assertions:
+      - Assert: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+        AssertDescription: This Template can only be used in Region us-east-1.
+Resources:
+  ApplicationAdministratorUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: applicationadministrator
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${CustomGroupsStackName}-ApplicationAdministratorsGroup
+  TableauAdministratorUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: tableauadministrator
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${CustomGroupsStackName}-TableauAdministratorsGroup
+  MCrawfordUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: mcrawford
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
