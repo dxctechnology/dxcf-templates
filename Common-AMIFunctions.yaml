@@ -1,0 +1,581 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Common-AMIFunctions Template.
+  This creates Lambda Functions related to Generic Base OS AMIs, usually published by Amazon.
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DescribeImagesPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeImages
+                Resource: '*'
+  AmazonLinux2ImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AmazonLinux2Image
+      Description: A Lambda function that looks up the latest Amazon Linux 2 Image for a given OS Variant and Region (HVM64 only).
+      Role: !GetAtt Role.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const osNameToFilter = {
+            'Amazon Linux 2'   : 'amzn2-ami-hvm-2.?.', // List default first
+            'Amazon Linux 2.0' : 'amzn2-ami-hvm-2.0.'
+          };
+
+          const response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            let responseData = {};
+            let params = {};
+
+            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
+            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
+            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
+
+            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+            amiNameFilter += osDate + '*-x86_64-gp2';
+            console.log('OS: ' + osName + '[' + osDate + ']');
+            console.log('Filter: ' + amiNameFilter);
+
+            const AWS = require('aws-sdk');
+            AWS.config.update({region: region});
+            AWS.config.apiVersions = {
+              ec2: '2016-11-15'
+            };
+
+            const ec2 = new AWS.EC2();
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.log('Calling: DescribeImages...');
+                params = {
+                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                  Owners: ['amazon']
+                };
+                ec2.describeImages(params, function(err, data) {
+                  if (err) {
+                    responseData = {Error: 'DescribeImages call failed'};
+                    console.error('Error: ' + responseData.Error + ':\n', err);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    if (data.Images.length > 0) {
+                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                      responseData.Name = image.Name;
+                      responseData.CreationDate = image.CreationDate;
+                      console.log('Image: ' + image.Name + ' (' + image.ImageId + ')');
+                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
+                    }
+                    else {
+                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
+                      console.error('Error: ' + responseData.Error);
+                      response.send(event, context, response.FAILED, responseData);
+                    }
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                responseData = {Error: 'Unknown operation: ' + event.RequestType};
+                console.error('Error: ' + responseData.Error);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+  AmazonLinuxImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AmazonLinuxImage
+      Description: A Lambda function that looks up the latest Amazon Linux Image for a given OS Variant and Region (HVM64 only).
+      Role: !GetAtt Role.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const osNameToFilter = {
+            'Amazon Linux'           : 'amzn-ami-hvm-????.??.?.', // List default first
+            'Amazon Linux 2018.03.0' : 'amzn-ami-hvm-2018.03.0.',
+            'Amazon Linux 2017.09.1' : 'amzn-ami-hvm-2017.09.1.',
+            'Amazon Linux 2017.09.0' : 'amzn-ami-hvm-2017.09.0.',
+            'Amazon Linux 2017.03.1' : 'amzn-ami-hvm-2017.03.1.',
+            'Amazon Linux 2017.03.0' : 'amzn-ami-hvm-2017.03.0.'
+          };
+
+          const response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            let responseData = {};
+            let params = {};
+
+            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
+            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
+            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
+
+            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+            amiNameFilter += osDate + '-x86_64-gp2';
+            console.log('OS: ' + osName + '[' + osDate + ']');
+            console.log('Filter: ' + amiNameFilter);
+
+            const AWS = require('aws-sdk');
+            AWS.config.update({region: region});
+            AWS.config.apiVersions = {
+              ec2: '2016-11-15'
+            };
+
+            const ec2 = new AWS.EC2();
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.log('Calling: DescribeImages...');
+                params = {
+                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                  Owners: ['amazon']
+                };
+
+                ec2.describeImages(params, function(err, data) {
+                  if (err) {
+                    responseData = {Error: 'DescribeImages call failed'};
+                    console.error('Error: ' + responseData.Error + ':\n', err);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    if (data.Images.length > 0) {
+                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                      responseData.Name = image.Name;
+                      responseData.CreationDate = image.CreationDate;
+                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
+                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
+                    }
+                    else {
+                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
+                      console.error('Error: ' + responseData.Error);
+                      response.send(event, context, response.FAILED, responseData);
+                    }
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                responseData = {Error: 'Unknown operation: ' + event.RequestType};
+                console.error('Error: ' + responseData.Error);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+  WindowsImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: WindowsImage
+      Description: A Lambda function that looks up the latest Windows Image for a given OS Variant and Region, or a specific Windows Image if an additional OS Date is specified.
+      Role: !GetAtt Role.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const osNameToFilter = {
+            'Windows Server 2016'                                  : 'Windows_Server-2016-English-Full-Base-', // List default first
+            'Windows Server 2016 with Containers'                  : 'Windows_Server-2016-English-Full-Containers-',
+            'Windows Server 2016 Nano'                             : 'Windows_Server-2016-English-Nano-Base-',
+            'Windows Server 2016 with SQL Server 2016 Express'     : 'Windows_Server-2016-English-Full-SQL_2016_SP1_Express-',
+            'Windows Server 2016 with SQL Server 2016 Web'         : 'Windows_Server-2016-English-Full-SQL_2016_SP1_Web-',
+            'Windows Server 2016 with SQL Server Standard'         : 'Windows_Server-2016-English-Full-SQL_2016_SP1_Standard-',
+            'Windows Server 2012 R2'                               : 'Windows_Server-2012-R2_RTM-English-64Bit-Base-',
+            'Windows Server 2012 R2 with SQL Server 2016 Express'  : 'Windows_Server-2012-R2_RTM-English-64Bit-SQL_2016_SP1_Express-',
+            'Windows Server 2012 R2 with SQL Server 2016 Web'      : 'Windows_Server-2012-R2_RTM-English-64Bit-SQL_2016_SP1_Web-',
+            'Windows Server 2012 R2 with SQL Server 2016 Standard' : 'Windows_Server-2012-R2_RTM-English-64Bit-SQL_2016_SP1_Standard-'
+          };
+
+          const response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            let responseData = {};
+            let params = {};
+
+            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
+            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
+            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
+
+            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+            amiNameFilter += osDate.substr(0,4) + '.' + osDate.substr(4,2) + '.' + osDate.substr(6,2);
+            console.log('OS: ' + osName + '[' + osDate + ']');
+            console.log('Filter: ' + amiNameFilter);
+
+            const AWS = require('aws-sdk');
+            AWS.config.update({region: region});
+            AWS.config.apiVersions = {
+              ec2: '2016-11-15'
+            };
+
+            const ec2 = new AWS.EC2();
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.log('Calling: DescribeImages...');
+                params = {
+                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                  Owners: ['amazon']
+                };
+                ec2.describeImages(params, function(err, data) {
+                  if (err) {
+                    responseData = {Error: 'DescribeImages call failed'};
+                    console.error('Error: ' + responseData.Error + ':\n', err);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    if (data.Images.length > 0) {
+                      let image = data.Images.sort((x, y) => y.CreationDate.localeCompare(x.CreationDate))[0];
+                      responseData.Name = image.Name;
+                      responseData.CreationDate = image.CreationDate;
+                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
+                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
+                    }
+                    else {
+                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
+                      console.error('Error: ' + responseData.Error);
+                      response.send(event, context, response.FAILED, responseData);
+                    }
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                responseData = {Error: 'Unknown operation: ' + event.RequestType};
+                console.error('Error: ' + responseData.Error);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+  RHELImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: RHELImage
+      Description: A Lambda function that looks up the latest RHEL Image for a given OS Variant and Region. (x86_64 only)
+      Role: !GetAtt Role.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const osNameToFilter = {
+            'RHEL 7'    : 'RHEL-7.*_HVM_GA-', // List default first
+            'RHEL 7.6'  : 'RHEL-7.6_HVM_GA-',
+            'RHEL 7.5'  : 'RHEL-7.5_HVM_GA-',
+            'RHEL 7.4'  : 'RHEL-7.4_HVM_GA-',
+            'RHEL 7.3'  : 'RHEL-7.3_HVM_GA-',
+            'RHEL 7.2'  : 'RHEL-7.2_HVM-',
+            'RHEL 7.1'  : 'RHEL-7.1_HVM-',
+            'RHEL 6'    : 'RHEL-6.*_HVM_GA-',
+            'RHEL 6.10' : 'RHEL-6.10_HVM_GA-',
+            'RHEL 6.9'  : 'RHEL-6.9_HVM_GA-',
+            'RHEL 6.8'  : 'RHEL-6.8_HVM_GA-',
+            'RHEL 6.7'  : 'RHEL-6.7_HVM-',
+            'RHEL 6.6'  : 'RHEL-6.6_HVM_GA-'
+          };
+
+          const response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            let responseData = {};
+            let params = {};
+
+            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
+            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
+            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
+
+            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+            amiNameFilter += osDate + '-x86_64-?-Hourly2-GP2';
+            console.log('OS: ' + osName + '[' + osDate + ']');
+            console.log('Filter: ' + amiNameFilter);
+
+            const AWS = require('aws-sdk');
+            AWS.config.update({region: region});
+            AWS.config.apiVersions = {
+              ec2: '2016-11-15'
+            };
+
+            const ec2 = new AWS.EC2();
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.log('Calling: DescribeImages...');
+                 params = {
+                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                  Owners: ['309956199498']
+                };
+                ec2.describeImages(params, function(err, data) {
+                  if (err) {
+                    responseData = {Error: 'DescribeImages call failed'};
+                    console.error('Error: ' + responseData.Error + ':\n', err);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    if (data.Images.length > 0) {
+                      let image = data.Images.sort((x, y) => y.CreationDate.localeCompare(x.CreationDate))[0];
+                      responseData.Name = image.Name;
+                      responseData.CreationDate = image.CreationDate;
+                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
+                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
+                    }
+                    else {
+                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
+                      console.error('Error: ' + responseData.Error);
+                      response.send(event, context, response.FAILED, responseData);
+                    }
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                responseData = {Error: 'Unknown operation: ' + event.RequestType};
+                console.error('Error: ' + responseData.Error);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+  UbuntuImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: UbuntuImage
+      Description: A Lambda function that looks up the latest Ubuntu Image for a given OS Variant and Region.
+      Role: !GetAtt Role.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const osNameToFilter = {
+            'Ubuntu Server 18.04 LTS' : 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-', // List default first
+            'Ubuntu Server 16.04 LTS' : 'ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-',
+            'Ubuntu Server 14.04 LTS' : 'ubuntu/images/hvm-ssd/ubuntu-trusty-14.04-amd64-server-',
+            'Ubuntu Server 12.04 LTS' : 'ubuntu/images/hvm-ssd/ubuntu-precise-12.04-amd64-server-'
+          };
+
+          const response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            let responseData = {};
+            let params = {};
+
+            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
+            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
+            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
+
+            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+            amiNameFilter += osDate + '*';
+            console.log('OS: ' + osName + '[' + osDate + ']');
+            console.log('Filter: ' + amiNameFilter);
+
+            const AWS = require('aws-sdk');
+            AWS.config.update({region: region});
+            AWS.config.apiVersions = {
+              ec2: '2016-11-15'
+            };
+
+            const ec2 = new AWS.EC2();
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.log('Calling: DescribeImages...');
+                params = {
+                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                  Owners: ['099720109477']
+                };
+                ec2.describeImages(params, function(err, data) {
+                  if (err) {
+                    responseData = {Error: 'DescribeImages call failed'};
+                    console.error('Error: ' + responseData.Error + ':\n', err);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    if (data.Images.length > 0) {
+                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                      responseData.Name = image.Name;
+                      responseData.CreationDate = image.CreationDate;
+                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
+                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
+                    }
+                    else {
+                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
+                      console.error('Error: ' + responseData.Error);
+                      response.send(event, context, response.FAILED, responseData);
+                    }
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                responseData = {Error: 'Unknown operation: ' + event.RequestType};
+                console.error('Error: ' + responseData.Error);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+  AmazonNATImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AmazonNATImage
+      Description: A Lambda function that looks up the latest Amazon NAT Image for a given Region (HVM64 only).
+      Role: !GetAtt Role.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const osNameToFilter = {
+            'Amazon NAT'           : 'amzn-ami-vpc-nat-hvm-????.??.?.', // List default first
+            'Amazon NAT 2018.03.0' : 'amzn-ami-vpc-nat-hvm-2018.03.0.',
+            'Amazon NAT 2017.09.1' : 'amzn-ami-vpc-nat-hvm-2017.09.1.',
+            'Amazon NAT 2017.09.0' : 'amzn-ami-vpc-nat-hvm-2017.09.0.',
+            'Amazon NAT 2017.03.1' : 'amzn-ami-vpc-nat-hvm-2017.03.1.',
+            'Amazon NAT 2017.03.0' : 'amzn-ami-vpc-nat-hvm-2017.03.0.'
+          };
+
+          const response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            let responseData = {};
+            let params = {};
+
+            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
+            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
+            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
+
+            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+            amiNameFilter += osDate + '-x86_64-ebs';
+            console.log('OS: ' + osName + '[' + osDate + ']');
+            console.log('Filter: ' + amiNameFilter);
+
+            const AWS = require('aws-sdk');
+            AWS.config.update({region: region});
+            AWS.config.apiVersions = {
+              ec2: '2016-11-15'
+            };
+
+            const ec2 = new AWS.EC2();
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.log('Calling: DescribeImages...');
+                params = {
+                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                  Owners: ['amazon']
+                };
+                ec2.describeImages(params, function(err, data) {
+                  if (err) {
+                    responseData = {Error: 'DescribeImages call failed'};
+                    console.error('Error: ' + responseData.Error + ':\n', err);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    if (data.Images.length > 0) {
+                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                      responseData.Name = image.Name;
+                      responseData.CreationDate = image.CreationDate;
+                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
+                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
+                    }
+                    else {
+                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
+                      console.error('Error: ' + responseData.Error);
+                      response.send(event, context, response.FAILED, responseData);
+                    }
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                responseData = {Error: 'Unknown operation: ' + event.RequestType};
+                console.error('Error: ' + responseData.Error);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+Outputs:
+  AmazonLinux2ImageFunctionArn:
+    Description: The AmazonLinux2Image Lambda Function ARN
+    Value: !GetAtt AmazonLinux2ImageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-AmazonLinux2ImageFunctionArn
+  AmazonLinuxImageFunctionArn:
+    Description: The AmazonLinuxImage Lambda Function ARN
+    Value: !GetAtt AmazonLinuxImageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-AmazonLinuxImageFunctionArn
+  WindowsImageFunctionArn:
+    Description: The WindowsImage Lambda Function ARN
+    Value: !GetAtt WindowsImageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-WindowsImageFunctionArn
+  RHELImageFunctionArn:
+    Description: The RHELImage Lambda Function ARN
+    Value: !GetAtt RHELImageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-RHELImageFunctionArn
+  UbuntuImageFunctionArn:
+    Description: The UbuntuImage Lambda Function ARN
+    Value: !GetAtt UbuntuImageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-UbuntuImageFunctionArn
+  AmazonNATImageFunctionArn:
+    Description: The AmazonNATImage Lambda Function ARN
+    Value: !GetAtt AmazonNATImageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-AmazonNATImageFunctionArn

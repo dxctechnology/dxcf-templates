@@ -1,0 +1,343 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Common-MultiAccountFunctions Template.
+  This creates Lambda Functions related to Cross-Account Management.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - BucketsStackName
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - CrossAccountStackExportFunctionKey
+          - CrossAccountStackExportFunctionObjectVersion
+          - CrossAccountStackExportsFunctionKey
+          - CrossAccountStackExportsFunctionObjectVersion
+          - CrossAccountSecurityGroupFunctionKey
+          - CrossAccountSecurityGroupFunctionObjectVersion
+          - CrossAccountVpcFunctionKey
+          - CrossAccountVpcFunctionObjectVersion
+          - CrossAccountDomainNameServersFunctionKey
+          - CrossAccountDomainNameServersFunctionObjectVersion
+          - CrossAccountHostedZoneDelegationFunctionKey
+          - CrossAccountHostedZoneDelegationFunctionObjectVersion
+    ParameterLabels:
+      BucketsStackName:
+        default: Buckets Stack Name
+      CrossAccountStackExportFunctionKey:
+        default: CrossAccountStackExport Function S3 Key
+      CrossAccountStackExportFunctionObjectVersion:
+        default: CrossAccountStackExport Function S3 Object Version
+      CrossAccountStackExportsFunctionKey:
+        default: CrossAccountStackExports Function S3 Key
+      CrossAccountStackExportsFunctionObjectVersion:
+        default: CrossAccountStackExports Function S3 Object Version
+      CrossAccountSecurityGroupFunctionKey:
+        default: CrossAccountSecurityGroup Function S3 Key
+      CrossAccountSecurityGroupFunctionObjectVersion:
+        default: CrossAccountSecurityGroup Function S3 Object Version
+      CrossAccountVpcFunctionKey:
+        default: CrossAccountVpc Function S3 Key
+      CrossAccountVpcFunctionObjectVersion:
+        default: CrossAccountVpc Function S3 Object Version
+      CrossAccountDomainNameServersFunctionKey:
+        default: CrossAccountDomainNameServers Function S3 Key
+      CrossAccountDomainNameServersFunctionObjectVersion:
+        default: CrossAccountDomainNameServers Function S3 Object Version
+      CrossAccountHostedZoneDelegationFunctionKey:
+        default: CrossAccountHostedZoneDelegation Function S3 Key
+      CrossAccountHostedZoneDelegationFunctionObjectVersion:
+        default: CrossAccountHostedZoneDelegation Function S3 Object Version
+Parameters:
+  BucketsStackName:
+    Description: Name of the CloudFormation Stack containing Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  CrossAccountStackExportFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the CrossAccountStackExport Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CrossAccountStackExport.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  CrossAccountStackExportFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the CrossAccountStackExport Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  CrossAccountStackExportsFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the CrossAccountStackExports Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CrossAccountStackExports.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  CrossAccountStackExportsFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the CrossAccountStackExports Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  CrossAccountSecurityGroupFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the CrossAccountSecurityGroup Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CrossAccountSecurityGroup.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  CrossAccountSecurityGroupFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the CrossAccountSecurityGroup Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  CrossAccountVpcFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the CrossAccountVpc Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CrossAccountVpc.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  CrossAccountVpcFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the CrossAccountVpc Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  CrossAccountDomainNameServersFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the CrossAccountDomainNameServers Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CrossAccountDomainNameServers.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  CrossAccountDomainNameServersFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the CrossAccountDomainNameServers Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  CrossAccountHostedZoneDelegationFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the CrossAccountHostedZoneDelegation Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CrossAccountHostedZoneDelegation.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  CrossAccountHostedZoneDelegationFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the CrossAccountHostedZoneDelegation Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+Conditions:
+  ConfigureCrossAccountStackExportFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountStackExportFunctionObjectVersion, '' ]]
+  ConfigureCrossAccountStackExportsFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountStackExportsFunctionObjectVersion, '' ]]
+  ConfigureCrossAccountSecurityGroupFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountSecurityGroupFunctionObjectVersion, '' ]]
+  ConfigureCrossAccountVpcFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountVpcFunctionObjectVersion, '' ]]
+  ConfigureCrossAccountDomainNameServersFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountDomainNameServersFunctionObjectVersion, '' ]]
+  ConfigureCrossAccountHostedZoneDelegationFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountHostedZoneDelegationFunctionObjectVersion, '' ]]
+Resources:
+  CrossAccountQueryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AssumeCrossAccountReadOnlyRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub arn:aws:iam::*:role/CrossAccountReadOnlyRole
+  CrossAccountStackExportFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossAccountStackExport
+      Description: A Lambda function that returns information about a single Stack Export which may be in another Account and/or Region.
+      Role: !GetAtt CrossAccountQueryRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: CrossAccountStackExport.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref CrossAccountStackExportFunctionKey
+        S3ObjectVersion: !If [ ConfigureCrossAccountStackExportFunctionObjectVersion, !Ref CrossAccountStackExportFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  CrossAccountStackExportsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossAccountStackExports
+      Description: A Lambda function that returns information about all Exports created by a Stack which may be in another Account and/or Region.
+      Role: !GetAtt CrossAccountQueryRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: CrossAccountStackExports.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref CrossAccountStackExportsFunctionKey
+        S3ObjectVersion: !If [ ConfigureCrossAccountStackExportsFunctionObjectVersion, !Ref CrossAccountStackExportsFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  CrossAccountSecurityGroupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossAccountSecurityGroup
+      Description: A Lambda function that returns information about a single Security Group which may be in another Account and/or Region.
+      Role: !GetAtt CrossAccountQueryRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: CrossAccountSecurityGroup.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref CrossAccountSecurityGroupFunctionKey
+        S3ObjectVersion: !If [ ConfigureCrossAccountSecurityGroupFunctionObjectVersion, !Ref CrossAccountSecurityGroupFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  CrossAccountVpcFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossAccountVpc
+      Description: A Lambda function that returns information about a single VPC which may be in another Account and/or Region.
+      Role: !GetAtt CrossAccountQueryRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: CrossAccountVpcFunction.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref CrossAccountVpcFunctionKey
+        S3ObjectVersion: !If [ ConfigureCrossAccountVpcFunctionObjectVersion, !Ref CrossAccountVpcFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  CrossAccountDomainManagementRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AssumeCrossAccountDomainNameServersRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub arn:aws:iam::*:role/CrossAccountDomainNameServersRole
+  CrossAccountDomainNameServersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossAccountDomainNameServers
+      Description: A Lambda proxy function that calls another Lambda management function to update NameServers in a Route53 Domain in another Account.
+      Role: !GetAtt CrossAccountDomainManagementRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 120
+      Handler: CrossAccountDomainNameServers.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref CrossAccountDomainNameServersFunctionKey
+        S3ObjectVersion: !If [ ConfigureCrossAccountDomainNameServersFunctionObjectVersion, !Ref CrossAccountDomainNameServersFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  CrossAccountHostedZoneManagementRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AssumeCrossAccountHostedZoneDelegationRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub arn:aws:iam::*:role/CrossAccountHostedZoneDelegationRole
+  CrossAccountHostedZoneDelegationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossAccountHostedZoneDelegation
+      Description: A Lambda proxy function that calls another Lambda management function to create Sub-Domain delegation records in a Route53 HostedZone in another Account.
+      Role: !GetAtt CrossAccountHostedZoneManagementRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 120
+      Handler: CrossAccountHostedZoneDelegation.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref CrossAccountHostedZoneDelegationFunctionKey
+        S3ObjectVersion: !If [ ConfigureCrossAccountHostedZoneDelegationFunctionObjectVersion, !Ref CrossAccountHostedZoneDelegationFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+Outputs:
+  CrossAccountStackExportFunctionArn:
+    Description: The CrossAccountStackExport Lambda Function ARN
+    Value: !GetAtt CrossAccountStackExportFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountStackExportFunctionArn
+  CrossAccountStackExportsFunctionArn:
+    Description: The CrossAccountStackExports Lambda Function ARN
+    Value: !GetAtt CrossAccountStackExportsFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountStackExportsFunctionArn
+  CrossAccountSecurityGroupFunctionArn:
+    Description: The CrossAccountSecurityGroup Lambda Function ARN
+    Value: !GetAtt CrossAccountSecurityGroupFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountSecurityGroupFunctionArn
+  CrossAccountVpcFunctionArn:
+    Description: The CrossAccountVpc Lambda Function ARN
+    Value: !GetAtt CrossAccountVpcFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountVpcFunctionArn
+  CrossAccountDomainNameServersFunctionArn:
+    Description: The CrossAccountDomainNameServers Lambda Function ARN
+    Value: !GetAtt CrossAccountDomainNameServersFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountDomainNameServersFunctionArn
+  CrossAccountHostedZoneDelegationFunctionArn:
+    Description: The CrossAccountHostedZoneDelegation Lambda Function ARN
+    Value: !GetAtt CrossAccountHostedZoneDelegationFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountHostedZoneDelegationFunctionArn

@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Common-PrivateAMIFunctions Template.
+  This creates Lambda Functions related to Private AMIs. This is currently a placeholder for future Private AMI lookup functionality, which will not exist until we finish the Build VPC and Pipelines.
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DescribeImagesPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeImages
+                Resource: '*'
+  BaselineAmazonLinuxImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: BaselineAmazonLinuxImage
+      Description: A Lambda function that looks up the Baseline Amazon Linux Image for a given OS Variant and Region.
+      Role: !GetAtt Role.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const osNameToFilter = {
+            'Amazon Linux' : 'Baseline Amazon Linux' // List default first
+          };
+
+          const response = require('cfn-response');
+
+          exports.handler = function(event, context) {
+            console.log('Request body:\n' + JSON.stringify(event));
+
+            let responseData = {};
+            let params = {};
+
+            let accountId = (event.ResourceProperties.AccountId) ? event.ResourceProperties.AccountId : context.invokedFunctionArn.split(':')[4];
+            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
+            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
+
+            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+            amiNameFilter += '-*';
+            console.log('OS: ' + osName);
+            console.log('Filter: ' + amiNameFilter);
+
+            const AWS = require('aws-sdk');
+            AWS.config.update({region: region});
+            AWS.config.apiVersions = {
+              ec2: '2016-11-15'
+            };
+
+            const ec2 = new AWS.EC2();
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.log('Calling: DescribeImages...');
+                params = {
+                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                  Owners: [accountId]
+                };
+                ec2.describeImages(params, function(err, data) {
+                  if (err) {
+                    responseData = {Error: 'DescribeImages call failed'};
+                    console.error('Error: ' + responseData.Error + ':\n', err);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    if (data.Images.length > 0) {
+                      let image = data.Images.sort((x, y) => y.CreationDate.localeCompare(x.CreationDate))[0];
+                      responseData.Name = image.Name;
+                      responseData.CreationDate = image.CreationDate;
+                      console.log('Image: ' + image.Name + ' Image (' + image.ImageId + ')');
+                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
+                    }
+                    else {
+                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
+                      console.error('Error: ' + responseData.Error);
+                      response.send(event, context, response.FAILED, responseData);
+                    }
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                responseData = {Error: 'Unknown operation: ' + event.RequestType};
+                console.error('Error: ' + responseData.Error);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+Outputs:
+  BaselineAmazonLinuxImageFunctionArn:
+    Description: The BaselineAmazonLinuxImage Lambda Function ARN
+    Value: !GetAtt BaselineAmazonLinuxImageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-BaselineAmazonLinuxImageFunctionArn

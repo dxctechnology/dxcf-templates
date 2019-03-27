@@ -1,0 +1,172 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Common-DomainFunctions Template.
+  This creates Lambda Functions related to Route53 Domains and HostedZones.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - BucketsStackName
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - DomainNameServersFunctionKey
+          - DomainNameServersFunctionObjectVersion
+          - HostedZoneDelegationFunctionKey
+          - HostedZoneDelegationFunctionObjectVersion
+    ParameterLabels:
+      BucketsStackName:
+        default: Buckets Stack Name
+      DomainNameServersFunctionKey:
+        default: DomainNameServers Function S3 Key
+      DomainNameServersFunctionObjectVersion:
+        default: DomainNameServers Function S3 Object Version
+      HostedZoneDelegationFunctionKey:
+        default: HostedZoneDelegation Function S3 Key
+      HostedZoneDelegationFunctionObjectVersion:
+        default: HostedZoneDelegation Function S3 Object Version
+Parameters:
+  BucketsStackName:
+    Description: Name of the CloudFormation Stack containing Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  DomainNameServersFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the DomainNameServers Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: DomainNameServers.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  DomainNameServersFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the DomainNameServers Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  HostedZoneDelegationFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the HostedZoneDelegation Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: HostedZoneDelegation.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  HostedZoneDelegationFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the HostedZoneDelegation Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+Conditions:
+  ConfigureDomainNameServersFunctionObjectVersion: !Not [ !Equals [ !Ref DomainNameServersFunctionObjectVersion, '' ]]
+  ConfigureHostedZoneDelegationFunctionObjectVersion: !Not [ !Equals [ !Ref HostedZoneDelegationFunctionObjectVersion, '' ]]
+Resources:
+  DomainNameServersRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DomainNameServersPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowGetDomainInfo
+                Effect: Allow
+                Action:
+                  - route53domains:ListDomains
+                  - route53domains:GetDomainDetail
+                Resource: '*'
+              - Sid: AllowUpdateDomainNameservers
+                Effect: Allow
+                Action:
+                  - route53domains:UpdateDomainNameservers
+                Resource: '*'
+  DomainNameServersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: DomainNameServers
+      Description: A Lambda function that updates NameServers for a Route53 Domain.
+      Role: !GetAtt DomainNameServersRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: DomainNameServers.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref DomainNameServersFunctionKey
+        S3ObjectVersion: !If [ ConfigureDomainNameServersFunctionObjectVersion, !Ref DomainNameServersFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  HostedZoneDelegationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: HostedZoneDelegationPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowGetHostedZoneInfo
+                Effect: Allow
+                Action:
+                  - route53:ListHostedZonesByName
+                  - route53:GetHostedZone
+                  - route53:ListResourceRecordSets
+                  - route53:GetChange
+                Resource: '*'
+              - Sid: AllowChangeResourceRecordSets
+                Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                Resource: '*'
+  HostedZoneDelegationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HostedZoneDelegation
+      Description: A Lambda function that manages a sub-domain delegation in a HostedZone.
+      Role: !GetAtt HostedZoneDelegationRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 120 # Confirmation can take 30 to 60 seconds
+      Handler: HostedZoneDelegation.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref HostedZoneDelegationFunctionKey
+        S3ObjectVersion: !If [ ConfigureHostedZoneDelegationFunctionObjectVersion, !Ref HostedZoneDelegationFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+Outputs:
+  DomainNameServersFunctionArn:
+    Description: The DomainNameServers Lambda Function ARN
+    Value: !GetAtt DomainNameServersFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-DomainNameServersFunctionArn
+  HostedZoneDelegationFunctionArn:
+    Description: The HostedZoneDelegation Lambda Function ARN
+    Value: !GetAtt HostedZoneDelegationFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-HostedZoneDelegationFunctionArn
