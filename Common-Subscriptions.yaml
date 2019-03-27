@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Common-Subscriptions Template.
+  This creates Subscriptions to SNS Topics.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - TopicsStackName
+      - Label:
+          default: Subscription Configuration
+        Parameters:
+          - EventsTopicEmailEndpoint
+          - EventsSMSTopicSMSEndpoint
+          - AlarmsTopicEmailEndpoint
+          - AlarmsSMSTopicSMSEndpoint
+    ParameterLabels:
+      TopicsStackName:
+        default: Topics Stack Name
+      EventsTopicEmailEndpoint:
+        default: Events Topic Email Endpoint
+      EventsSMSTopicSMSEndpoint:
+        default: EventsSMS Topic SMS Endpoint
+      AlarmsTopicEmailEndpoint:
+        default: Alarms Topic Email Endpoint
+      AlarmsSMSTopicSMSEndpoint:
+        default: AlarmsSMS Topic SMS Endpoint
+Parameters:
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Topics
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Topics
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  EventsTopicEmailEndpoint:
+    Description: Email Endpoint for Events Topic. If blank, no standard subscription will be created
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address.
+  EventsSMSTopicSMSEndpoint:
+    Description: SMS Endpoint for EventsSMS Topics. If blank, no standard subscription will be created
+    Type: String
+    Default: ''
+    #AllowedPattern: (^$|^(\+\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$)
+    AllowedPattern: (^$|^\+\d{11,12}$)
+    ConstraintDescription: must be a valid phone number.
+  AlarmsTopicEmailEndpoint:
+    Description: Email Endpoint for Alarms Topic. If blank, no standard subscription will be created
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address.
+  AlarmsSMSTopicSMSEndpoint:
+    Description: SMS Endpoint for AlarmsSMS Topics. If blank, no standard subscription will be created
+    Type: String
+    Default: ''
+    #AllowedPattern: (^$|^(\+\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$)
+    AllowedPattern: (^$|^\+\d{11,12}$)
+    ConstraintDescription: must be a valid phone number.
+Conditions:
+  UseSMS: !Or [ !Equals [ !Ref 'AWS::Region', us-east-1 ],
+                !Equals [ !Ref 'AWS::Region', us-west-2 ],
+                !Equals [ !Ref 'AWS::Region', eu-west-1 ],
+                !Equals [ !Ref 'AWS::Region', ap-northeast-1 ],
+                !Equals [ !Ref 'AWS::Region', ap-southeast-1 ],
+                !Equals [ !Ref 'AWS::Region', ap-southeast-2 ]]
+  ConfigureEventsTopicSubscription: !Not [ !Equals [ !Ref EventsTopicEmailEndpoint, '' ]]
+  ConfigureEventsSMSTopicSubscription: !Not [ !Equals [ !Ref EventsSMSTopicSMSEndpoint, '' ]]
+  ConfigureAlarmsTopicSubscription: !Not [ !Equals [ !Ref AlarmsTopicEmailEndpoint, '' ]]
+  ConfigureAlarmsSMSTopicSubscription: !Not [ !Equals [ !Ref AlarmsSMSTopicSMSEndpoint, '' ]]
+Resources:
+  EventsTopicEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${TopicsStackName}-EventsTopic
+      Protocol: email
+      Endpoint: !Ref EventsTopicEmailEndpoint
+    Condition: ConfigureEventsTopicSubscription
+  EventsSMSTopicSMSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${TopicsStackName}-EventsSMSTopic
+      Protocol: !If [ UseSMS, sms, email ]
+      Endpoint: !If [ UseSMS, !Ref EventsSMSTopicSMSEndpoint, !Ref EventsTopicEmailEndpoint ]
+    Condition: ConfigureEventsSMSTopicSubscription
+  AlarmsTopicEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${TopicsStackName}-AlarmsTopic
+      Protocol: email
+      Endpoint: !Ref AlarmsTopicEmailEndpoint
+    Condition: ConfigureAlarmsTopicSubscription
+  AlarmsSMSTopicSMSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${TopicsStackName}-AlarmsSMSTopic
+      Protocol: !If [ UseSMS, sms, email ]
+      Endpoint: !If [ UseSMS, !Ref AlarmsSMSTopicSMSEndpoint, !Ref AlarmsTopicEmailEndpoint ]
+    Condition: ConfigureAlarmsSMSTopicSubscription
