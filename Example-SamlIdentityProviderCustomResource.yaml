@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Example-SamlIdentityProviderCustomResource Template.
+  This demonstrates how to create a SAML Identity Provider via a Custom Resource.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - ProviderName
+          - ProviderMetadata
+    ParameterLabels:
+      ProviderName:
+        default: Provider Name
+      ProviderMetadata:
+        default: Provider Metadata
+Parameters:
+  ProviderName:
+    Description: Name of the SAML Identity Provider
+    Type: String
+  ProviderMetadata:
+    Description: XML Metadata for the SAML Identity Provider
+    Type: String
+Resources:
+  SamlIdentityProvider:
+    Type: Custom::SamlIdentityProvider
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SamlIdentityProvider
+      ProviderName: !Ref ProviderName
+      ProviderMetadata: !Ref ProviderMetadata
+Outputs:
+  SamlIdentityProviderArn:
+    Description: The SamlIdentityProvider ARN
+    Value: !GetAtt SamlIdentityProvider.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SamlIdentityProviderArn

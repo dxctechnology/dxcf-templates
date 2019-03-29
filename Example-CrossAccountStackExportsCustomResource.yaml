@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Example-CrossAccountStackExportsCustomResource Template.
+  This demonstrates how to create a Cross-Account Stack Exports Lookup Capability via a Custom Resource.
+  This is not as useful as the Cross-Account Stack Export (single-export per Custom Resource), despite being more efficient,
+  since we can't use the Sub Intrinsic function within the GetAtt Intrinsic function to construct the Export name or
+  use the Ref Intrinsic function either. So, this may just remain as a special case option, but unused in other code.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - Region
+          - AccountId
+          - StackName
+    ParameterLabels:
+      Region:
+        default: Region
+      AccountId:
+        default: Account Id
+      StackName:
+        default: Stack Name
+Parameters:
+  Region:
+    Description: Region which contains the Stack from which to obtain Exports
+    Type: String
+    Default: ''
+    AllowedValues:
+      - ''
+      - us-east-1
+      - us-east-2
+      - us-west-1
+      - us-west-2
+      - ca-central-1
+      - eu-west-1
+      - eu-central-1
+      - eu-west-2
+      - eu-west-3
+      - ap-southeast-1
+      - ap-southeast-2
+      - ap-northeast-2
+      - ap-northeast-1
+      - ap-south-1
+      - sa-east-1
+    ConstraintDescription: Must be a valid AWS region or blank (to use current Region).
+  AccountId:
+    Description: Account which contains the Stack from which to obtain Exports
+    Type: String
+    Default: 448496307850
+    AllowedPattern: (^$|^[0-9]{12}$)
+    ConstraintDescription: must be a valid 12-digit AWS Account Id or blank (to use current Account Id).
+  StackName:
+    Description: Name of the CloudFormation Stack from which to obtain Exports
+    Type: String
+    MinLength: 8
+    MaxLength: 64
+    Default: StandardTopics # changing this will break the hard-coded Export names below.
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+Conditions:
+  ConfigureRegion: !Not [ !Equals [ !Ref Region, '' ]]
+  ConfigureAccountId: !Not [ !Equals [ !Ref AccountId, '' ]]
+Resources:
+  StackExportsReference:
+    Type: Custom::CrossAccountStackExports
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CrossAccountStackExports
+      Region: !If
+        - ConfigureRegion
+        - !Ref Region
+        - !Ref AWS::NoValue
+      AccountId: !If
+        - ConfigureAccountId
+        - !Ref AccountId
+        - !Ref AWS::NoValue
+      StackName: !Ref StackName
+Outputs:
+  StackExportName:
+    Description: The Stack Export Name
+    Value: !Sub ${StackName}-UsersTopic
+  StackExportValue:
+    Description: The Stack Export Value
+    Value: !GetAtt StackExportsReference.StandardTopics-UsersTopic # This shows the problem with this approach - I have no option other than to hard-code here, which makes this break all reusability options.

@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Example-CrossAccountSecurityGroupCustomResource Template.
+  This demonstrates how to create a Cross-Account Security Group Lookup Capability via a Custom Resource.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - Region
+          - AccountId
+          - VpcId
+          - VpcName
+          - UniqueGroupName
+          - DuplicateGroupName
+    ParameterLabels:
+      Region:
+        default: Region
+      AccountId:
+        default: Account Id
+      VpcId:
+        default: VPC Id
+      VpcName:
+        default: VPC Name
+      UniqueGroupName:
+        default: Unique Group Name
+      DuplicateGroupName:
+        default: Duplicate Group Name
+Parameters:
+  Region:
+    Description: Region which contains the Security Group
+    Type: String
+    Default: ''
+    AllowedValues:
+      - ''
+      - us-east-1
+      - us-east-2
+      - us-west-1
+      - us-west-2
+      - ca-central-1
+      - eu-west-1
+      - eu-central-1
+      - eu-west-2
+      - eu-west-3
+      - ap-southeast-1
+      - ap-southeast-2
+      - ap-northeast-2
+      - ap-northeast-1
+      - ap-south-1
+      - sa-east-1
+    ConstraintDescription: Must be a valid AWS region or blank (to use current Region).
+  AccountId:
+    Description: Account which contains the Security Group
+    Type: String
+    Default: 448496307850
+    AllowedPattern: (^$|^[0-9]{12}$)
+    ConstraintDescription: must be a valid 12-digit AWS Account Id or blank (to use current Account Id).
+  VpcId:
+    Description: VPC which contains the Security Group
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|^vpc-[0-9a-f]{17}$|^vpc-[0-9a-f]{8}$)
+    ConstraintDescription: must be a valid VPC Id or blank (to exclude VPC Id from filter criteria).
+  VpcName:
+    Description: Name of the VPC (Value used for Name Tag) or blank
+    Type: String
+    Default: Default-VPC
+    AllowedPattern: (^$|^[A-Z][-a-zA-Z0-9]*$)
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes or blank (to not lookup the VPC Id).
+  UniqueGroupName:
+    Description: Name of a Unique Security Group (Not the Name Tag, but the Group Name)
+    Type: String
+    Default: unique
+  DuplicateGroupName:
+    Description: Name of a Duplicate Security Group (which requires a VpcId in addition to the GroupName)
+    Type: String
+    Default: default
+Rules:
+  ValidateVpcId:
+    RuleCondition: !Equals [ !Ref VpcName, '' ]
+    Assertions:
+      - Assert: !Not [ !Equals [ !Ref VpcId, '' ]]
+        AssertDescription: VpcId required when VpcName is blank
+  ValidateVpcName:
+    RuleCondition: !Equals [ !Ref VpcId, '' ]
+    Assertions:
+      - Assert: !Not [ !Equals [ !Ref VpcName, '' ]]
+        AssertDescription: VpcName required when VpcId is blank
+Conditions:
+  ConfigureRegion: !Not [ !Equals [ !Ref Region, '' ]]
+  ConfigureAccountId: !Not [ !Equals [ !Ref AccountId, '' ]]
+  ConfigureVpcId: !Not [ !Equals [ !Ref VpcId, '' ]]
+  ConfigureVpcName: !Not [ !Equals [ !Ref VpcName, '' ]]
+Resources:
+  VpcReference:
+    Type: Custom::CrossAccountVpc
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CrossAccountVpc
+      Region: !If
+        - ConfigureRegion
+        - !Ref Region
+        - !Ref AWS::NoValue
+      AccountId: !If
+        - ConfigureAccountId
+        - !Ref AccountId
+        - !Ref AWS::NoValue
+      VpcName: !Ref VpcName
+    Condition: ConfigureVpcName
+  UniqueSecurityGroupReference:
+    Type: Custom::CrossAccountSecurityGroup
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CrossAccountSecurityGroup
+      Region: !If
+        - ConfigureRegion
+        - !Ref Region
+        - !Ref AWS::NoValue
+      AccountId: !If
+        - ConfigureAccountId
+        - !Ref AccountId
+        - !Ref AWS::NoValue
+      GroupName: !Ref UniqueGroupName
+  DuplicateSecurityGroupReference:
+    Type: Custom::CrossAccountSecurityGroup
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CrossAccountSecurityGroup
+      Region: !If
+        - ConfigureRegion
+        - !Ref Region
+        - !Ref AWS::NoValue
+      AccountId: !If
+        - ConfigureAccountId
+        - !Ref AccountId
+        - !Ref AWS::NoValue
+      VpcId: !If
+        - ConfigureVpcId
+        - !Ref VpcId
+        - !Ref VpcReference
+      GroupName: !Ref DuplicateGroupName
+Outputs:
+  VpcId:
+    Description: The VPC Id
+    Value: !If
+      - ConfigureVpcId
+      - !Ref VpcId
+      - !Ref VpcReference
+  UniqueSecurityGroupId:
+    Description: The Unique Security Group Id
+    Value: !Ref UniqueSecurityGroupReference
+  UniqueSecurityGroupName:
+    Description: The Unique Security Group Name
+    Value: !GetAtt UniqueSecurityGroupReference.GroupName
+  UniqueSecurityGroupVpcId:
+    Description: The Unique Security Group VPC Id
+    Value: !GetAtt UniqueSecurityGroupReference.VpcId
+  DuplicateSecurityGroupId:
+    Description: The Duplicate Security Group Id
+    Value: !Ref DuplicateSecurityGroupReference
+  DuplicateSecurityGroupName:
+    Description: The Duplicate Security Group Name
+    Value: !GetAtt DuplicateSecurityGroupReference.GroupName
+  DuplicateSecurityGroupVpcId:
+    Description: The Duplicate Security Group VPC Id
+    Value: !GetAtt DuplicateSecurityGroupReference.VpcId
