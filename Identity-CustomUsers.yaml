@@ -85,3 +85,83 @@ Resources:
           Fn::Sub: ${GroupsStackName}-AdministratorsGroup
         - !ImportValue
           Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  VMatukumalliUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: vmatukumalli
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  SRamalingamUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: sramalingam
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  RRoslonUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: rroslon
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  SBachhuUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: sbachhu
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  RKalakotlaUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: rkalakotla
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  AMohammedUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: amohammed
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  DLondonUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: dlondon
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-ManagersGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionUsersGroup
+  ASchickUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: aschick
+      Path: /
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-UsersGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionUsersGroup
