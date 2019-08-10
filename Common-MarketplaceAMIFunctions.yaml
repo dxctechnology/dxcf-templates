@@ -1,6 +1,56 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Common-MarketplaceAMIFunctions Template.
   This creates Lambda Functions related to Marketplace AMIs.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - BucketsStackName
+          - TopicsStackName
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - LogRetention
+    ParameterLabels:
+      BucketsStackName:
+        default: Buckets Stack Name
+      TopicsStackName:
+        default: Topics Stack Name
+      LogRetention:
+        default: Log Retention
+Parameters:
+  BucketsStackName:
+    Description: Name of the CloudFormation Stack containing Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Topics
+    Type: String
+    MinLength: 8
+    MaxLength: 64
+    Default: Topics
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  LogRetention:
+    Description: Number of days to retain CloudWatch Log Events for all AMI Lookup Lambda Functions
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -26,6 +76,11 @@ Resources:
                 Action:
                   - ec2:DescribeImages
                 Resource: '*'
+  CISAmazonLinuxImageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/CISAmazonLinuxImage
+      RetentionInDays: !Ref LogRetention
   CISAmazonLinuxImageFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -108,6 +163,11 @@ Resources:
                 response.send(event, context, response.FAILED, responseData);
             }
           };
+  CISWindowsImageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/CISWindowsImage
+      RetentionInDays: !Ref LogRetention
   CISWindowsImageFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -196,6 +256,11 @@ Resources:
                 response.send(event, context, response.FAILED, responseData);
             }
           };
+  CISRHELImageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/CISRHELImage
+      RetentionInDays: !Ref LogRetention
   CISRHELImageFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -279,6 +344,11 @@ Resources:
                 response.send(event, context, response.FAILED, responseData);
             }
           };
+  CISCentosImageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/CISCentosImage
+      RetentionInDays: !Ref LogRetention
   CISCentosImageFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -366,6 +436,11 @@ Resources:
                 response.send(event, context, response.FAILED, responseData);
             }
           };
+  CISUbuntuImageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/CISUbuntuImage
+      RetentionInDays: !Ref LogRetention
   CISUbuntuImageFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -450,6 +525,11 @@ Resources:
                 response.send(event, context, response.FAILED, responseData);
             }
           };
+  OpenVPNASImageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/OpenVPNASImage
+      RetentionInDays: !Ref LogRetention
   OpenVPNASImageFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -537,6 +617,11 @@ Resources:
                 response.send(event, context, response.FAILED, responseData);
             }
           };
+  DeepSecurityImageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/DeepSecurityImage
+      RetentionInDays: !Ref LogRetention
   DeepSecurityImageFunction:
     Type: AWS::Lambda::Function
     Properties:

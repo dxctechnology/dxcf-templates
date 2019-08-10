@@ -3,8 +3,27 @@ Description: Common-ScheduleFunctions Template.
   This creates standard Lambda Functions related to Scheduling. This supports an ability to turn Instances on and off to reduce costs.
   This is a placeholder example, still in Python, that isn't designed very well, but has the right idea. I am leaving this here as a
   reminder we likely need something like this in the future, and will rewrite this in Node.js with a better design when I can get to it.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - BucketsStackName
+          - TopicsStackName
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - SchedulerLogRetention
+    ParameterLabels:
+      BucketsStackName:
+        default: Buckets Stack Name
+      TopicsStackName:
+        default: Topics Stack Name
+      SchedulerLogRetention:
+        default: Scheduler Log Retention
 Resources:
-  Role:
+  SchedulerRole:
     Type: AWS::IAM::Role
     Properties:
       Path: /
@@ -31,12 +50,17 @@ Resources:
                   - ec2:RebootInstances
                   - ec2:TerminateInstances
                 Resource: '*'
+  SchedulerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/Scheduler
+      RetentionInDays: !Ref SchedulerLogRetention
   SchedulerFunction:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: Scheduler
       Description: A Lambda function which starts, stops and/or terminates Instances based on a Schedule Tag.
-      Role: !GetAtt Role.Arn
+      Role: !GetAtt SchedulerRole.Arn
       Runtime: python2.7
       Timeout: 30
       Handler: index.Scheduler
@@ -188,7 +212,7 @@ Resources:
       ScheduleExpression: rate(10 minutes)
       State: ENABLED
       Targets:
-        - Id: TargetFunctionV1
+        - Id: SchedulerFunction
           Arn: !GetAtt SchedulerFunction.Arn
   SchedulerPermission:
     Type: AWS::Lambda::Permission
@@ -197,3 +221,23 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt SchedulerRule.Arn
+  SchedulerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The number of ERRORs is greater than 5 over 1 minute
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${TopicsStackName}-AlarmsTopic
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+Outputs:
+  SchedulerFunctionArn:
+    Description: The Scheduler Lambda Function ARN
+    Value: !GetAtt SchedulerFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SchedulerFunctionArn

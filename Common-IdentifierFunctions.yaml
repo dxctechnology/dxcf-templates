@@ -8,30 +8,42 @@ Metadata:
           default: Stack Dependencies
         Parameters:
           - BucketsStackName
+          - TopicsStackName
       - Label:
           default: Function Configuration
         Parameters:
           - IdentifierConverterFunctionKey
           - IdentifierConverterFunctionObjectVersion
+          - IdentifierConverterLogRetention
           - HostNameFunctionKey
           - HostNameFunctionObjectVersion
+          - HostNameLogRetention
           - DomainNameFunctionKey
           - DomainNameFunctionObjectVersion
+          - DomainNameLogRetention
     ParameterLabels:
       BucketsStackName:
         default: Buckets Stack Name
+      TopicsStackName:
+        default: Topics Stack Name
       IdentifierConverterFunctionKey:
         default: IdentifierConverter Function S3 Key
       IdentifierConverterFunctionObjectVersion:
         default: IdentifierConverter Function S3 Object Version
+      IdentifierConverterLogRetention:
+        default: IdentifierConverter Log Retention
       HostNameFunctionKey:
         default: HostName Function S3 Key
       HostNameFunctionObjectVersion:
         default: HostName Function S3 Object Version
+      HostNameLogRetention:
+        default: HostName Log Retention
       DomainNameFunctionKey:
         default: DomainName Function S3 Key
       DomainNameFunctionObjectVersion:
         default: DomainName Function S3 Object Version
+      DomainNameLogRetention:
+        default: DomainName Log Retention
 Parameters:
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
@@ -39,6 +51,14 @@ Parameters:
     MinLength: 2
     MaxLength: 64
     Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Topics
+    Type: String
+    MinLength: 8
+    MaxLength: 64
+    Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   IdentifierConverterFunctionKey:
@@ -55,6 +75,20 @@ Parameters:
     MaxLength: 32
     Default: ''
     ConstraintDescription: must be a valid S3 Object Version.
+  IdentifierConverterLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the IdentifierConverter Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
   HostNameFunctionKey:
     Description: Key of Object within the S3 Bucket containing the HostName Lambda Function zipfile
     Type: String
@@ -69,6 +103,20 @@ Parameters:
     MaxLength: 32
     Default: ''
     ConstraintDescription: must be a valid S3 Object Version.
+  HostNameLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the HostName Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
   DomainNameFunctionKey:
     Description: Key of Object within the S3 Bucket containing the DomainName Lambda Function zipfile
     Type: String
@@ -83,6 +131,20 @@ Parameters:
     MaxLength: 32
     Default: ''
     ConstraintDescription: must be a valid S3 Object Version.
+  DomainNameLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the DomainName Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
 Conditions:
   ConfigureIdentifierConverterFunctionObjectVersion: !Not [ !Equals [ !Ref IdentifierConverterFunctionObjectVersion, '' ]]
   ConfigureHostNameFunctionObjectVersion: !Not [ !Equals [ !Ref HostNameFunctionObjectVersion, '' ]]
@@ -103,6 +165,11 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  IdentifierConverterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/IdentifierConverter
+      RetentionInDays: !Ref IdentifierConverterLogRetention
   IdentifierConverterFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -117,6 +184,11 @@ Resources:
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref IdentifierConverterFunctionKey
         S3ObjectVersion: !If [ ConfigureIdentifierConverterFunctionObjectVersion, !Ref IdentifierConverterFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  HostNameLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/HostName
+      RetentionInDays: !Ref HostNameLogRetention
   HostNameFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -131,6 +203,11 @@ Resources:
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref HostNameFunctionKey
         S3ObjectVersion: !If [ ConfigureHostNameFunctionObjectVersion, !Ref HostNameFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  DomainNameLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/DomainName
+      RetentionInDays: !Ref DomainNameLogRetention
   DomainNameFunction:
     Type: AWS::Lambda::Function
     Properties:
