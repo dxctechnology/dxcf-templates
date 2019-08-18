@@ -1,0 +1,586 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Baseline-BaselineFunctions Template.
+  This creates Baseline Lambda Functions needed before most other Stacks can be created.
+  Only the ZipFile method for Lambda Function Code is supported in this Template, this Stack will be created before any S3 Buckets exist.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - BillingAlarmThresholdCalculatorLogRetention
+          - RandomPasswordLogRetention
+          - SecureParameterLogRetention
+          - MessageLogRetention
+    ParameterLabels:
+      BillingAlarmThresholdCalculatorLogRetention:
+        default: BillingAlarmThresholdCalculator Log Retention
+      RandomPasswordLogRetention:
+        default: RandomPassword Log Retention
+      SecureParameterLogRetention:
+        default: SecureParameter Log Retention
+      MessageLogRetention:
+        default: Message Log Retention
+Parameters:
+  BillingAlarmThresholdCalculatorLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the BillingAlarmThresholdCalculator Lambda Function
+    Type: Number
+    Default: 365
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 365
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90 120 or 365.
+  RandomPasswordLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the RandomPassword Lambda Function
+    Type: Number
+    Default: 1
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
+  SecureParameterLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the SecureParameter Lambda Function
+    Type: Number
+    Default: 1
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
+  MessageLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the Message Lambda Function
+    Type: Number
+    Default: 1
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
+Conditions:
+  ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+Resources:
+  BillingAlarmThresholdCalculatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+    Condition: ConfigureGlobal
+  BillingAlarmThresholdCalculatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/BilingAlarmThresholdCalculator
+      RetentionInDays: !Ref BillingAlarmThresholdCalculatorLogRetention
+    Condition: ConfigureGlobal
+  BillingAlarmThresholdCalculatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: BilingAlarmThresholdCalculator
+      Description: A Lambda function which calculates Billing Alarm Thresholds for use in Billing Alarms. This calculates a set of Values which can be used to set Alarm Thresholds, based on Low, Normal and High Values.
+      Role: !GetAtt BillingAlarmThresholdCalculatorRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const response = require('cfn-response');
+
+          exports.handler = (event, context) => {
+            console.info(`Event:\n${JSON.stringify(event)}`);
+
+            if (event.RequestType == 'Delete') {
+              response.send(event, context, response.SUCCESS);
+              return;
+            }
+
+            console.info(`Validating: Parameters...`);
+            const lowAmount = (event.ResourceProperties.LowAmount) ? Number(event.ResourceProperties.LowAmount) : 0;
+            if (! Number.isInteger(lowAmount) || lowAmount < 0 || lowAmount % 10) {
+              const responseData = {Error: `LowAmount invalid: must be a positive integer divisible by 10 or 0`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const normalAmount = (event.ResourceProperties.NormalAmount) ? Number(event.ResourceProperties.NormalAmount) : 'invalid';
+            if (! Number.isInteger(normalAmount) || normalAmount < 0 || normalAmount <= lowAmount || normalAmount % 10) {
+              const responseData = {Error: `NormalAmount invalid: must be a positive integer divisible by 10 and greater than LowAmount`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const highAmount = (event.ResourceProperties.HighAmount) ? Number(event.ResourceProperties.HighAmount) : normalAmount * 1.2;
+            if (! Number.isInteger(highAmount) || highAmount < 0 || highAmount <= normalAmount || highAmount % 10) {
+              const responseData = {Error: `HighAmount invalid: must be a positive integer divisible by 10 and greater than NormalAmount`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const normalAlarms = (event.ResourceProperties.NormalAlarms) ? Number(event.ResourceProperties.NormalAlarms) : 5;
+            if (! /^(5|10|20)$/.test(normalAlarms)) {
+              const responseData = {Error: `NormalAlarms invalid: must be 5, 10 or 20`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const highAlarms = (event.ResourceProperties.HighAlarms) ? Number(event.ResourceProperties.HighAlarms) : 5;
+            if (! /^(5|10|20)$/.test(highAlarms)) {
+              const responseData = {Error: `HighAlarms invalid: must be 5, 10 or 20`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            if ((normalAmount - lowAmount) < normalAlarms) {
+              const responseData = {Error: `NormalAlarms invalid: NormalAmount - LowAmount must be greater than or equal to NormalAlarms`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            if ((highAmount - normalAmount) < highAlarms) {
+              const responseData = {Error: `HighAlarms invalid: HighAmount - NormalAmount must be greater than or equal to HighAlarms`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            console.info(`Calculating Alarm Threshholds...`);
+            let responseData = {};
+            for (let alarm = 1; alarm <= normalAlarms; alarm++) {
+              console.info(`Normal${alarm.toString().padStart(2,'0')}: ${(lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm))}`);
+              responseData[`Normal${alarm.toString().padStart(2,'0')}`] = lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm);
+            }
+
+            for (let alarm = 1; alarm <= highAlarms; alarm++) {
+              console.info(`High${alarm.toString().padStart(2,'0')}: ${(normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm))}`);
+              responseData[`High${alarm.toString().padStart(2,'0')}`] = normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm);
+            }
+
+            response.send(event, context, response.SUCCESS, responseData);
+          };
+    Condition: ConfigureGlobal
+  RandomPasswordRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AllowRandomPasswordGeneration
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetRandomPassword
+                Resource: '*'
+  RandomPasswordLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/RandomPassword
+      RetentionInDays: !Ref RandomPasswordLogRetention
+  RandomPasswordFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: RandomPassword
+      Description: A Lambda function that generates a random password using the SecretsManager getRandomPassword method.
+      Role: !GetAtt RandomPasswordRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            secretsmanager: '2017-10-17'
+          };
+
+          const secretsmanager = new AWS.SecretsManager();
+
+          const parseBoolean = (value) => {
+            const re=/^(t(rue)?|1|on|y(es)?)$/i;
+            return re.test(value);
+          };
+
+          const response = {};
+
+          response.SUCCESS = "SUCCESS";
+          response.FAILED = "FAILED";
+
+          response.send = function(event, context, responseStatus, responseData, physicalResourceId, noEcho) {
+
+              var responseBody = JSON.stringify({
+                  Status: responseStatus,
+                  Reason: "See the details in CloudWatch Log Stream: " + context.logStreamName,
+                  PhysicalResourceId: physicalResourceId || context.logStreamName,
+                  StackId: event.StackId,
+                  RequestId: event.RequestId,
+                  LogicalResourceId: event.LogicalResourceId,
+                  NoEcho: noEcho || false,
+                  Data: responseData
+              });
+
+              var https = require("https");
+              var url = require("url");
+
+              var parsedUrl = url.parse(event.ResponseURL);
+              var options = {
+                  hostname: parsedUrl.hostname,
+                  port: 443,
+                  path: parsedUrl.path,
+                  method: "PUT",
+                  headers: {
+                      "content-type": "",
+                      "content-length": responseBody.length
+                  }
+              };
+
+              var request = https.request(options, function(response) {
+                  console.log("Status code: " + response.statusCode);
+                  console.log("Status message: " + response.statusMessage);
+                  context.done();
+              });
+
+              request.on("error", function(error) {
+                  console.log("send(..) failed executing https.request(..): " + error);
+                  context.done();
+              });
+
+              request.write(responseBody);
+              request.end();
+          };
+
+          exports.handler = (event, context) => {
+            console.info(`Request body:\n${JSON.stringify(event)}`);
+
+            let params = {};
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.info(`Calling: GetRandomPassword...`);
+                if (event.ResourceProperties.PasswordLength) params.PasswordLength = Math.max(parseInt(event.ResourceProperties.PasswordLength, 10), 8);
+                if (event.ResourceProperties.ExcludeUppercase) params.ExcludeUppercase = parseBoolean(event.ResourceProperties.ExcludeUppercase);
+                if (event.ResourceProperties.ExcludeLowercase) params.ExcludeLowercase = parseBoolean(event.ResourceProperties.ExcludeLowercase);
+                if (event.ResourceProperties.ExcludeNumbers) params.ExcludeNumbers = parseBoolean(event.ResourceProperties.ExcludeNumbers);
+                if (event.ResourceProperties.ExcludePunctuation) params.ExcludePunctuation = parseBoolean(event.ResourceProperties.ExcludePunctuation);
+                if (event.ResourceProperties.IncludeSpace) params.IncludeSpace = parseBoolean(event.ResourceProperties.IncludeSpace);
+                if (event.ResourceProperties.RequireEachIncludedType) params.RequireEachIncludedType = parseBoolean(event.ResourceProperties.RequireEachIncludedType);
+                if (event.ResourceProperties.ExcludeCharacters) params.ExcludeCharacters = event.ResourceProperties.ExcludeCharacters;
+                secretsmanager.getRandomPassword(params, function(err, data) {
+                  if (err) {
+                    const responseData = {Error: `GetRandomPassword call failed`};
+                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    const password = data.RandomPassword;
+                    const s = Math.max(Math.min(Math.floor(password.length/4), 4), 1);
+                    const m = password.length - 2 * s;
+                    const obfuscatedPassword = password.replace(password.substr(s,m), '*'.repeat(m));
+                    const responseData = {Password: password};
+                    console.info(`RandomPassword: ${obfuscatedPassword} created`);
+                    response.send(event, context, response.SUCCESS, responseData, obfuscatedPassword, true);
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+            }
+          };
+  SecureParameterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ManageSSMParameter
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                  - kms:Encrypt
+                Resource: '*'
+  SecureParameterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/SecureParameter
+      RetentionInDays: !Ref SecureParameterLogRetention
+  SecureParameterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: SecureParameter
+      Description: A Lambda function that handles an SSM SecureString Parameter as a CustomResource, as this parameter Type is not currently supported.
+      Role: !GetAtt SecureParameterRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const response = require('cfn-response');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ssm: '2014-11-06'
+          };
+
+          const ssm = new AWS.SSM();
+
+          exports.handler = (event, context) => {
+            const obfuscatedEvent = {};
+            Object.assign(obfuscatedEvent, event);
+            obfuscatedEvent.ResourceProperties = {};
+            Object.assign(obfuscatedEvent.ResourceProperties, event.ResourceProperties);
+            obfuscatedEvent.ResourceProperties.Value = event.ResourceProperties.Value.replace(/./g, '*');
+
+            console.info(`Request Body:\n${JSON.stringify(obfuscatedEvent)}`);
+
+            const name = event.ResourceProperties.Name || `${event.StackId.split(':')[5].split('/')[1]}-${event.LogicalResourceId}`;
+            if (! name) {
+              const responseData = {Error: `Name missing`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+            const value = event.ResourceProperties.Value;
+            if (! value && event.RequestType != 'Delete') {
+              const responseData = {Error: `Value missing`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+            const allowedPattern = event.ResourceProperties.AllowedPattern;
+            const description = event.ResourceProperties.Description;
+
+            let params = {};
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.info(`Calling: PutParameter...`);
+                params = {
+                  Name: name,
+                  Type: 'SecureString',
+                  Value: value,
+                  Overwrite: (event.RequestType == 'Create') ? false : true
+                };
+                if (allowedPattern) params.AllowedPattern = allowedPattern;
+                if (description) params.Description = description;
+                ssm.putParameter(params, function(err, data) {
+                  if (err) {
+                    const responseData = {Error: `PutParameter call failed`};
+                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    console.info(`SecureParameter: ${name} created`);
+                    response.send(event, context, response.SUCCESS, null, name);
+                  }
+                });
+                break;
+
+              case 'Delete':
+                console.info(`Calling: DeleteParameter...`);
+                params = {
+                  Name: name
+                };
+                ssm.deleteParameter(params, function(err, data) {
+                  if (err) {
+                    const responseData = {Error: `DeleteParameter call failed`};
+                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    console.info(`Parameter: deleted`);
+                    response.send(event, context, response.SUCCESS);
+                  }
+                });
+                break;
+
+              default:
+                const responseData = {Error: `Unknown operation: ${event.RequestType}`};
+                console.error(`Error: ${responseData.Error}`);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+  MessageRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AllowPublish
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: '*'
+  MessageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/Message
+      RetentionInDays: !Ref MessageLogRetention
+  MessageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: Message
+      Description: A Lambda function that publishes a message to an SNS Topic.
+      Role: !GetAtt MessageRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const response = require('cfn-response');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            sns: '2010-03-31'
+          };
+
+          const sns = new AWS.SNS();
+
+          exports.handler = (event, context) => {
+            console.info(`Event:\n${JSON.stringify(event)}`);
+
+            const topicArn = event.ResourceProperties.TopicArn;
+            if (! topicArn) {
+              const responseData = {Error: `TopicArn missing`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const message = event.ResourceProperties.Message;
+            if (! message) {
+              const responseData = {Error: `Message missing`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            let params = {};
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                console.info(`Calling: Publish...`);
+                params = {
+                  TopicArn: topicArn,
+                  Message: message
+                };
+                sns.publish(params, function(err, data) {
+                  if (err) {
+                    const responseData = {Error: `Publish call failed`};
+                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    const messageId = data.MessageId;
+                    console.info(`Message: ${messageId} sent`);
+                    response.send(event, context, response.SUCCESS, null, messageId);
+                  }
+                });
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                break;
+
+              default:
+                const responseData = {Error: `Unknown operation: ${event.RequestType}`};
+                console.error(`Error: ${responseData.Error}`);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+Outputs:
+  BillingAlarmThresholdCalculatorFunctionArn:
+    Description: The BillingAlarmThresholdCalculator Lambda Function ARN
+    Value: !GetAtt BillingAlarmThresholdCalculatorFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-BillingAlarmThresholdCalculatorFunctionArn
+    Condition: ConfigureGlobal
+  RandomPasswordFunctionArn:
+    Description: The RandomPassword Lambda Function ARN
+    Value: !GetAtt RandomPasswordFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-RandomPasswordFunctionArn
+  SecureParameterFunctionArn:
+    Description: The SecureParameter Lambda Function ARN
+    Value: !GetAtt SecureParameterFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SecureParameterFunctionArn
+  MessageFunctionArn:
+    Description: The Message Lambda Function ARN
+    Value: !GetAtt MessageFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-MessageFunctionArn
