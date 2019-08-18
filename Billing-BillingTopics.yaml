@@ -34,10 +34,10 @@ Resources:
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Bills
         - Bills
-  BillsSMSTopic:
+  UrgentBillsTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: BillsSMS
+      TopicName: UrgentBills
       DisplayName: !If
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Bills
@@ -48,8 +48,8 @@ Outputs:
     Value: !Ref BillsTopic
     Export:
       Name: !Sub ${AWS::StackName}-BillsTopic
-  BillsSMSTopic:
-    Description: The BillsSMS Topic ARN
-    Value: !Ref BillsSMSTopic
+  UrgentBillsTopic:
+    Description: The UrgentBills Topic ARN
+    Value: !Ref UrgentBillsTopic
     Export:
-      Name: !Sub ${AWS::StackName}-BillsSMSTopic
+      Name: !Sub ${AWS::StackName}-UrgentBillsTopic

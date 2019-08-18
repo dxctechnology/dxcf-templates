@@ -12,14 +12,16 @@ Metadata:
           default: Subscription Configuration
         Parameters:
           - TopicTestEmailEndpoint
-          - SMSTopicTestSMSEndpoint
+          - UrgentTopicTestPhoneEndpoint
     ParameterLabels:
       BillingTopicsStackName:
         default: Billing Topics Stack Name
       TopicTestEmailEndpoint:
         default: Topic Test Email Endpoint
-      SMSTopicTestSMSEndpoint:
-        default: SMS Topic Test SMS Endpoint
+      UrgentTopicTestEmailEndpoint:
+        default: Urgent Topic Test Email Endpoint
+      UrgentTopicTestPhoneEndpoint:
+        default: Urgent Topic Test Phone Endpoint
 Parameters:
   BillingTopicsStackName:
     Description: Name of the CloudFormation Stack containing Billing Topics
@@ -35,11 +37,16 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^-$|[^\s@]+@[^\s@]+\.[^\s@]+$)
     ConstraintDescription: must be a valid email address.
-  SMSTopicTestSMSEndpoint:
-    Description: Optional test SMS Endpoint for SMS Topics. If specified, test Subscriptions will be created instead of normal Subscriptions. Use hyphen to skip
+  UrgentTopicTestEmailEndpoint:
+    Description: Optional test email Endpoint for Urgent Topics. If specified, test Subscriptions will be created instead of normal Subscriptions. Use hyphen to skip
     Type: String
     Default: ''
-    #AllowedPattern: (^$|^-$|^(\+\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$)
+    AllowedPattern: (^$|^-$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address.
+  UrgentTopicTestPhoneEndpoint:
+    Description: Optional test Phone Endpoint for Urgent Topics. If specified, test Subscriptions will be created instead of normal Subscriptions. Use hyphen to skip
+    Type: String
+    Default: ''
     AllowedPattern: (^$|^-$|^\+\d{11,12}$)
     ConstraintDescription: must be a valid phone number.
 Rules:
@@ -48,12 +55,15 @@ Rules:
       - Assert: !Equals [ !Ref 'AWS::Region', us-east-1 ]
         AssertDescription: This Template can only be used in Region us-east-1.
 Conditions:
-  ConfigureNormalTopicSubscriptions: !Equals [ !Ref TopicTestEmailEndpoint, '' ]
-  ConfigureTestTopicSubscriptions: !And [ !Not [ !Condition ConfigureNormalTopicSubscriptions ],
-                                          !Not [ !Equals [ !Ref TopicTestEmailEndpoint, '-' ]]]
-  ConfigureNormalSNSTopicSubscriptions: !Equals [ !Ref SMSTopicTestSMSEndpoint, '' ]
-  ConfigureTestSNSTopicSubscriptions: !And [ !Not [ !Condition ConfigureNormalSNSTopicSubscriptions ],
-                                             !Not [ !Equals [ !Ref SMSTopicTestSMSEndpoint, '-' ]]]
+  ConfigureNormalTopicEmailSubscriptions: !Equals [ !Ref TopicTestEmailEndpoint, '' ]
+  ConfigureTestTopicEmailSubscriptions: !And [ !Not [ !Condition ConfigureNormalTopicEmailSubscriptions ],
+                                               !Not [ !Equals [ !Ref TopicTestEmailEndpoint, '-' ]]]
+  ConfigureNormalUrgentTopicEmailSubscriptions: !Equals [ !Ref UrgentTopicTestEmailEndpoint, '' ]
+  ConfigureTestUrgentTopicEmailSubscriptions: !And [ !Not [ !Condition ConfigureNormalUrgentTopicEmailSubscriptions ],
+                                                     !Not [ !Equals [ !Ref UrgentTopicTestEmailEndpoint, '-' ]]]
+  ConfigureNormalUrgentTopicPhoneSubscriptions: !Equals [ !Ref UrgentTopicTestPhoneEndpoint, '' ]
+  ConfigureTestUrgentTopicPhoneSubscriptions: !And [ !Not [ !Condition ConfigureNormalUrgentTopicPhoneSubscriptions ],
+                                                     !Not [ !Equals [ !Ref UrgentTopicTestPhoneEndpoint, '-' ]]]
 Resources:
   BillsTopicTestEmailSubscription:
     Type: AWS::SNS::Subscription
@@ -62,7 +72,7 @@ Resources:
         Fn::Sub: ${BillingTopicsStackName}-BillsTopic
       Protocol: email
       Endpoint: !Ref TopicTestEmailEndpoint
-    Condition: ConfigureTestTopicSubscriptions
+    Condition: ConfigureTestTopicEmailSubscriptions
   BillsTopicMCrawfordEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -70,20 +80,108 @@ Resources:
         Fn::Sub: ${BillingTopicsStackName}-BillsTopic
       Protocol: email
       Endpoint: mcrawford@dxc.com
-    Condition: ConfigureNormalTopicSubscriptions
-  BillsSMSTopicTestSMSSubscription:
+    Condition: ConfigureNormalTopicEmailSubscriptions
+#  BillsTopicVMatukumalliEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+#      Protocol: email
+#      Endpoint: nageswara-rao.matukumalli@dxc.com
+#    Condition: ConfigureNormalTopicEmailSubscriptions
+#  BillsTopicSRamalingamEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+#      Protocol: email
+#      Endpoint: soundar.r@dxc.com
+#    Condition: ConfigureNormalTopicEmailSubscriptions
+#  BillsTopicRRoslonEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+#      Protocol: email
+#      Endpoint: robert.roslon@dxc.com
+#    Condition: ConfigureNormalTopicEmailSubscriptions
+  UrgentBillsTopicTestEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !ImportValue
-        Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+      Protocol: email
+      Endpoint: !Ref UrgentTopicTestEmailEndpoint
+    Condition: ConfigureTestUrgentTopicEmailSubscriptions
+  UrgentBillsTopicMCrawfordEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+      Protocol: email
+      Endpoint: mcrawford@dxc.com
+    Condition: ConfigureNormalUrgentTopicEmailSubscriptions
+#  UrgentBillsTopicVMatukumalliEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: email
+#      Endpoint: nageswara-rao.matukumalli@dxc.com
+#    Condition: ConfigureNormalUrgentTopicEmailSubscriptions
+#  UrgentBillsTopicSRamalingamEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: email
+#      Endpoint: soundar.r@dxc.com
+#    Condition: ConfigureNormalUrgentTopicEmailSubscriptions
+#  UrgentBillsTopicRRoslonEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: email
+#      Endpoint: robert.roslon@dxc.com
+#    Condition: ConfigureNormalUrgentTopicEmailSubscriptions
+  UrgentBillsTopicTestPhoneSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Protocol: sms
-      Endpoint: !Ref SMSTopicTestSMSEndpoint
-    Condition: ConfigureTestSNSTopicSubscriptions
-  BillsSMSTopicMCrawfordSMSSubscription:
+      Endpoint: !Ref UrgentTopicTestPhoneEndpoint
+    Condition: ConfigureTestUrgentTopicPhoneSubscriptions
+  UrgentBillsTopicMCrawfordPhoneSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !ImportValue
-        Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Protocol: sms
       Endpoint: '+14156525483'
-    Condition: ConfigureNormalSNSTopicSubscriptions
+    Condition: ConfigureNormalUrgentTopicPhoneSubscriptions
+#  UrgentBillsTopicVMatukumalliPhoneSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: sms
+#      Endpoint: '+17708276963'
+#    Condition: ConfigureNormalUrgentTopicPhoneSubscriptions
+#  UrgentBillsTopicSRamalingamPhoneSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: sms
+#      Endpoint: '+18478486382'
+#    Condition: ConfigureNormalUrgentTopicPhoneSubscriptions
+#  UrgentBillsTopicRRoslonPhoneSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: sms
+#      Endpoint: '+48507009018'
+#    Condition: ConfigureNormalUrgentTopicPhoneSubscriptions

@@ -12,14 +12,17 @@ Metadata:
           default: Subscription Configuration
         Parameters:
           - BillsTopicEmailEndpoint
-          - BillsSMSTopicSMSEndpoint
+          - UrgentBillsTopicEmailEndpoint
+          - UrgentBillsTopicPhoneEndpoint
     ParameterLabels:
       BillingTopicsStackName:
         default: Billing Topics Stack Name
       BillsTopicEmailEndpoint:
         default: Bills Topic Email Endpoint
-      BillsSMSTopicSMSEndpoint:
-        default: BillsSMS Topic SMS Endpoint
+      UrgentBillsTopicEmailEndpoint:
+        default: UrgentBills Topic Email Endpoint
+      UrgentBillsTopicPhoneEndpoint:
+        default: UrgentBills Topic Phone Endpoint
 Parameters:
   BillingTopicsStackName:
     Description: Name of the CloudFormation Stack containing Billing Topics
@@ -35,11 +38,16 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
     ConstraintDescription: must be a valid email address.
-  BillsSMSTopicSMSEndpoint:
-    Description: SMS Endpoint for BillsSMS Topics. If blank, no standard subscription will be created
+  UrgentBillsTopicEmailEndpoint:
+    Description: Email Endpoint for UrgentBills Topic. If blank, no standard subscription will be created
     Type: String
     Default: ''
-    #AllowedPattern: (^$|^(\+\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$)
+    AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address.
+  UrgentBillsTopicPhoneEndpoint:
+    Description: Phone Endpoint for BillsSMS Topics. If blank, no standard subscription will be created
+    Type: String
+    Default: ''
     AllowedPattern: (^$|^\+\d{11,12}$)
     ConstraintDescription: must be a valid phone number.
 Rules:
@@ -48,8 +56,9 @@ Rules:
       - Assert: !Equals [ !Ref 'AWS::Region', us-east-1 ]
         AssertDescription: This Template can only be used in Region us-east-1.
 Conditions:
-  ConfigureBillsTopicSubscription: !Not [ !Equals [ !Ref BillsTopicEmailEndpoint, '' ]]
-  ConfigureBillsSMSTopicSubscription: !Not [ !Equals [ !Ref BillsSMSTopicSMSEndpoint, '' ]]
+  ConfigureBillsTopicEmailSubscription: !Not [ !Equals [ !Ref BillsTopicEmailEndpoint, '' ]]
+  ConfigureUrgentBillsTopicEmailSubscription: !Not [ !Equals [ !Ref UrgentBillsTopicEmailEndpoint, '' ]]
+  ConfigureUrgentBillsTopicPhoneSubscription: !Not [ !Equals [ !Ref UrgentBillsTopicPhoneEndpoint, '' ]]
 Resources:
   BillsTopicEmailSubscription:
     Type: AWS::SNS::Subscription
@@ -58,12 +67,20 @@ Resources:
         Fn::Sub: ${BillingTopicsStackName}-BillsTopic
       Protocol: email
       Endpoint: !Ref BillsTopicEmailEndpoint
-    Condition: ConfigureBillsTopicSubscription
-  BillsSMSTopicSMSSubscription:
+    Condition: ConfigureBillsTopicEmailSubscription
+  UrgentBillsTopicEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !ImportValue
-        Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+      Protocol: email
+      Endpoint: !Ref UrgentBillsTopicEmailEndpoint
+    Condition: ConfigureUrgentBillsTopicEmailSubscription
+  UrgentBillsTopicPhoneSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Protocol: sms
-      Endpoint: !Ref BillsSMSTopicSMSEndpoint
-    Condition: ConfigureBillsSMSTopicSubscription
+      Endpoint: !Ref UrgentBillsTopicPhoneEndpoint
+    Condition: ConfigureUrgentBillsTopicPhoneSubscription
