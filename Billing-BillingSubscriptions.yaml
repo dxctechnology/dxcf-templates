@@ -45,7 +45,7 @@ Parameters:
     AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
     ConstraintDescription: must be a valid email address.
   UrgentBillsTopicPhoneEndpoint:
-    Description: Phone Endpoint for BillsSMS Topics. If blank, no standard subscription will be created
+    Description: Phone Endpoint for UrgentBills Topics. If blank, no standard subscription will be created
     Type: String
     Default: ''
     AllowedPattern: (^$|^\+\d{11,12}$)

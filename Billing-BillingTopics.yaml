@@ -15,8 +15,8 @@ Parameters:
   TopicPrefix:
     Description: Optional Prefix for Topic Display Name
     Type: String
-    Default: HLSB
-    AllowedPattern: (^&|^[A-Z][A-Z0-9]{1,4}$)
+    Default: ''
+    AllowedPattern: (^$|^[A-Z][A-Z0-9]{1,4}$)
     ConstraintDescription: must begin with an upper-case letter and consist of 1 to 4 additional upper-case letters or digits, if specified.
 Rules:
   ValidateRegion:
