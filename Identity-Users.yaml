@@ -76,33 +76,33 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   AdministratorPassword:
-    Description: Password for the administrator User (optional)
+    Description: Optional password for the administrator User
     Type: String
     NoEcho: true
     Default: ''
     AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: if specified, must be 16 to 64 alphanumeric characters, with at least one uppercase, lowercase and digit. Symbols not allowed.
+    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
   DeveloperPassword:
-    Description: Password for the developer User (optional)
+    Description: Optional password for the developer User
     Type: String
     NoEcho: true
     Default: ''
     AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: if specified, must be 16 to 64 alphanumeric characters, with at least one uppercase, lowercase and digit. Symbols not allowed.
+    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
   ManagerPassword:
-    Description: Password for the manager User (optional)
+    Description: Optional password for the manager User
     Type: String
     NoEcho: true
     Default: ''
     AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: if specified, must be 16 to 64 alphanumeric characters, with at least one uppercase, lowercase and digit. Symbols not allowed.
+    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
   UserPassword:
-    Description: Password for the user User (optional)
+    Description: Optional password for the user User
     Type: String
     NoEcho: true
     Default: ''
     AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: if specified, must be 16 to 64 alphanumeric characters, with at least one uppercase, lowercase and digit. Symbols not allowed.
+    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
   SaveGeneratedPasswords:
     Description: Seve generated initial passwords in the Systems Manager Parameter Store as Secure Strings
     Type: String
@@ -186,7 +186,7 @@ Resources:
       Name: AdministratorPassword
       Value: !If [ GenerateAdministratorPassword, !GetAtt AdministratorRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
-      Description: Temporary Password for the administrator User
+      Description: Temporary password for the administrator User
     Condition: SaveAdministratorPassword
   AdministratorPasswordMessage:
     Type: Custom::Message
@@ -194,7 +194,7 @@ Resources:
       ServiceToken: !ImportValue
         Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
-      Message: !If [ GenerateAdministratorPassword, !Sub 'AdministratorPassword: ${AdministratorRandomPassword.Password}', !Ref 'AWS::NoValue' ]
+      Message: !If [ GenerateAdministratorPassword, !Sub 'Temporary password for the administrator User: ${AdministratorRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendAdministratorPassword
   DeveloperRandomPassword:
     Type: Custom::RandomPassword
@@ -222,7 +222,7 @@ Resources:
       Name: DeveloperPassword
       Value: !If [ GenerateDeveloperPassword, !GetAtt DeveloperRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
-      Description: Temporary Password for the developer User
+      Description: Temporary password for the developer User
     Condition: SaveDeveloperPassword
   DeveloperPasswordMessage:
     Type: Custom::Message
@@ -230,7 +230,7 @@ Resources:
       ServiceToken: !ImportValue
         Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
-      Message: !If [ GenerateDeveloperPassword, !Sub 'DeveloperPassword: ${DeveloperRandomPassword.Password}', !Ref 'AWS::NoValue' ]
+      Message: !If [ GenerateDeveloperPassword, !Sub 'Temporary password for the developer User: ${DeveloperRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendDeveloperPassword
   ManagerRandomPassword:
     Type: Custom::RandomPassword
@@ -258,7 +258,7 @@ Resources:
       Name: ManagerPassword
       Value: !If [ GenerateManagerPassword, !GetAtt ManagerRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
-      Description: Temporary Password for the manager User
+      Description: Temporary password for the manager User
     Condition: SaveManagerPassword
   ManagerPasswordMessage:
     Type: Custom::Message
@@ -266,7 +266,7 @@ Resources:
       ServiceToken: !ImportValue
         Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
-      Message: !If [ GenerateManagerPassword, !Sub 'ManagerPassword: ${ManagerRandomPassword.Password}', !Ref 'AWS::NoValue' ]
+      Message: !If [ GenerateManagerPassword, !Sub 'Temporary password for the manager User: ${ManagerRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendManagerPassword
   UserRandomPassword:
     Type: Custom::RandomPassword
@@ -294,7 +294,7 @@ Resources:
       Name: UserPassword
       Value: !If [ GenerateUserPassword, !GetAtt UserRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
-      Description: Temporary Password for the user User
+      Description: Temporary password for the user User
     Condition: SaveUserPassword
   UserPasswordMessage:
     Type: Custom::Message
@@ -302,5 +302,5 @@ Resources:
       ServiceToken: !ImportValue
         Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
-      Message: !If [ GenerateUserPassword, !Sub 'UserPassword: ${UserRandomPassword.Password}', !Ref 'AWS::NoValue' ]
+      Message: !If [ GenerateUserPassword, !Sub 'Temporary password for the user User: ${UserRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendUserPassword
