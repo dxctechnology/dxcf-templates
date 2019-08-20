@@ -12,6 +12,8 @@ Metadata:
           - RandomPasswordLogRetention
           - SecureParameterLogRetention
           - MessageLogRetention
+          - MetadataDownloaderLogRetention
+          - SamlProviderLogRetention
     ParameterLabels:
       BillingAlarmThresholdCalculatorLogRetention:
         default: BillingAlarmThresholdCalculator Log Retention
@@ -21,6 +23,10 @@ Metadata:
         default: SecureParameter Log Retention
       MessageLogRetention:
         default: Message Log Retention
+      MetadataDownloaderLogRetention:
+        default: MetadataDownloader Log Retention
+      SamlProviderLogRetention:
+        default: SamlProvider Log Retention
 Parameters:
   BillingAlarmThresholdCalculatorLogRetention:
     Description: Number of days to retain CloudWatch Log Events for the BillingAlarmThresholdCalculator Lambda Function
@@ -70,6 +76,34 @@ Parameters:
     Description: Number of days to retain CloudWatch Log Events for the Message Lambda Function
     Type: Number
     Default: 1
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
+  MetadataDownloaderLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the MetadataDownloader Lambda Function
+    Type: Number
+    Default: 1
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
+  SamlProviderLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the SamlProvider Lambda Function
+    Type: Number
+    Default: 30
     AllowedValues:
       - 1
       - 3
@@ -249,51 +283,48 @@ Resources:
           };
 
           const response = {};
-
           response.SUCCESS = "SUCCESS";
           response.FAILED = "FAILED";
-
           response.send = function(event, context, responseStatus, responseData, physicalResourceId, noEcho) {
+            var responseBody = JSON.stringify({
+              Status: responseStatus,
+              Reason: "See the details in CloudWatch Log Stream: " + context.logStreamName,
+              PhysicalResourceId: physicalResourceId || context.logStreamName,
+              StackId: event.StackId,
+              RequestId: event.RequestId,
+              LogicalResourceId: event.LogicalResourceId,
+              NoEcho: noEcho || false,
+              Data: responseData
+            });
 
-              var responseBody = JSON.stringify({
-                  Status: responseStatus,
-                  Reason: "See the details in CloudWatch Log Stream: " + context.logStreamName,
-                  PhysicalResourceId: physicalResourceId || context.logStreamName,
-                  StackId: event.StackId,
-                  RequestId: event.RequestId,
-                  LogicalResourceId: event.LogicalResourceId,
-                  NoEcho: noEcho || false,
-                  Data: responseData
-              });
+            var https = require("https");
+            var url = require("url");
 
-              var https = require("https");
-              var url = require("url");
+            var parsedUrl = url.parse(event.ResponseURL);
+            var options = {
+              hostname: parsedUrl.hostname,
+              port: 443,
+              path: parsedUrl.path,
+              method: "PUT",
+              headers: {
+                "content-type": "",
+                "content-length": responseBody.length
+              }
+            };
 
-              var parsedUrl = url.parse(event.ResponseURL);
-              var options = {
-                  hostname: parsedUrl.hostname,
-                  port: 443,
-                  path: parsedUrl.path,
-                  method: "PUT",
-                  headers: {
-                      "content-type": "",
-                      "content-length": responseBody.length
-                  }
-              };
+            var request = https.request(options, function(response) {
+              console.log("Status code: " + response.statusCode);
+              console.log("Status message: " + response.statusMessage);
+              context.done();
+            });
 
-              var request = https.request(options, function(response) {
-                  console.log("Status code: " + response.statusCode);
-                  console.log("Status message: " + response.statusMessage);
-                  context.done();
-              });
+            request.on("error", function(error) {
+              console.log("send(..) failed executing https.request(..): " + error);
+              context.done();
+            });
 
-              request.on("error", function(error) {
-                  console.log("send(..) failed executing https.request(..): " + error);
-                  context.done();
-              });
-
-              request.write(responseBody);
-              request.end();
+            request.write(responseBody);
+            request.end();
           };
 
           exports.handler = (event, context) => {
@@ -511,7 +542,7 @@ Resources:
           const sns = new AWS.SNS();
 
           exports.handler = (event, context) => {
-            console.info(`Event:\n${JSON.stringify(event)}`);
+            console.info(`Request Body:\n${JSON.stringify(event)}`);
 
             const topicArn = event.ResourceProperties.TopicArn;
             if (! topicArn) {
@@ -562,6 +593,236 @@ Resources:
                 response.send(event, context, response.FAILED, responseData);
             }
           };
+  MetadataDownloaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  MetadataDownloaderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/MetadataDownloader
+      RetentionInDays: !Ref MetadataDownloaderLogRetention
+  MetadataDownloaderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: MetadataDownloader
+      Description: A Lambda function that can download Metadata from an URL.
+      Role: !GetAtt MetadataDownloaderRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const response = require('cfn-response');
+
+          const getContent = (url) => {
+            return new Promise((resolve, reject) => {
+              const lib = url.startsWith('https') ? require('https') : require('http');
+              const request = lib.get(url, (response) => {
+                if (response.statusCode < 200 || response.statusCode > 299) {
+                   reject(new Error(`Failed to load page, status code: ${response.statusCode}`));
+              }
+
+                const body = [];
+                response.on('data', (chunk) => body.push(chunk));
+                response.on('end', () => resolve(body.join('')));
+              });
+
+              request.on('error', (err) => reject(err));
+              });
+          };
+
+          exports.handler = (event, context) => {
+            console.info(`Request Body:\n${JSON.stringify(event)}`);
+
+            const metadataUrl = event.ResourceProperties.MetadataUrl;
+            if (! metadataUrl) {
+              const responseData = {Error: `MetadataUrl missing`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                getContent(metadataUrl).then(function(data) {
+                  const responseData = {Metadata: data};
+                  console.info(`Downloaded Metadata from: ${metadataUrl}`);
+                  response.send(event, context, response.SUCCESS, responseData, metadataUrl);
+                }).catch(function(err) {
+                  const responseData = {Error: `Failed to download Metadata from ${metadataUrl}`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  response.send(event, context, response.FAILURE, responseData);
+                });
+                return;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+                return;
+
+              default:
+                const responseData = {Error: `Unknown operation: ${event.RequestType}`};
+                console.error(`Error: ${responseData.Error}`);
+                response.send(event, context, response.FAILED, responseData);
+                return;
+            }
+          };
+  SamlProviderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SamlProviderRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ManageSamlProviderPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:ListSamlProviders
+                  - iam:GetSamlProvider
+                  - iam:CreateSamlProvider
+                  - iam:UpdateSamlProvider
+                  - iam:DeleteSamlProvider
+                Resource: "*"
+    Condition: ConfigureGlobal
+  SamlProviderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/SamlProvider
+      RetentionInDays: !Ref SamlProviderLogRetention
+    Condition: ConfigureGlobal
+  SamlProviderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: SamlProvider
+      Description: A Lambda function that can create, update or delete an IAM SAML Identity Provider.
+      Role: !GetAtt SamlProviderRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const response = require('cfn-response');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            iam: '2010-05-08'
+          };
+
+          const iam = new AWS.IAM();
+
+          exports.handler = (event, context) => {
+            console.info(`Request Body:\n${JSON.stringify(event)}`);
+
+            const providerName = event.ResourceProperties.ProviderName;
+            if (! providerName) {
+              const responseData = {Error: `ProviderName missing`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const providerMetadata = event.ResourceProperties.ProviderMetadata;
+            if (! providerMetadata && event.RequestType != 'Delete') {
+              const responseData = {Error: `ProviderMetadata missing`};
+              console.error(`Error: ${responseData.Error}`);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const accountId=event.StackId.split(':')[4];
+
+            let params = {};
+            switch (event.RequestType) {
+              case 'Create':
+                console.info(`Calling: CreateSAMLProvider...`);
+                params = {
+                  Name: providerName,
+                  SAMLMetadataDocument: providerMetadata
+                };
+                iam.createSAMLProvider(params, function(err, data) {
+                  if (err) {
+                    const responseData = {Error: `CreateSAMLProvider call failed`};
+                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    const responseData = {Arn: data.SAMLProviderArn};
+                    console.info(`SAML Provider: ${data.SAMLProviderArn} created`);
+                    response.send(event, context, response.SUCCESS, responseData, data.SAMLProviderArn);
+                  }
+                });
+                break;
+
+              case 'Update':
+                console.info(`Calling: UpdateSAMLProvider...`);
+                params = {
+                  SAMLProviderArn: `arn:aws:iam::${accountId}:saml-provider/${providerName}`,
+                  SAMLMetadataDocument: providerMetadata
+                };
+                iam.updateSAMLProvider(params, function(err, data) {
+                  if (err) {
+                    const responseData = {Error: `UpdateSAMLProvider call failed`};
+                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    const responseData = {Arn: data.SAMLProviderArn};
+                    console.info(`SAML Provider: ${data.SAMLProviderArn} updated`);
+                    response.send(event, context, response.SUCCESS, responseData, data.SAMLProviderArn);
+                  }
+                });
+                break;
+
+              case 'Delete':
+                console.info(`Calling: DeleteSAMLProvider...`);
+                params = {
+                  SAMLProviderArn: `arn:aws:iam::${accountId}:saml-provider/${providerName}`
+                };
+                iam.deleteSAMLProvider(params, function(err, data) {
+                  if (err) {
+                    const responseData = {Error: `DeleteSAMLProvider call failed`};
+                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    response.send(event, context, response.FAILED, responseData);
+                  }
+                  else {
+                    console.info(`SAML Provider: deleted`);
+                    response.send(event, context, response.SUCCESS);
+                  }
+                });
+                break;
+
+              default:
+                const responseData = {Error: `Unknown operation: ${event.RequestType}`};
+                console.error(`Error: ${responseData.Error}`);
+                response.send(event, context, response.FAILED, responseData);
+            }
+          };
+    Condition: ConfigureGlobal
 Outputs:
   BillingAlarmThresholdCalculatorFunctionArn:
     Description: The BillingAlarmThresholdCalculator Lambda Function ARN
@@ -584,3 +845,14 @@ Outputs:
     Value: !GetAtt MessageFunction.Arn
     Export:
       Name: !Sub ${AWS::StackName}-MessageFunctionArn
+  MetadataDownloaderFunctionArn:
+    Description: The MetadataDownloader Lambda Function ARN
+    Value: !GetAtt MetadataDownloaderFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-MetadataDownloaderFunctionArn
+  SamlProviderFunctionArn:
+    Description: The SamlProvider Lambda Function ARN
+    Value: !GetAtt SamlProviderFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SamlProviderFunctionArn
+    Condition: ConfigureGlobal
