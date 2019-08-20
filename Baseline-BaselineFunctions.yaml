@@ -682,7 +682,6 @@ Resources:
   SamlProviderRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: SamlProviderRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
