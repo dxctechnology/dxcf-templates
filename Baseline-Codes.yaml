@@ -19,6 +19,7 @@ Metadata:
           - AliasNameLogRetention
           - LogGroupNameLogRetention
           - HostNameLogRetention
+          - DomainNameLogRetention
     ParameterLabels:
       BaselineStackName:
         default: Baseline Stack Name
@@ -32,6 +33,8 @@ Metadata:
         default: LogGroupName Log Retention
       HostNameLogRetention:
         default: HostName Log Retention
+      DomainNameLogRetention:
+        default: DomainName Log Retention
 Parameters:
   BaselineStackName:
     Description: Name of the CloudFormation Stack containing Baseline Resources
@@ -93,6 +96,20 @@ Parameters:
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   HostNameLogRetention:
     Description: Number of days to retain CloudWatch Log Events for the HostName Lambda Function
+    Type: Number
+    Default: 3
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
+  DomainNameLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the DomainName Lambda Function
     Type: Number
     Default: 3
     AllowedValues:
@@ -962,6 +979,88 @@ Resources:
                 break;
             }
           };
+  DomainNameLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/DomainName
+      RetentionInDays: !Ref DomainNameLogRetention
+  DomainNameFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: DomainName
+      Description: A Lambda function which creates a DomainName that conforms to DXC Framework Naming Conventions.
+      Role: !GetAtt IdentifierRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${BaselineStackName}-BaselineLayerVersionArn
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const response = require('cfn-response-promise');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            dynamodb: '2012-08-10'
+          };
+
+          const dynamodb = new AWS.DynamoDB();
+
+          const tableName = 'Codes';
+
+          const getCode = async (type, name) => {
+            console.log(`- Calling: GetItem for Type ${type}, Name ${name}...`);
+            const params = {
+              TableName: tableName,
+              Key: { Type: { S: type }, Name: { S: name }},
+              AttributesToGet: [ 'Code' ]
+            };
+            const data = await dynamodb.getItem(params).promise();
+            if (data.Item && data.Item.Code) {
+              return data.Item.Code.S;
+            }
+            else {
+              throw new Error(`Code for Name ${name} of Type ${type} not found`);
+            }
+          };
+
+          exports.handler = async (event, context) => {
+            console.info(`Request body:\n${JSON.stringify(event)}`);
+
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                try {
+                  const parentDomainName = event.ResourceProperties.ParentDomainName;
+                  if (! /^([A-Za-z0-9][A-Za-z0-9-]{0,61}[A-Za-z0-9]?\.)+[A-Za-z]{2,10}$/.test(parentDomainName)) {
+                    throw new Error(`ParentDomainName missing or invalid`);
+                  }
+
+                  const locationName = event.ResourceProperties.LocationName || process.env.AWS_REGION;
+                  if (! /^(us-east-1|us-east-2|us-west-1|us-west-2|ca-central-1|eu-west-1|eu-central-1|eu-west-2|eu-west-3|eu-north-1|ap-east-1|ap-southeast-1|ap-southeast-2|ap-northeast-2|ap-northeast-1|ap-south-1|me-south-1|sa-east-1)$/.test(locationName)) {
+                    throw new Error(`LocationName invalid: Must be an AWS Region code`);
+                  }
+
+                  const environmentName = event.ResourceProperties.EnvironmentName;
+                  const environmentCode = (environmentName) ? await getCode('Environment', environmentName) : '';
+
+                  const domainname = `${(environmentCode == 'p') ? '' : environmentCode + '.'}${locationName}.${parentDomainName}`;
+                  console.info('DomainName: ' + domainname);
+                  await response.send(event, context, response.SUCCESS, null, domainname);
+                }
+                catch (err) {
+                  const responseData = {Error: `Could not create DomainName`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  await response.send(event, context, response.FAILED, responseData);
+                }
+                break;
+
+              case 'Delete':
+                await response.send(event, context, response.SUCCESS);
+                break;
+            }
+          };
 Outputs:
   Table:
     Description: The DynamoDB Table
@@ -988,3 +1087,8 @@ Outputs:
     Value: !GetAtt HostNameFunction.Arn
     Export:
       Name: !Sub ${AWS::StackName}-HostNameFunctionArn
+  DomainNameFunctionArn:
+    Description: The DomainName Lambda Function ARN
+    Value: !GetAtt DomainNameFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-DomainNameFunctionArn
