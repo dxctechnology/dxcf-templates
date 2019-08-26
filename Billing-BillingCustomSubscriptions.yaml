@@ -19,9 +19,9 @@ Metadata:
       TopicTestEmailEndpoint:
         default: Topic Test Email Endpoint
       UrgentTopicTestEmailEndpoint:
-        default: Urgent Topic Test Email Endpoint
+        default: UrgentTopic Test Email Endpoint
       UrgentTopicTestPhoneEndpoint:
-        default: Urgent Topic Test Phone Endpoint
+        default: UrgentTopic Test Phone Endpoint
 Parameters:
   BillingTopicsStackName:
     Description: Name of the CloudFormation Stack containing Billing Topics
@@ -81,6 +81,30 @@ Resources:
       Protocol: email
       Endpoint: mcrawford@dxc.com
     Condition: ConfigureNormalTopicEmailSubscriptions
+#  BillsTopicVMatukumalliEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+#      Protocol: email
+#      Endpoint: nageswara-rao.matukumalli@dxc.com
+#    Condition: ConfigureNormalTopicEmailSubscriptions
+#  BillsTopicSRamalingamEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+#      Protocol: email
+#      Endpoint: soundar.r@dxc.com
+#    Condition: ConfigureNormalTopicEmailSubscriptions
+#  BillsTopicRRoslonEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-BillsTopic
+#      Protocol: email
+#      Endpoint: robert.roslon@dxc.com
+#    Condition: ConfigureNormalTopicEmailSubscriptions
   UrgentBillsTopicTestEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -97,6 +121,30 @@ Resources:
       Protocol: email
       Endpoint: mcrawford@dxc.com
     Condition: ConfigureNormalUrgentTopicEmailSubscriptions
+#  UrgentBillsTopicVMatukumalliEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: email
+#      Endpoint: nageswara-rao.matukumalli@dxc.com
+#    Condition: ConfigureNormalUrgentTopicEmailSubscriptions
+#  UrgentBillsTopicSRamalingamEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: email
+#      Endpoint: soundar.r@dxc.com
+#    Condition: ConfigureNormalUrgentTopicEmailSubscriptions
+#  UrgentBillsTopicRRoslonEmailSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: email
+#      Endpoint: robert.roslon@dxc.com
+#    Condition: ConfigureNormalUrgentTopicEmailSubscriptions
   UrgentBillsTopicTestPhoneSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -113,3 +161,27 @@ Resources:
       Protocol: sms
       Endpoint: '+14156525483'
     Condition: ConfigureNormalUrgentTopicPhoneSubscriptions
+#  UrgentBillsTopicVMatukumalliPhoneSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: sms
+#      Endpoint: '+17708276963'
+#    Condition: ConfigureNormalUrgentTopicPhoneSubscriptions
+#  UrgentBillsTopicSRamalingamPhoneSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: sms
+#      Endpoint: '+18478486382'
+#    Condition: ConfigureNormalUrgentTopicPhoneSubscriptions
+#  UrgentBillsTopicRRoslonPhoneSubscription:
+#    Type: AWS::SNS::Subscription
+#    Properties:
+#      TopicArn: !ImportValue
+#        Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
+#      Protocol: sms
+#      Endpoint: '+48507009018'
+#    Condition: ConfigureNormalUrgentTopicPhoneSubscriptions

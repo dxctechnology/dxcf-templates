@@ -7,7 +7,7 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
-          - BaselineFunctionsStackName
+          - BaselineStackName
       - Label:
           default: Identity Provider Configuration
         Parameters:
@@ -18,8 +18,8 @@ Metadata:
           - SamlProviderAccessMethod
           - SamlProviderMasterAccount
     ParameterLabels:
-      BaselineFunctionsStackName:
-        default: Baseline Functions Stack Name
+      BaselineStackName:
+        default: Baseline Stack Name
       SamlProviderName:
         default: SAML Provider Name
       SamlProviderType:
@@ -33,12 +33,12 @@ Metadata:
       SamlProviderMasterAccount:
         default: SAML Provider Master Account
 Parameters:
-  BaselineFunctionsStackName:
-    Description: Name of the CloudFormation Stack containing Baseline Functions
+  BaselineStackName:
+    Description: Name of the CloudFormation Stack containing Baseline Resources
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: BaselineFunctions
+    Default: Baseline
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   SamlProviderName:
@@ -172,14 +172,14 @@ Resources:
     Type: Custom::MetadataDownloader
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MetadataDownloaderFunctionArn
+        Fn::Sub: ${BaselineStackName}-MetadataDownloaderFunctionArn
       MetadataUrl: !Ref SamlProviderMetadataUrl
     Condition: ConfigureMetadataUrl
   SamlProvider:
     Type: Custom::SamlProvider
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-SamlProviderFunctionArn
+        Fn::Sub: ${BaselineStackName}-SamlProviderFunctionArn
       ProviderName: !Ref SamlProviderName
       ProviderMetadata: !If
         - ConfigureMetadata
