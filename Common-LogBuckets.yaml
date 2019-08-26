@@ -5,20 +5,30 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
+          default: Environment Configuration
+        Parameters:
+          - AccountAlias
+          - EnvironmentName
+      - Label:
           default: Bucket Configuration
         Parameters:
-          - Name
-          - AccountAlias
           - UseGlacier
     ParameterLabels:
-      Name:
-        default: Name
       AccountAlias:
         default: Account Alias
+      EnvironmentName:
+        default: Environment Name
       UseGlacier:
         default: Use Glacier
 Parameters:
-  Name:
+  AccountAlias:
+    Description: Unique Alias of the Account (if defined). If specified, the Alias instead of the AccountID is appended to bucket names to insure uniqueness.
+    Type: String
+    MaxLength: 32
+    Default: ''
+    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
+    ConstraintDescription: must begin with a lower case letter and contain lower case letters, numbers and dashes.
+  EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
     Default: Production
@@ -37,13 +47,6 @@ Parameters:
       - Management
       - Organization
     ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
-  AccountAlias:
-    Description: Unique Alias of the Account (if defined). If specified, the Alias instead of the AccountID is appended to bucket names to insure uniqueness.
-    Type: String
-    MaxLength: 32
-    Default: ''
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain lower case letters, numbers and dashes.
   UseGlacier:
     Description: Use Glacier for Archived Logs
     Type: String
@@ -143,7 +146,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 2555
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-ArchiveLogsBucket
+          Value: !Sub ${EnvironmentName}-ArchiveLogsBucket
     DeletionPolicy: Retain
   ArchiveLogsBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -210,7 +213,7 @@ Resources:
         LogFilePrefix: loadbalancer
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-LoadBalancerLogsBucket
+          Value: !Sub ${EnvironmentName}-LoadBalancerLogsBucket
     DeletionPolicy: Retain
   LoadBalancerLogsBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -285,7 +288,7 @@ Resources:
         LogFilePrefix: config
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-ConfigBucket
+          Value: !Sub ${EnvironmentName}-ConfigBucket
     DeletionPolicy: Retain
   ConfigBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -364,7 +367,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 180
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-CloudTrailBucket
+          Value: !Sub ${EnvironmentName}-CloudTrailBucket
     DeletionPolicy: Retain
   CloudTrailBucketPolicy:
     Type: AWS::S3::BucketPolicy

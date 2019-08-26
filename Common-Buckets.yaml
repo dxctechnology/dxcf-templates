@@ -5,20 +5,30 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
+          default: Environment Configuration
+        Parameters:
+          - AccountAlias
+          - EnvironmentName
+      - Label:
           default: Bucket Configuration
         Parameters:
-          - Name
-          - AccountAlias
           - UseGlacier
     ParameterLabels:
-      Name:
-        default: Name
       AccountAlias:
         default: Account Alias
+      EnvironmentName:
+        default: Environment Name
       UseGlacier:
         default: Use Glacier
 Parameters:
-  Name:
+  AccountAlias:
+    Description: Unique Alias of the Account (if defined). If specified, the Alias instead of the AccountID is appended to bucket names to insure uniqueness.
+    Type: String
+    MaxLength: 32
+    Default: ''
+    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
+    ConstraintDescription: must begin with a lower case letter and contain lower case letters, numbers and dashes.
+  EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
     Default: Production
@@ -37,13 +47,6 @@ Parameters:
       - Management
       - Organization
     ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
-  AccountAlias:
-    Description: Unique Alias of the Account (if defined). If specified, the Alias instead of the AccountID is appended to bucket names to insure uniqueness.
-    Type: String
-    MaxLength: 32
-    Default: ''
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain lower case letters, numbers and dashes.
   UseGlacier:
     Description: Use Glacier for Archived Logs
     Type: String
@@ -80,7 +83,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 395
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-TemplatesBucket
+          Value: !Sub ${EnvironmentName}-TemplatesBucket
     DeletionPolicy: Retain
   TemplatesBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -126,7 +129,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 395
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-FunctionsBucket
+          Value: !Sub ${EnvironmentName}-FunctionsBucket
     DeletionPolicy: Retain
   ScriptsBucket:
     Type: AWS::S3::Bucket
@@ -152,7 +155,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 395
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-ScriptsBucket
+          Value: !Sub ${EnvironmentName}-ScriptsBucket
     DeletionPolicy: Retain
   ConfigurationsBucket:
     Type: AWS::S3::Bucket
@@ -178,7 +181,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 395
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-ConfigurationsBucket
+          Value: !Sub ${EnvironmentName}-ConfigurationsBucket
     DeletionPolicy: Retain
   ProductsBucket:
     Type: AWS::S3::Bucket
@@ -204,7 +207,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 395
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-ProductsBucket
+          Value: !Sub ${EnvironmentName}-ProductsBucket
     DeletionPolicy: Retain
   BackupsBucket:
     Type: AWS::S3::Bucket
@@ -230,7 +233,7 @@ Resources:
             NoncurrentVersionExpirationInDays: 180
       Tags:
         - Key: Name
-          Value: !Sub ${Name}-BackupsBucket
+          Value: !Sub ${EnvironmentName}-BackupsBucket
     DeletionPolicy: Retain
 Outputs:
   TemplatesBucket:
