@@ -9,7 +9,7 @@ Metadata:
         Parameters:
           - GroupsStackName
           - ManagedPoliciesStackName
-          - BaselineFunctionsStackName
+          - BaselineStackName
       - Label:
           default: User Configuration
         Parameters:
@@ -33,9 +33,9 @@ Metadata:
       GroupsStackName:
         default: Groups Stack Name
       ManagedPoliciesStackName:
-        default: ManagedPolicies Stack Name
-      BaselineFunctionsStackName:
-        default: BaselineFunctions Stack Name
+        default: Managed Policies Stack Name
+      BaselineStackName:
+        default: Baseline Stack Name
       AdministratorPassword:
         default: Administrator Password
       DeveloperPassword:
@@ -67,12 +67,12 @@ Parameters:
     Default: ManagedPolicies
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  BaselineFunctionsStackName:
-    Description: Name of the CloudFormation Stack containing the Baseline Functions
+  BaselineStackName:
+    Description: Name of the CloudFormation Stack containing the Baseline Resources
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: BaselineFunctions
+    Default: Baseline
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   AdministratorPassword:
@@ -164,7 +164,7 @@ Resources:
     Type: Custom::RandomPassword
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-RandomPasswordFunctionArn
+        Fn::Sub: ${BaselineStackName}-RandomPasswordFunctionArn
       ExcludePunctuation: true
     Condition: GenerateAdministratorPassword
   AdministratorUser:
@@ -182,7 +182,7 @@ Resources:
     Type: Custom::SecureParameter
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-SecureParameterFunctionArn
+        Fn::Sub: ${BaselineStackName}-SecureParameterFunctionArn
       Name: AdministratorPassword
       Value: !If [ GenerateAdministratorPassword, !GetAtt AdministratorRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
@@ -192,7 +192,7 @@ Resources:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
       Message: !If [ GenerateAdministratorPassword, !Sub 'Temporary password for the administrator User: ${AdministratorRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendAdministratorPassword
@@ -200,7 +200,7 @@ Resources:
     Type: Custom::RandomPassword
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-RandomPasswordFunctionArn
+        Fn::Sub: ${BaselineStackName}-RandomPasswordFunctionArn
       ExcludePunctuation: true
     Condition: GenerateDeveloperPassword
   DeveloperUser:
@@ -218,7 +218,7 @@ Resources:
     Type: Custom::SecureParameter
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-SecureParameterFunctionArn
+        Fn::Sub: ${BaselineStackName}-SecureParameterFunctionArn
       Name: DeveloperPassword
       Value: !If [ GenerateDeveloperPassword, !GetAtt DeveloperRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
@@ -228,7 +228,7 @@ Resources:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
       Message: !If [ GenerateDeveloperPassword, !Sub 'Temporary password for the developer User: ${DeveloperRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendDeveloperPassword
@@ -236,7 +236,7 @@ Resources:
     Type: Custom::RandomPassword
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-RandomPasswordFunctionArn
+        Fn::Sub: ${BaselineStackName}-RandomPasswordFunctionArn
       ExcludePunctuation: true
     Condition: GenerateManagerPassword
   ManagerUser:
@@ -254,7 +254,7 @@ Resources:
     Type: Custom::SecureParameter
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-SecureParameterFunctionArn
+        Fn::Sub: ${BaselineStackName}-SecureParameterFunctionArn
       Name: ManagerPassword
       Value: !If [ GenerateManagerPassword, !GetAtt ManagerRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
@@ -264,7 +264,7 @@ Resources:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
       Message: !If [ GenerateManagerPassword, !Sub 'Temporary password for the manager User: ${ManagerRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendManagerPassword
@@ -272,7 +272,7 @@ Resources:
     Type: Custom::RandomPassword
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-RandomPasswordFunctionArn
+        Fn::Sub: ${BaselineStackName}-RandomPasswordFunctionArn
       ExcludePunctuation: true
     Condition: GenerateUserPassword
   UserUser:
@@ -290,7 +290,7 @@ Resources:
     Type: Custom::SecureParameter
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-SecureParameterFunctionArn
+        Fn::Sub: ${BaselineStackName}-SecureParameterFunctionArn
       Name: UserPassword
       Value: !If [ GenerateUserPassword, !GetAtt UserRandomPassword.Password, !Ref 'AWS::NoValue' ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
@@ -300,7 +300,7 @@ Resources:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
       Message: !If [ GenerateUserPassword, !Sub 'Temporary password for the user User: ${UserRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendUserPassword

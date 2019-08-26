@@ -19,9 +19,9 @@ Metadata:
           - StackSetAdministratorAccount
     ParameterLabels:
       CustomManagedPoliciesStackName:
-        default: Custom ManagedPolicies Stack Name
+        default: Custom Managed Policies Stack Name
       ManagedPoliciesStackName:
-        default: ManagedPolicies Stack Name
+        default: Managed Policies Stack Name
       SamlProviderName:
         default: SAML Provider Name
       StackSetAdministratorAccount:

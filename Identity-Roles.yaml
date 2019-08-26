@@ -18,7 +18,7 @@ Metadata:
           - StackSetAdministratorAccount
     ParameterLabels:
       ManagedPoliciesStackName:
-        default: ManagedPolicies Stack Name
+        default: Managed Policies Stack Name
       SamlProviderName:
         default: SAML Provider Name
       StackSetAdministratorAccount:
@@ -128,6 +128,25 @@ Resources:
                 SAML:aud: https://signin.aws.amazon.com/saml
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/job-function/DatabaseAdministrator
+    Condition: ConfigureSamlRoles
+  SecurityAdministratorsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SecurityAdministrators
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/${SamlProviderName}
+            Action:
+              - sts:AssumeRoleWithSAML
+            Condition:
+              StringEquals:
+                SAML:aud: https://signin.aws.amazon.com/saml
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/SecurityAudit
     Condition: ConfigureSamlRoles
   DevelopersRole:
     Type: AWS::IAM::Role
@@ -240,6 +259,12 @@ Outputs:
     Value: !Ref DatabaseAdministratorsRole
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseAdministratorsRole
+    Condition: ConfigureSamlRoles
+  SecurityAdministratorsRole:
+    Description: The SecurityAdministratorsRole Name
+    Value: !Ref SecurityAdministratorsRole
+    Export:
+      Name: !Sub ${AWS::StackName}-SecurityAdministratorsRole
     Condition: ConfigureSamlRoles
   DevelopersRole:
     Description: The DevelopersRole Name

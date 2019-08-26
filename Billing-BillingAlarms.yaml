@@ -8,7 +8,7 @@ Metadata:
           default: Stack Dependencies
         Parameters:
           - BillingTopicsStackName
-          - BaselineFunctionsStackName
+          - BaselineStackName
       - Label:
           default: Environment Configuration
         Parameters:
@@ -16,8 +16,8 @@ Metadata:
     ParameterLabels:
       BillingTopicsStackName:
         default: Billing Topics Stack Name
-      BaselineFunctionsStackName:
-        default: Baseline Functions Stack Name
+      BaselineStackName:
+        default: Baseline Stack Name
       EnvironmentType:
         default: Environment Type
 Parameters:
@@ -29,12 +29,12 @@ Parameters:
     Default: BillingTopics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  BaselineFunctionsStackName:
-    Description: Name of the CloudFormation Stack containing Baseline Functions
+  BaselineStackName:
+    Description: Name of the CloudFormation Stack containing Baseline Resources
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: BaselineFunctions
+    Default: Baseline
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   EnvironmentType:
@@ -177,7 +177,7 @@ Resources:
     Type: Custom::BilingAlarmThresholdCalculator
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-BillingAlarmThresholdCalculatorFunctionArn
+        Fn::Sub: ${BaselineStackName}-BillingAlarmThresholdCalculatorFunctionArn
       LowAmount: !FindInMap [ ThresholdMap, Low, !Ref EnvironmentType ]
       NormalAmount: !FindInMap [ ThresholdMap, Normal, !Ref EnvironmentType ]
       HighAmount: !FindInMap [ ThresholdMap, High, !Ref EnvironmentType ]
