@@ -12,20 +12,26 @@ Metadata:
           default: Subscription Configuration
         Parameters:
           - EventsTopicEmailEndpoint
-          - EventsSMSTopicSMSEndpoint
+          - UrgentEventsTopicEmailEndpoint
+          - UrgentEventsTopicPhoneEndpoint
           - AlarmsTopicEmailEndpoint
-          - AlarmsSMSTopicSMSEndpoint
+          - UrgentAlarmsTopicEmailEndpoint
+          - UrgentAlarmsTopicPhoneEndpoint
     ParameterLabels:
       TopicsStackName:
         default: Topics Stack Name
       EventsTopicEmailEndpoint:
         default: Events Topic Email Endpoint
-      EventsSMSTopicSMSEndpoint:
-        default: EventsSMS Topic SMS Endpoint
+      UrgentEventsTopicEmailEndpoint:
+        default: UrgentEvents Topic Email Endpoint
+      UrgentEventsTopicPhoneEndpoint:
+        default: UrgentEvents Topic Phone Endpoint
       AlarmsTopicEmailEndpoint:
         default: Alarms Topic Email Endpoint
-      AlarmsSMSTopicSMSEndpoint:
-        default: AlarmsSMS Topic SMS Endpoint
+      UrgentAlarmsTopicEmailEndpoint:
+        default: UrgentAlarms Topic Email Endpoint
+      UrgentAlarmsTopicPhoneEndpoint:
+        default: UrgentAlarms Topic Phone Endpoint
 Parameters:
   TopicsStackName:
     Description: Name of the CloudFormation Stack containing Topics
@@ -41,11 +47,16 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
     ConstraintDescription: must be a valid email address.
-  EventsSMSTopicSMSEndpoint:
-    Description: SMS Endpoint for EventsSMS Topics. If blank, no standard subscription will be created
+  UrgentEventsTopicEmailEndpoint:
+    Description: Email Endpoint for UrgentEvents Topic. If blank, no standard subscription will be created
     Type: String
     Default: ''
-    #AllowedPattern: (^$|^(\+\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$)
+    AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address.
+  UrgentEventsTopicPhoneEndpoint:
+    Description: Phone Endpoint for UrgentEvents Topics. If blank, no standard subscription will be created
+    Type: String
+    Default: ''
     AllowedPattern: (^$|^\+\d{11,12}$)
     ConstraintDescription: must be a valid phone number.
   AlarmsTopicEmailEndpoint:
@@ -54,11 +65,16 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
     ConstraintDescription: must be a valid email address.
-  AlarmsSMSTopicSMSEndpoint:
-    Description: SMS Endpoint for AlarmsSMS Topics. If blank, no standard subscription will be created
+  UrgentAlarmsTopicEmailEndpoint:
+    Description: Email Endpoint for UrgentAlarms Topic. If blank, no standard subscription will be created
     Type: String
     Default: ''
-    #AllowedPattern: (^$|^(\+\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$)
+    AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address.
+  UrgentAlarmsTopicPhoneEndpoint:
+    Description: Phone Endpoint for UrgentAlarms Topics. If blank, no standard subscription will be created
+    Type: String
+    Default: ''
     AllowedPattern: (^$|^\+\d{11,12}$)
     ConstraintDescription: must be a valid phone number.
 Conditions:
@@ -68,10 +84,12 @@ Conditions:
                 !Equals [ !Ref 'AWS::Region', ap-northeast-1 ],
                 !Equals [ !Ref 'AWS::Region', ap-southeast-1 ],
                 !Equals [ !Ref 'AWS::Region', ap-southeast-2 ]]
-  ConfigureEventsTopicSubscription: !Not [ !Equals [ !Ref EventsTopicEmailEndpoint, '' ]]
-  ConfigureEventsSMSTopicSubscription: !Not [ !Equals [ !Ref EventsSMSTopicSMSEndpoint, '' ]]
-  ConfigureAlarmsTopicSubscription: !Not [ !Equals [ !Ref AlarmsTopicEmailEndpoint, '' ]]
-  ConfigureAlarmsSMSTopicSubscription: !Not [ !Equals [ !Ref AlarmsSMSTopicSMSEndpoint, '' ]]
+  ConfigureEventsTopicEmailSubscription: !Not [ !Equals [ !Ref EventsTopicEmailEndpoint, '' ]]
+  ConfigureUrgentEventsTopicEmailSubscription: !Not [ !Equals [ !Ref UrgentEventsTopicEmailEndpoint, '' ]]
+  ConfigureUrgentEventsTopicPhoneSubscription: !And [ !Condition UseSMS, !Not [ !Equals [ !Ref UrgentEventsTopicPhoneEndpoint, '' ]]]
+  ConfigureAlarmsTopicEmailSubscription: !Not [ !Equals [ !Ref AlarmsTopicEmailEndpoint, '' ]]
+  ConfigureUrgentAlarmsTopicEmailSubscription: !Not [ !Equals [ !Ref UrgentAlarmsTopicEmailEndpoint, '' ]]
+  ConfigureUrgentAlarmsTopicPhoneSubscription: !And [ !Condition UseSMS, !Not [ !Equals [ !Ref UrgentAlarmsTopicPhoneEndpoint, '' ]]]
 Resources:
   EventsTopicEmailSubscription:
     Type: AWS::SNS::Subscription
@@ -80,15 +98,23 @@ Resources:
         Fn::Sub: ${TopicsStackName}-EventsTopic
       Protocol: email
       Endpoint: !Ref EventsTopicEmailEndpoint
-    Condition: ConfigureEventsTopicSubscription
-  EventsSMSTopicSMSSubscription:
+    Condition: ConfigureEventsTopicEmailSubscription
+  UrgentEventsTopicEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !ImportValue
-        Fn::Sub: ${TopicsStackName}-EventsSMSTopic
-      Protocol: !If [ UseSMS, sms, email ]
-      Endpoint: !If [ UseSMS, !Ref EventsSMSTopicSMSEndpoint, !Ref EventsTopicEmailEndpoint ]
-    Condition: ConfigureEventsSMSTopicSubscription
+        Fn::Sub: ${TopicsStackName}-UrgentEventsTopic
+      Protocol: email
+      Endpoint: !Ref UrgentEventsTopicEmailEndpoint
+    Condition: ConfigureUrgentEventsTopicEmailSubscription
+  UrgentEventsTopicPhoneSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${TopicsStackName}-UrgentEventsTopic
+      Protocol: sms
+      Endpoint: !Ref UrgentEventsTopicPhoneEndpoint
+    Condition: ConfigureUrgentEventsTopicPhoneSubscription
   AlarmsTopicEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -96,12 +122,20 @@ Resources:
         Fn::Sub: ${TopicsStackName}-AlarmsTopic
       Protocol: email
       Endpoint: !Ref AlarmsTopicEmailEndpoint
-    Condition: ConfigureAlarmsTopicSubscription
-  AlarmsSMSTopicSMSSubscription:
+    Condition: ConfigureAlarmsTopicEmailSubscription
+  UrgentAlarmsTopicEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !ImportValue
-        Fn::Sub: ${TopicsStackName}-AlarmsSMSTopic
-      Protocol: !If [ UseSMS, sms, email ]
-      Endpoint: !If [ UseSMS, !Ref AlarmsSMSTopicSMSEndpoint, !Ref AlarmsTopicEmailEndpoint ]
-    Condition: ConfigureAlarmsSMSTopicSubscription
+        Fn::Sub: ${TopicsStackName}-UrgentAlarmsTopic
+      Protocol: email
+      Endpoint: !Ref UrgentAlarmsTopicEmailEndpoint
+    Condition: ConfigureAlarmsTopicEmailSubscription
+  UrgentAlarmsTopicPhoneSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !ImportValue
+        Fn::Sub: ${TopicsStackName}-UrgentAlarmsTopic
+      Protocol: sms
+      Endpoint: !Ref UrgentAlarmsTopicPhoneEndpoint
+    Condition: ConfigureUrgentAlarmsTopicPhoneSubscription
