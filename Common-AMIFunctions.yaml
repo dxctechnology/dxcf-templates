@@ -7,6 +7,7 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
+          - LayersStackName
           - BucketsStackName
           - TopicsStackName
       - Label:
@@ -14,6 +15,8 @@ Metadata:
         Parameters:
           - LogRetention
     ParameterLabels:
+      LayersStackName:
+        default: Layers Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -21,6 +24,14 @@ Metadata:
       LogRetention:
         default: Log Retention
 Parameters:
+  LayersStackName:
+    Description: Name of the CloudFormation Stack containing Layers
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Layers
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
@@ -32,7 +43,7 @@ Parameters:
   TopicsStackName:
     Description: Name of the CloudFormation Stack containing Topics
     Type: String
-    MinLength: 8
+    MinLength: 2
     MaxLength: 64
     Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
@@ -89,78 +100,73 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
+          const response = require('cfn-response-promise');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ec2: '2016-11-15'
+          };
+
           const osNameToFilter = {
             'Amazon Linux 2'   : 'amzn2-ami-hvm-2.?.', // List default first
             'Amazon Linux 2.0' : 'amzn2-ami-hvm-2.0.'
           };
 
-          const response = require('cfn-response');
-
-          exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
-
-            let responseData = {};
-            let params = {};
-
-            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
-            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
-            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
-
-            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
-            amiNameFilter += osDate + '*-x86_64-gp2';
-            console.log('OS: ' + osName + '[' + osDate + ']');
-            console.log('Filter: ' + amiNameFilter);
-
-            const AWS = require('aws-sdk');
-            AWS.config.update({region: region});
-            AWS.config.apiVersions = {
-              ec2: '2016-11-15'
-            };
-
-            const ec2 = new AWS.EC2();
+          exports.handler = async (event, context) => {
+            console.info('Request body:\n' + JSON.stringify(event));
 
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
-                console.log('Calling: DescribeImages...');
-                params = {
-                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
-                  Owners: ['amazon']
-                };
-                ec2.describeImages(params, function(err, data) {
-                  if (err) {
-                    responseData = {Error: 'DescribeImages call failed'};
-                    console.error('Error: ' + responseData.Error + ':\n', err);
-                    response.send(event, context, response.FAILED, responseData);
+                try {
+                  const region = event.ResourceProperties.Region || process.env.AWS_REGION;
+                  const osName = event.ResourceProperties.OSName || Object.keys(osNameToFilter)[0];
+                  const osDate = event.ResourceProperties.OSDate || '????????';
+
+                  let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+                  amiNameFilter += osDate + '*-x86_64-gp2';
+                  console.info(`OS: ${osName}[${osDate}]`);
+                  console.info(`Filter: ${amiNameFilter}`);
+
+                  const ec2 = new AWS.EC2({region: region});
+
+                  console.info(`Calling: DescribeImages...`);
+                  const params = {
+                    Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                    Owners: ['amazon']
+                  };
+                  const data = await ec2.describeImages(params).promise();
+
+                  if (data.Images.length > 0) {
+                    const image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                    const responseData = {
+                      Name: image.Name,
+                      CreationDate: image.CreationDate
+                    };
+                    console.info(`Image: ${image.Name} (${image.ImageId})`);
+                    await response.send(event, context, response.SUCCESS, responseData, image.ImageId);
                   }
                   else {
-                    if (data.Images.length > 0) {
-                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
-                      responseData.Name = image.Name;
-                      responseData.CreationDate = image.CreationDate;
-                      console.log('Image: ' + image.Name + ' (' + image.ImageId + ')');
-                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
-                    }
-                    else {
-                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
-                      console.error('Error: ' + responseData.Error);
-                      response.send(event, context, response.FAILED, responseData);
-                    }
+                    const responseData = {Error: `Could not find Image(s) matching pattern ${amiNameFilter}`};
+                    console.error(`Error: ${responseData.Error}`);
+                    await response.send(event, context, response.FAILED, responseData);
                   }
-                });
+                }
+                catch (err) {
+                  const responseData = {Error: `DescribeImages call failed`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  await response.send(event, context, response.FAILED, responseData);
+                }
                 break;
 
               case 'Delete':
-                response.send(event, context, response.SUCCESS);
-                break;
-
-              default:
-                responseData = {Error: 'Unknown operation: ' + event.RequestType};
-                console.error('Error: ' + responseData.Error);
-                response.send(event, context, response.FAILED, responseData);
+                await response.send(event, context, response.SUCCESS);
             }
           };
   AmazonLinuxImageLogGroup:
@@ -176,9 +182,19 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
+          const response = require('cfn-response-promise');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ec2: '2016-11-15'
+          };
+
           const osNameToFilter = {
             'Amazon Linux'           : 'amzn-ami-hvm-????.??.?.', // List default first
             'Amazon Linux 2018.03.0' : 'amzn-ami-hvm-2018.03.0.',
@@ -188,71 +204,55 @@ Resources:
             'Amazon Linux 2017.03.0' : 'amzn-ami-hvm-2017.03.0.'
           };
 
-          const response = require('cfn-response');
-
-          exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
-
-            let responseData = {};
-            let params = {};
-
-            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
-            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
-            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
-
-            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
-            amiNameFilter += osDate + '-x86_64-gp2';
-            console.log('OS: ' + osName + '[' + osDate + ']');
-            console.log('Filter: ' + amiNameFilter);
-
-            const AWS = require('aws-sdk');
-            AWS.config.update({region: region});
-            AWS.config.apiVersions = {
-              ec2: '2016-11-15'
-            };
-
-            const ec2 = new AWS.EC2();
+          exports.handler = async (event, context) => {
+            console.info('Request body:\n' + JSON.stringify(event));
 
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
-                console.log('Calling: DescribeImages...');
-                params = {
-                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
-                  Owners: ['amazon']
-                };
+                try {
+                  const region = event.ResourceProperties.Region || process.env.AWS_REGION;
+                  const osName = event.ResourceProperties.OSName || Object.keys(osNameToFilter)[0];
+                  const osDate = event.ResourceProperties.OSDate || '????????';
 
-                ec2.describeImages(params, function(err, data) {
-                  if (err) {
-                    responseData = {Error: 'DescribeImages call failed'};
-                    console.error('Error: ' + responseData.Error + ':\n', err);
-                    response.send(event, context, response.FAILED, responseData);
+                  let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+                  amiNameFilter += osDate + '-x86_64-gp2';
+                  console.info(`OS: ${osName}[${osDate}]`);
+                  console.info(`Filter: ${amiNameFilter}`);
+
+                  const ec2 = new AWS.EC2({region: region});
+
+                  console.info(`Calling: DescribeImages...`);
+                  const params = {
+                    Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                    Owners: ['amazon']
+                  };
+                  const data = await ec2.describeImages(params).promise();
+
+                  if (data.Images.length > 0) {
+                    const image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                    const responseData = {
+                      Name: image.Name,
+                      CreationDate: image.CreationDate
+                    };
+                    console.info(`Image: ${image.Name} (${image.ImageId})`);
+                    await response.send(event, context, response.SUCCESS, responseData, image.ImageId);
                   }
                   else {
-                    if (data.Images.length > 0) {
-                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
-                      responseData.Name = image.Name;
-                      responseData.CreationDate = image.CreationDate;
-                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
-                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
-                    }
-                    else {
-                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
-                      console.error('Error: ' + responseData.Error);
-                      response.send(event, context, response.FAILED, responseData);
-                    }
+                    const responseData = {Error: `Could not find Image(s) matching pattern ${amiNameFilter}`};
+                    console.error(`Error: ${responseData.Error}`);
+                    await response.send(event, context, response.FAILED, responseData);
                   }
-                });
+                }
+                catch (err) {
+                  const responseData = {Error: `DescribeImages call failed`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  await response.send(event, context, response.FAILED, responseData);
+                }
                 break;
 
               case 'Delete':
-                response.send(event, context, response.SUCCESS);
-                break;
-
-              default:
-                responseData = {Error: 'Unknown operation: ' + event.RequestType};
-                console.error('Error: ' + responseData.Error);
-                response.send(event, context, response.FAILED, responseData);
+                await response.send(event, context, response.SUCCESS);
             }
           };
   WindowsImageLogGroup:
@@ -268,9 +268,19 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
+          const response = require('cfn-response-promise');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ec2: '2016-11-15'
+          };
+
           const osNameToFilter = {
             'Windows Server 2016'                                  : 'Windows_Server-2016-English-Full-Base-', // List default first
             'Windows Server 2016 with Containers'                  : 'Windows_Server-2016-English-Full-Containers-',
@@ -284,70 +294,55 @@ Resources:
             'Windows Server 2012 R2 with SQL Server 2016 Standard' : 'Windows_Server-2012-R2_RTM-English-64Bit-SQL_2016_SP1_Standard-'
           };
 
-          const response = require('cfn-response');
-
-          exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
-
-            let responseData = {};
-            let params = {};
-
-            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
-            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
-            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
-
-            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
-            amiNameFilter += osDate.substr(0,4) + '.' + osDate.substr(4,2) + '.' + osDate.substr(6,2);
-            console.log('OS: ' + osName + '[' + osDate + ']');
-            console.log('Filter: ' + amiNameFilter);
-
-            const AWS = require('aws-sdk');
-            AWS.config.update({region: region});
-            AWS.config.apiVersions = {
-              ec2: '2016-11-15'
-            };
-
-            const ec2 = new AWS.EC2();
+          exports.handler = async (event, context) => {
+            console.info('Request body:\n' + JSON.stringify(event));
 
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
-                console.log('Calling: DescribeImages...');
-                params = {
-                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
-                  Owners: ['amazon']
-                };
-                ec2.describeImages(params, function(err, data) {
-                  if (err) {
-                    responseData = {Error: 'DescribeImages call failed'};
-                    console.error('Error: ' + responseData.Error + ':\n', err);
-                    response.send(event, context, response.FAILED, responseData);
+                try {
+                  const region = event.ResourceProperties.Region || process.env.AWS_REGION;
+                  const osName = event.ResourceProperties.OSName || Object.keys(osNameToFilter)[0];
+                  const osDate = event.ResourceProperties.OSDate || '????????';
+
+                  let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+                  amiNameFilter += osDate.substr(0,4) + '.' + osDate.substr(4,2) + '.' + osDate.substr(6,2);
+                  console.info(`OS: ${osName}[${osDate}]`);
+                  console.info(`Filter: ${amiNameFilter}`);
+
+                  const ec2 = new AWS.EC2({region: region});
+
+                  console.info(`Calling: DescribeImages...`);
+                  const params = {
+                    Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                    Owners: ['amazon']
+                  };
+                  const data = await ec2.describeImages(params).promise();
+
+                  if (data.Images.length > 0) {
+                    const image = data.Images.sort((x, y) => y.CreationDate.localeCompare(x.CreationDate))[0];
+                    const responseData = {
+                      Name: image.Name,
+                      CreationDate: image.CreationDate
+                    };
+                    console.info(`Image: ${image.Name} (${image.ImageId})`);
+                    await response.send(event, context, response.SUCCESS, responseData, image.ImageId);
                   }
                   else {
-                    if (data.Images.length > 0) {
-                      let image = data.Images.sort((x, y) => y.CreationDate.localeCompare(x.CreationDate))[0];
-                      responseData.Name = image.Name;
-                      responseData.CreationDate = image.CreationDate;
-                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
-                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
-                    }
-                    else {
-                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
-                      console.error('Error: ' + responseData.Error);
-                      response.send(event, context, response.FAILED, responseData);
-                    }
+                    const responseData = {Error: `Could not find Image(s) matching pattern ${amiNameFilter}`};
+                    console.error(`Error: ${responseData.Error}`);
+                    await response.send(event, context, response.FAILED, responseData);
                   }
-                });
+                }
+                catch (err) {
+                  const responseData = {Error: `DescribeImages call failed`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  await response.send(event, context, response.FAILED, responseData);
+                }
                 break;
 
               case 'Delete':
-                response.send(event, context, response.SUCCESS);
-                break;
-
-              default:
-                responseData = {Error: 'Unknown operation: ' + event.RequestType};
-                console.error('Error: ' + responseData.Error);
-                response.send(event, context, response.FAILED, responseData);
+                await response.send(event, context, response.SUCCESS);
             }
           };
   RHELImageLogGroup:
@@ -363,9 +358,19 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
+          const response = require('cfn-response-promise');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ec2: '2016-11-15'
+          };
+
           const osNameToFilter = {
             'RHEL 7'    : 'RHEL-7.*_HVM_GA-', // List default first
             'RHEL 7.6'  : 'RHEL-7.6_HVM_GA-',
@@ -382,70 +387,55 @@ Resources:
             'RHEL 6.6'  : 'RHEL-6.6_HVM_GA-'
           };
 
-          const response = require('cfn-response');
-
-          exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
-
-            let responseData = {};
-            let params = {};
-
-            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
-            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
-            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
-
-            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
-            amiNameFilter += osDate + '-x86_64-?-Hourly2-GP2';
-            console.log('OS: ' + osName + '[' + osDate + ']');
-            console.log('Filter: ' + amiNameFilter);
-
-            const AWS = require('aws-sdk');
-            AWS.config.update({region: region});
-            AWS.config.apiVersions = {
-              ec2: '2016-11-15'
-            };
-
-            const ec2 = new AWS.EC2();
+          exports.handler = async (event, context) => {
+            console.info('Request body:\n' + JSON.stringify(event));
 
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
-                console.log('Calling: DescribeImages...');
-                 params = {
-                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
-                  Owners: ['309956199498']
-                };
-                ec2.describeImages(params, function(err, data) {
-                  if (err) {
-                    responseData = {Error: 'DescribeImages call failed'};
-                    console.error('Error: ' + responseData.Error + ':\n', err);
-                    response.send(event, context, response.FAILED, responseData);
+                try {
+                  const region = event.ResourceProperties.Region || process.env.AWS_REGION;
+                  const osName = event.ResourceProperties.OSName || Object.keys(osNameToFilter)[0];
+                  const osDate = event.ResourceProperties.OSDate || '????????';
+
+                  let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+                  amiNameFilter += osDate + '-x86_64-?-Hourly2-GP2';
+                  console.info(`OS: ${osName}[${osDate}]`);
+                  console.info(`Filter: ${amiNameFilter}`);
+
+                  const ec2 = new AWS.EC2({region: region});
+
+                  console.info(`Calling: DescribeImages...`);
+                  const params = {
+                    Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                    Owners: ['309956199498']
+                  };
+                  const data = await ec2.describeImages(params).promise();
+
+                  if (data.Images.length > 0) {
+                    const image = data.Images.sort((x, y) => y.CreationDate.localeCompare(x.CreationDate))[0];
+                    const responseData = {
+                      Name: image.Name,
+                      CreationDate: image.CreationDate
+                    };
+                    console.info(`Image: ${image.Name} (${image.ImageId})`);
+                    await response.send(event, context, response.SUCCESS, responseData, image.ImageId);
                   }
                   else {
-                    if (data.Images.length > 0) {
-                      let image = data.Images.sort((x, y) => y.CreationDate.localeCompare(x.CreationDate))[0];
-                      responseData.Name = image.Name;
-                      responseData.CreationDate = image.CreationDate;
-                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
-                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
-                    }
-                    else {
-                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
-                      console.error('Error: ' + responseData.Error);
-                      response.send(event, context, response.FAILED, responseData);
-                    }
+                    const responseData = {Error: `Could not find Image(s) matching pattern ${amiNameFilter}`};
+                    console.error(`Error: ${responseData.Error}`);
+                    await response.send(event, context, response.FAILED, responseData);
                   }
-                });
+                }
+                catch (err) {
+                  const responseData = {Error: `DescribeImages call failed`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  await response.send(event, context, response.FAILED, responseData);
+                }
                 break;
 
               case 'Delete':
-                response.send(event, context, response.SUCCESS);
-                break;
-
-              default:
-                responseData = {Error: 'Unknown operation: ' + event.RequestType};
-                console.error('Error: ' + responseData.Error);
-                response.send(event, context, response.FAILED, responseData);
+                await response.send(event, context, response.SUCCESS);
             }
           };
   UbuntuImageLogGroup:
@@ -461,9 +451,19 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
+          const response = require('cfn-response-promise');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ec2: '2016-11-15'
+          };
+
           const osNameToFilter = {
             'Ubuntu Server 18.04 LTS' : 'ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-', // List default first
             'Ubuntu Server 16.04 LTS' : 'ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-',
@@ -471,70 +471,55 @@ Resources:
             'Ubuntu Server 12.04 LTS' : 'ubuntu/images/hvm-ssd/ubuntu-precise-12.04-amd64-server-'
           };
 
-          const response = require('cfn-response');
-
-          exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
-
-            let responseData = {};
-            let params = {};
-
-            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
-            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
-            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
-
-            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
-            amiNameFilter += osDate + '*';
-            console.log('OS: ' + osName + '[' + osDate + ']');
-            console.log('Filter: ' + amiNameFilter);
-
-            const AWS = require('aws-sdk');
-            AWS.config.update({region: region});
-            AWS.config.apiVersions = {
-              ec2: '2016-11-15'
-            };
-
-            const ec2 = new AWS.EC2();
+          exports.handler = async (event, context) => {
+            console.info('Request body:\n' + JSON.stringify(event));
 
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
-                console.log('Calling: DescribeImages...');
-                params = {
-                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
-                  Owners: ['099720109477']
-                };
-                ec2.describeImages(params, function(err, data) {
-                  if (err) {
-                    responseData = {Error: 'DescribeImages call failed'};
-                    console.error('Error: ' + responseData.Error + ':\n', err);
-                    response.send(event, context, response.FAILED, responseData);
+                try {
+                  const region = event.ResourceProperties.Region || process.env.AWS_REGION;
+                  const osName = event.ResourceProperties.OSName || Object.keys(osNameToFilter)[0];
+                  const osDate = event.ResourceProperties.OSDate || '????????';
+
+                  let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+                  amiNameFilter += osDate + '*';
+                  console.info(`OS: ${osName}[${osDate}]`);
+                  console.info(`Filter: ${amiNameFilter}`);
+
+                  const ec2 = new AWS.EC2({region: region});
+
+                  console.info(`Calling: DescribeImages...`);
+                  const params = {
+                    Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                    Owners: ['099720109477']
+                  };
+                  const data = await ec2.describeImages(params).promise();
+
+                  if (data.Images.length > 0) {
+                    const image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                    const responseData = {
+                      Name: image.Name,
+                      CreationDate: image.CreationDate
+                    };
+                    console.info(`Image: ${image.Name} (${image.ImageId})`);
+                    await response.send(event, context, response.SUCCESS, responseData, image.ImageId);
                   }
                   else {
-                    if (data.Images.length > 0) {
-                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
-                      responseData.Name = image.Name;
-                      responseData.CreationDate = image.CreationDate;
-                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
-                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
-                    }
-                    else {
-                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
-                      console.error('Error: ' + responseData.Error);
-                      response.send(event, context, response.FAILED, responseData);
-                    }
+                    const responseData = {Error: `Could not find Image(s) matching pattern ${amiNameFilter}`};
+                    console.error(`Error: ${responseData.Error}`);
+                    await response.send(event, context, response.FAILED, responseData);
                   }
-                });
+                }
+                catch (err) {
+                  const responseData = {Error: `DescribeImages call failed`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  await response.send(event, context, response.FAILED, responseData);
+                }
                 break;
 
               case 'Delete':
-                response.send(event, context, response.SUCCESS);
-                break;
-
-              default:
-                responseData = {Error: 'Unknown operation: ' + event.RequestType};
-                console.error('Error: ' + responseData.Error);
-                response.send(event, context, response.FAILED, responseData);
+                await response.send(event, context, response.SUCCESS);
             }
           };
   AmazonNATImageLogGroup:
@@ -550,9 +535,19 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
+          const response = require('cfn-response-promise');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ec2: '2016-11-15'
+          };
+
           const osNameToFilter = {
             'Amazon NAT'           : 'amzn-ami-vpc-nat-hvm-????.??.?.', // List default first
             'Amazon NAT 2018.03.0' : 'amzn-ami-vpc-nat-hvm-2018.03.0.',
@@ -562,70 +557,55 @@ Resources:
             'Amazon NAT 2017.03.0' : 'amzn-ami-vpc-nat-hvm-2017.03.0.'
           };
 
-          const response = require('cfn-response');
-
-          exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
-
-            let responseData = {};
-            let params = {};
-
-            let region = (event.ResourceProperties.Region) ? event.ResourceProperties.Region : process.env.AWS_REGION;
-            let osName = (event.ResourceProperties.OSName) ? event.ResourceProperties.OSName : Object.keys(osNameToFilter)[0];
-            let osDate = (event.ResourceProperties.OSDate) ? event.ResourceProperties.OSDate : '????????';
-
-            let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
-            amiNameFilter += osDate + '-x86_64-ebs';
-            console.log('OS: ' + osName + '[' + osDate + ']');
-            console.log('Filter: ' + amiNameFilter);
-
-            const AWS = require('aws-sdk');
-            AWS.config.update({region: region});
-            AWS.config.apiVersions = {
-              ec2: '2016-11-15'
-            };
-
-            const ec2 = new AWS.EC2();
+          exports.handler = async (event, context) => {
+            console.info('Request body:\n' + JSON.stringify(event));
 
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
-                console.log('Calling: DescribeImages...');
-                params = {
-                  Filters: [{ Name: 'name', Values: [amiNameFilter]}],
-                  Owners: ['amazon']
-                };
-                ec2.describeImages(params, function(err, data) {
-                  if (err) {
-                    responseData = {Error: 'DescribeImages call failed'};
-                    console.error('Error: ' + responseData.Error + ':\n', err);
-                    response.send(event, context, response.FAILED, responseData);
+                try {
+                  const region = event.ResourceProperties.Region || process.env.AWS_REGION;
+                  const osName = event.ResourceProperties.OSName || Object.keys(osNameToFilter)[0];
+                  const osDate = event.ResourceProperties.OSDate || '????????';
+
+                  let amiNameFilter = (! osNameToFilter[osName]) ? osNameToFilter[Object.keys(osNameToFilter)[0]] : osNameToFilter[osName];
+                  amiNameFilter += osDate + '-x86_64-ebs';
+                  console.info(`OS: ${osName}[${osDate}]`);
+                  console.info(`Filter: ${amiNameFilter}`);
+
+                  const ec2 = new AWS.EC2({region: region});
+
+                  console.info(`Calling: DescribeImages...`);
+                  const params = {
+                    Filters: [{ Name: 'name', Values: [amiNameFilter]}],
+                    Owners: ['amazon']
+                  };
+                  const data = await ec2.describeImages(params).promise();
+
+                  if (data.Images.length > 0) {
+                    const image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
+                    const responseData ={
+                      Name: image.Name,
+                      CreationDate: image.CreationDate
+                    };
+                    console.info(`Image: ${image.Name} (${image.ImageId})`);
+                    await response.send(event, context, response.SUCCESS, responseData, image.ImageId);
                   }
                   else {
-                    if (data.Images.length > 0) {
-                      let image = data.Images.sort((x, y) => y.Name.localeCompare(x.Name))[0];
-                      responseData.Name = image.Name;
-                      responseData.CreationDate = image.CreationDate;
-                      console.log('Image: '+ image.Name + ' (' + image.ImageId + ')');
-                      response.send(event, context, response.SUCCESS, responseData, image.ImageId);
-                    }
-                    else {
-                      responseData = {Error: 'Could not find Image(s) matching pattern ' + amiNameFilter};
-                      console.error('Error: ' + responseData.Error);
-                      response.send(event, context, response.FAILED, responseData);
-                    }
+                    const responseData = {Error: `Could not find Image(s) matching pattern ${amiNameFilter}`};
+                    console.error(`Error: ${responseData.Error}`);
+                    await response.send(event, context, response.FAILED, responseData);
                   }
-                });
+                }
+                catch (err) {
+                  const responseData = {Error: `DescribeImages call failed`};
+                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  await response.send(event, context, response.FAILED, responseData);
+                }
                 break;
 
               case 'Delete':
-                response.send(event, context, response.SUCCESS);
-                break;
-
-              default:
-                responseData = {Error: 'Unknown operation: ' + event.RequestType};
-                console.error('Error: ' + responseData.Error);
-                response.send(event, context, response.FAILED, responseData);
+                await response.send(event, context, response.SUCCESS);
             }
           };
 Outputs:
