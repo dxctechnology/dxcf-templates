@@ -133,9 +133,10 @@ Parameters:
       - Recovery
       - Log
       - Identity
+      - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment
     Type: String
@@ -151,8 +152,9 @@ Parameters:
       - Recovery
       - Log
       - Identity
+      - Management
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
   ApplicationName:
     Description: Name of the Application
     Type: String
