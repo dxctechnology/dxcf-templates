@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Common-UserTopics Template.
-  This creates User SNS Topics.These Topics are used for User Notifications, not directly related to System Operation.
+Description: Common-GroupTopics Template.
+  This creates Group SNS Topics.These Topics are used for Group Notifications, not directly related to System Operation.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:

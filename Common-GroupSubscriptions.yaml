@@ -1,13 +1,13 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Common-UserSubscriptions Template.
-  This creates Standard Subscriptions to User SNS Topics.
+Description: Common-GroupSubscriptions Template.
+  This creates Standard Subscriptions to Group SNS Topics.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
           default: Stack Dependencies
         Parameters:
-          - UserTopicsStackName
+          - GroupTopicsStackName
       - Label:
           default: Subscription Configuration
         Parameters:
@@ -16,8 +16,8 @@ Metadata:
           - DevelopersTopicEmailEndpoint
           - UsersTopicEmailEndpoint
     ParameterLabels:
-      UserTopicsStackName:
-        default: User Topics Stack Name
+      GroupTopicsStackName:
+        default: Group Topics Stack Name
       AdministratorsTopicEmailEndpoint:
         default: Administrators Topic Email Endpoint
       ManagersTopicEmailEndpoint:
@@ -27,12 +27,12 @@ Metadata:
       UsersTopicEmailEndpoint:
         default: Users Topic Email Endpoint
 Parameters:
-  UserTopicsStackName:
-    Description: Name of the CloudFormation Stack containing User Topics
+  GroupTopicsStackName:
+    Description: Name of the CloudFormation Stack containing Group Topics
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: UserTopics
+    Default: GroupTopics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   AdministratorsTopicEmailEndpoint:
