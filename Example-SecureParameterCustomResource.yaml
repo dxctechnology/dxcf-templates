@@ -7,26 +7,26 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
-          - BaselineFunctionsStackName
+          - BaselineStackName
       - Label:
           default: Parameter Configuration
         Parameters:
           - OperatorPassword
           - AuditorPassword
     ParameterLabels:
-      BaselineFunctionsStackName:
-        default: BaselineFunctions Stack Name
+      BaselineStackName:
+        default: Baseline Stack Name
       OperatorPassword:
         default: Operator Password
       AuditorPassword:
         default: Auditor Password
 Parameters:
-  BaselineFunctionsStackName:
-    Description: Name of the CloudFormation Stack containing the Baseline Functions
+  BaselineStackName:
+    Description: Name of the CloudFormation Stack containing the Baseline Resources
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: BaselineFunctions
+    Default: Baseline
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   OperatorPassword:
@@ -58,14 +58,14 @@ Resources:
     Type: Custom::RandomPassword
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-RandomPasswordFunctionArn
+        Fn::Sub: ${BaselineStackName}-RandomPasswordFunctionArn
       ExcludePunctuation: true
     Condition: GenerateOperatorPassword
   OperatorPasswordSecureParameter:
     Type: Custom::SecureParameter
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-SecureParameterFunctionArn
+        Fn::Sub: ${BaselineStackName}-SecureParameterFunctionArn
       Name: OperatorPassword
       Value: !If [ GenerateOperatorPassword, !GetAtt OperatorRandomPassword.Password, !Ref OperatorPassword ]
       AllowedPattern: ^[a-zA-Z0-9]{16,64}$
@@ -87,7 +87,7 @@ Resources:
     Type: Custom::RandomPassword
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-RandomPasswordFunctionArn
+        Fn::Sub: ${BaselineStackName}-RandomPasswordFunctionArn
       ExcludePunctuation: true
     Condition: GenerateAuditorPassword
   AuditorPasswordSecret:

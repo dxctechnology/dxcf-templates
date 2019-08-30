@@ -9,7 +9,7 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
-          - BaselineFunctionsStackName
+          - BaselineStackName
       - Label:
           default: Topic Configuration
         Parameters:
@@ -26,8 +26,8 @@ Metadata:
           - MessageSubject
           - MessageBody
     ParameterLabels:
-      BaselineFunctionsStackName:
-        default: BaselineFunctions Stack Name
+      BaselineStackName:
+        default: Baseline Stack Name
       TopicPrefix:
         default: Topic Prefix
       MessagesTopicEmailEndpoint:
@@ -41,12 +41,12 @@ Metadata:
       MessageBody:
         default: Message Body
 Parameters:
-  BaselineFunctionsStackName:
-    Description: Name of the CloudFormation Stack containing the Baseline Functions
+  BaselineStackName:
+    Description: Name of the CloudFormation Stack containing the Baseline Resources
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: BaselineFunctions
+    Default: Baseline
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   TopicPrefix:
@@ -137,14 +137,14 @@ Resources:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !Ref MessagesTopic
       Message: !Ref MessageBody
   LongMessage:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !Ref MessagesTopic
       Subject: !Ref MessageSubject
       Message: !Ref MessageBody
@@ -152,14 +152,14 @@ Resources:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !Ref UrgentMessagesTopic
       Message: !Ref MessageBody
   LongUrgentMessage:
     Type: Custom::Message
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${BaselineFunctionsStackName}-MessageFunctionArn
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
       TopicArn: !Ref UrgentMessagesTopic
       Subject: !Ref MessageSubject
       Message: !Ref MessageBody
