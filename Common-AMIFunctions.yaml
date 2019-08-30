@@ -373,6 +373,7 @@ Resources:
 
           const osNameToFilter = {
             'RHEL 7'    : 'RHEL-7.*_HVM_GA-', // List default first
+            'RHEL 7.7'  : 'RHEL-7.7_HVM_GA-',
             'RHEL 7.6'  : 'RHEL-7.6_HVM_GA-',
             'RHEL 7.5'  : 'RHEL-7.5_HVM_GA-',
             'RHEL 7.4'  : 'RHEL-7.4_HVM_GA-',

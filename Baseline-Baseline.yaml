@@ -604,26 +604,26 @@ Resources:
           exports.handler = (event, context) => {
             console.info(`Request Body:\n${JSON.stringify(event)}`);
 
-            const topicArn = event.ResourceProperties.TopicArn;
-            if (! topicArn) {
-              const responseData = {Error: `TopicArn missing`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            const message = event.ResourceProperties.Message;
-            if (! message) {
-              const responseData = {Error: `Message missing`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
             let params = {};
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
+                const topicArn = event.ResourceProperties.TopicArn;
+                if (! topicArn) {
+                  const responseData = {Error: `TopicArn missing`};
+                  console.error(`Error: ${responseData.Error}`);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                const message = event.ResourceProperties.Message;
+                if (! message) {
+                  const responseData = {Error: `Message missing`};
+                  console.error(`Error: ${responseData.Error}`);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
                 console.info(`Calling: Publish...`);
                 params = {
                   TopicArn: topicArn,
@@ -645,12 +645,6 @@ Resources:
 
               case 'Delete':
                 response.send(event, context, response.SUCCESS);
-                break;
-
-              default:
-                const responseData = {Error: `Unknown operation: ${event.RequestType}`};
-                console.error(`Error: ${responseData.Error}`);
-                response.send(event, context, response.FAILED, responseData);
             }
           };
   KeyPairRole:
