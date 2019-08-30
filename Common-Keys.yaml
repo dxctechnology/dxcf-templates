@@ -159,7 +159,7 @@ Parameters:
   UseEBSKey:
     Description: Create a Key for use by EBS
     Type: String
-    Default: false
+    Default: true
     AllowedValues:
       - true
       - false
@@ -207,7 +207,7 @@ Parameters:
   UseS3Key:
     Description: Create a Key for use by S3
     Type: String
-    Default: false
+    Default: true
     AllowedValues:
       - true
       - false
