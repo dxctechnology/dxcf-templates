@@ -7,6 +7,7 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
+          - LayersStackName
           - BucketsStackName
           - TopicsStackName
       - Label:
@@ -31,6 +32,8 @@ Metadata:
           - CrossAccountHostedZoneDelegationFunctionObjectVersion
           - CrossAccountHostedZoneDelegationLogRetention
     ParameterLabels:
+      LayersStackName:
+        default: Layers Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -72,6 +75,14 @@ Metadata:
       CrossAccountHostedZoneDelegationLogRetention:
         default: CrossAccountHostedZoneDelegation Log Retention
 Parameters:
+  LayersStackName:
+    Description: Name of the CloudFormation Stack containing Layers
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Layers
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
@@ -83,7 +94,7 @@ Parameters:
   TopicsStackName:
     Description: Name of the CloudFormation Stack containing Topics
     Type: String
-    MinLength: 8
+    MinLength: 2
     MaxLength: 64
     Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
@@ -302,6 +313,9 @@ Resources:
       Role: !GetAtt CrossAccountQueryRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: CrossAccountStackExport.handler
       Code:
         S3Bucket: !ImportValue
@@ -321,6 +335,9 @@ Resources:
       Role: !GetAtt CrossAccountQueryRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: CrossAccountStackExports.handler
       Code:
         S3Bucket: !ImportValue
@@ -340,6 +357,9 @@ Resources:
       Role: !GetAtt CrossAccountQueryRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: CrossAccountSecurityGroup.handler
       Code:
         S3Bucket: !ImportValue
@@ -359,6 +379,9 @@ Resources:
       Role: !GetAtt CrossAccountQueryRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: CrossAccountVpcFunction.handler
       Code:
         S3Bucket: !ImportValue
@@ -403,6 +426,9 @@ Resources:
       Role: !GetAtt CrossAccountDomainManagementRole.Arn
       Runtime: nodejs8.10
       Timeout: 120
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: CrossAccountDomainNameServers.handler
       Code:
         S3Bucket: !ImportValue
@@ -447,6 +473,9 @@ Resources:
       Role: !GetAtt CrossAccountHostedZoneManagementRole.Arn
       Runtime: nodejs8.10
       Timeout: 120
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: CrossAccountHostedZoneDelegation.handler
       Code:
         S3Bucket: !ImportValue

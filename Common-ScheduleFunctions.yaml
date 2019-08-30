@@ -9,6 +9,7 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
+          - LayersStackName
           - BucketsStackName
           - TopicsStackName
       - Label:
@@ -16,12 +17,53 @@ Metadata:
         Parameters:
           - SchedulerLogRetention
     ParameterLabels:
+      LayersStackName:
+        default: Layers Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
         default: Topics Stack Name
       SchedulerLogRetention:
         default: Scheduler Log Retention
+Parameters:
+  LayersStackName:
+    Description: Name of the CloudFormation Stack containing Layers
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Layers
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  BucketsStackName:
+    Description: Name of the CloudFormation Stack containing Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Topics
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Topics
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  SchedulerLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the Scheduler Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
 Resources:
   SchedulerRole:
     Type: AWS::IAM::Role

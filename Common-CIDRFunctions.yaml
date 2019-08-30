@@ -7,6 +7,7 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
+          - LayersStackName
           - BucketsStackName
           - TopicsStackName
       - Label:
@@ -14,6 +15,8 @@ Metadata:
         Parameters:
           - LogRetention
     ParameterLabels:
+      LayersStackName:
+        default: Layers Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -21,6 +24,14 @@ Metadata:
       LogRetention:
         default: Log Retention
 Parameters:
+  LayersStackName:
+    Description: Name of the CloudFormation Stack containing Layers
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Layers
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
@@ -32,7 +43,7 @@ Parameters:
   TopicsStackName:
     Description: Name of the CloudFormation Stack containing Topics
     Type: String
-    MinLength: 8
+    MinLength: 2
     MaxLength: 64
     Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
@@ -89,6 +100,9 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
@@ -111,7 +125,7 @@ Resources:
           const response = require('cfn-response');
 
           exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
+            console.info('Request body:\n' + JSON.stringify(event));
 
             let responseData = {};
             let params = {};
@@ -202,13 +216,16 @@ Resources:
       Role: !GetAtt Role.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: index.handler
       Code:
         ZipFile: |
           const response = require('cfn-response');
 
           exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
+            console.info('Request body:\n' + JSON.stringify(event));
 
             let responseData = {};
             let params = {};
@@ -233,7 +250,7 @@ Resources:
 
                 const ec2 = new AWS.EC2();
 
-                console.log('Calling: DescribeSubnets...');
+                console.info('Calling: DescribeSubnets...');
                 params = {
                   Filters: [{ Name: 'subnet-id', Values: [subnetId]}]
                 };
@@ -246,13 +263,13 @@ Resources:
                   else {
                     if (data.Subnets.length > 0) {
                       let subnetCidrBlock = data.Subnets[0].CidrBlock;
-                      console.log('Subnet: ' + subnetId + ' = ' + subnetCidrBlock);
+                      console.info('Subnet: ' + subnetId + ' = ' + subnetCidrBlock);
                       let subnetAddress = subnetCidrBlock.split('/')[0];
                       let subnetNetmask = subnetCidrBlock.split('/')[1];
                       let subnetOctets = subnetAddress.split('.');
                       let subnetDecimal = ((((((+subnetOctets[0]) * 256) + (+subnetOctets[1])) * 256) + (+subnetOctets[2])) * 256) + (+subnetOctets[3]);
 
-                      console.log('Calculating: Addresses...');
+                      console.info('Calculating: Addresses...');
                       for (var offset = 4; offset < Math.pow(2, 32 - subnetNetmask) - 1; offset++) {
                         let addressDecimal = subnetDecimal + offset;
                         responseData['Address' + offset]

@@ -7,6 +7,7 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
+          - LayersStackName
           - BucketsStackName
           - TopicsStackName
       - Label:
@@ -19,6 +20,8 @@ Metadata:
           - HostedZoneDelegationFunctionObjectVersion
           - HostedZoneDelegationLogRetention
     ParameterLabels:
+      LayersStackName:
+        default: Layers Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -36,6 +39,14 @@ Metadata:
       HostedZoneDelegationLogRetention:
         default: HostedZoneDelegation Log Retention
 Parameters:
+  LayersStackName:
+    Description: Name of the CloudFormation Stack containing Layers
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Layers
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
@@ -47,7 +58,7 @@ Parameters:
   TopicsStackName:
     Description: Name of the CloudFormation Stack containing Topics
     Type: String
-    MinLength: 8
+    MinLength: 2
     MaxLength: 64
     Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
@@ -156,6 +167,9 @@ Resources:
       Role: !GetAtt DomainNameServersRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: DomainNameServers.handler
       Code:
         S3Bucket: !ImportValue
@@ -208,6 +222,9 @@ Resources:
       Role: !GetAtt HostedZoneDelegationRole.Arn
       Runtime: nodejs8.10
       Timeout: 120 # Confirmation can take 30 to 60 seconds
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: HostedZoneDelegation.handler
       Code:
         S3Bucket: !ImportValue
