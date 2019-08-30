@@ -7,8 +7,9 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
-          - StandardBucketsStackName
-          - StandardTopicsStackName
+          - LayersStackName
+          - BucketsStackName
+          - TopicsStackName
       - Label:
           default: Function Configuration
         Parameters:
@@ -18,10 +19,12 @@ Metadata:
           - PrivateRecordSetPrune
           - PrivateRecordSetTest
     ParameterLabels:
-      StandardBucketsStackName:
-        default: StandardBuckets Stack Name
-      StandardTopicsStackName:
-        default: StandardTopics Stack Name
+      LayersStackName:
+        default: Layers Stack Name
+      BucketsStackName:
+        default: Buckets Stack Name
+      TopicsStackName:
+        default: Topics Stack Name
       PrivateRecordSetFunctionKey:
         default: PrivateRecordSet Function S3 Key
       PrivateRecordSetFunctionObjectVersion:
@@ -33,20 +36,28 @@ Metadata:
       PrivateRecordSetTest:
         default: PrivateRecordSet Test
 Parameters:
-  StandardBucketsStackName:
+  LayersStackName:
+    Description: Name of the CloudFormation Stack containing Layers
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Layers
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: StandardBuckets
+    Default: Buckets
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  StandardTopicsStackName:
-    Description: Name of the CloudFormation Stack containing Standard Topics
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Topics
     Type: String
-    MinLength: 8
+    MinLength: 2
     MaxLength: 64
-    Default: StandardTopics
+    Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   PrivateRecordSetFunctionKey:
@@ -153,7 +164,7 @@ Resources:
       Handler: PrivateRecordSet.handler
       Code:
         S3Bucket: !ImportValue
-          Fn::Sub: ${StandardBucketsStackName}-FunctionsBucket
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref PrivateRecordSetFunctionKey
         S3ObjectVersion: !If [ ConfigurePrivateRecordSetFunctionObjectVersion, !Ref PrivateRecordSetFunctionObjectVersion, !Ref 'AWS::NoValue' ]
       Environment:
@@ -192,7 +203,7 @@ Resources:
       AlarmDescription: The number of ERRORs is greater than 5 over 1 minute
       AlarmActions:
         - !ImportValue
-          Fn::Sub: ${StandardTopicsStackName}-AlarmsTopic
+          Fn::Sub: ${TopicsStackName}-AlarmsTopic
       Namespace: AWS/Lambda
       MetricName: Errors
       Statistic: Sum
