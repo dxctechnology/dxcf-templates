@@ -15,7 +15,6 @@ Metadata:
       - Label:
           default: Function Configuration
         Parameters:
-          - CodesLoaderLogRetention
           - AliasNameLogRetention
           - LogGroupNameLogRetention
           - HostNameLogRetention
@@ -25,8 +24,6 @@ Metadata:
         default: Baseline Stack Name
       TableName:
         default: Table Name
-      CodesLoaderLogRetention:
-        default: CodesLoader Log Retention
       AliasNameLogRetention:
         default: AliasName Log Retention
       LogGroupNameLogRetention:
@@ -52,20 +49,6 @@ Parameters:
     Default: Codes
     AllowedPattern: ^Codes$
     ConstraintDescription: must be Codes.
-  CodesLoaderLogRetention:
-    Description: Number of days to retain CloudWatch Log Events for the CodesLoader Lambda Function
-    Type: Number
-    Default: 3
-    AllowedValues:
-      - 1
-      - 3
-      - 5
-      - 7
-      - 14
-      - 30
-      - 60
-      - 90
-    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   AliasNameLogRetention:
     Description: Number of days to retain CloudWatch Log Events for the AliasName Lambda Function
     Type: Number
@@ -183,11 +166,6 @@ Resources:
                   - dynamodb:Update*
                   - dynamodb:PutItem
                 Resource: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}
-  CodesLoaderLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /aws/lambda/CodesLoader
-      RetentionInDays: !Ref CodesLoaderLogRetention
   CodesLoaderFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -216,24 +194,22 @@ Resources:
 
             const tableName = event.ResourceProperties.TableName || 'Codes';
 
-            const codes = event.ResourceProperties.Codes;
-            if (! codes) {
-              const responseData = {Error: `Codes missing`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-            console.info(`Companies:\n${JSON.stringify(codes.filter(c => c.Type == 'Company'))}`);
-            console.info(`Locations:\n${JSON.stringify(codes.filter(c => c.Type == 'Location'))}`);
-            console.info(`Environments:\n${JSON.stringify(codes.filter(c => c.Type == 'Environment'))}`);
-            console.info(`Systems:\n${JSON.stringify(codes.filter(c => c.Type == 'System'))}`);
-            console.info(`Applications:\n${JSON.stringify(codes.filter(c => c.Type == 'Application'))}`);
-            console.info(`Components:\n${JSON.stringify(codes.filter(c => c.Type == 'Component'))}`);
-
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
                 try {
+                  const codes = event.ResourceProperties.Codes;
+                  if (! codes) {
+                    throw new Error(`Codes missing`);
+                  }
+
+                  console.info(`Companies:\n${JSON.stringify(codes.filter(c => c.Type == 'Company'))}`);
+                  console.info(`Locations:\n${JSON.stringify(codes.filter(c => c.Type == 'Location'))}`);
+                  console.info(`Environments:\n${JSON.stringify(codes.filter(c => c.Type == 'Environment'))}`);
+                  console.info(`Systems:\n${JSON.stringify(codes.filter(c => c.Type == 'System'))}`);
+                  console.info(`Applications:\n${JSON.stringify(codes.filter(c => c.Type == 'Application'))}`);
+                  console.info(`Components:\n${JSON.stringify(codes.filter(c => c.Type == 'Component'))}`);
+
                   console.info('Calling putItem() for all Codes...');
                   const putPromises = [];
                   for (const code of codes) {
@@ -252,7 +228,7 @@ Resources:
                   await response.send(event, context, response.SUCCESS);
                 }
                 catch (err) {
-                  const responseData = {Error: `PutItem call(s) failed`};
+                  const responseData = {Error: `Codes table could not be loaded: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
                   console.error(`Error: ${responseData.Error}:\n${err}`);
                   await response.send(event, context, response.FAILED, responseData);
                 }
@@ -740,10 +716,8 @@ Resources:
 
           const dynamodb = new AWS.DynamoDB();
 
-          const tableName = 'Codes';
-
-          const getCode = async (type, name) => {
-            console.log(`- Calling: GetItem for Type ${type}, Name ${name}...`);
+          const getCode = async (tableName, type, name) => {
+            console.info(`- Calling: GetItem for Type ${type}, Name ${name}...`);
             const params = {
               TableName: tableName,
               Key: { Type: { S: type }, Name: { S: name }},
@@ -761,15 +735,17 @@ Resources:
           exports.handler = async (event, context) => {
             console.info(`Request body:\n${JSON.stringify(event)}`);
 
+            const tableName = event.ResourceProperties.TableName || 'Codes';
+
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
                 try {
                   const companyName = event.ResourceProperties.CompanyName;
-                  const companySegment = (companyName) ? `/${await getCode('Company', companyName)}` : '';
+                  const companySegment = (companyName) ? `/${await getCode(tableName, 'Company', companyName)}` : '';
 
                   const systemName = event.ResourceProperties.SystemName;
-                  const systemSegment = (systemName) ? `/${await getCode('System', systemName)}` : '';
+                  const systemSegment = (systemName) ? `/${await getCode(tableName, 'System', systemName)}` : '';
 
                   const serviceName = event.ResourceProperties.ServiceName;
                   const serviceSegment = (serviceName) ? `/${serviceName}` : '';
@@ -785,7 +761,7 @@ Resources:
                   await response.send(event, context, response.SUCCESS, null, aliasname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create AliasName`};
+                  const responseData = {Error: `Could not create AliasName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
                   console.error(`Error: ${responseData.Error}:\n${err}`);
                   await response.send(event, context, response.FAILED, responseData);
                 }
@@ -824,10 +800,8 @@ Resources:
 
           const dynamodb = new AWS.DynamoDB();
 
-          const tableName = 'Codes';
-
-          const getCode = async (type, name) => {
-            console.log(`- Calling: GetItem for Type ${type}, Name ${name}...`);
+          const getCode = async (tableName, type, name) => {
+            console.info(`- Calling: GetItem for Type ${type}, Name ${name}...`);
             const params = {
               TableName: tableName,
               Key: { Type: { S: type }, Name: { S: name }},
@@ -845,15 +819,17 @@ Resources:
           exports.handler = async (event, context) => {
             console.info(`Request body:\n${JSON.stringify(event)}`);
 
+            const tableName = event.ResourceProperties.TableName || 'Codes';
+
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
                 try {
                   const companyName = event.ResourceProperties.CompanyName;
-                  const companySegment = (companyName) ? `/${await getCode('Company', companyName)}` : '';
+                  const companySegment = (companyName) ? `/${await getCode(tableName, 'Company', companyName)}` : '';
 
                   const systemName = event.ResourceProperties.SystemName;
-                  const systemSegment = (systemName) ? `/${await getCode('System', systemName)}` : '';
+                  const systemSegment = (systemName) ? `/${await getCode(tableName, 'System', systemName)}` : '';
 
                   const applicationName = event.ResourceProperties.ApplicationName;
                   const applicationSegment = (applicationName) ? `/${applicationName}` : '';
@@ -866,7 +842,7 @@ Resources:
                   await response.send(event, context, response.SUCCESS, null, loggroupname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create LogGroupName`};
+                  const responseData = {Error: `Could not create LogGroupName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
                   console.error(`Error: ${responseData.Error}:\n${err}`);
                   await response.send(event, context, response.FAILED, responseData);
                 }
@@ -905,10 +881,8 @@ Resources:
 
           const dynamodb = new AWS.DynamoDB();
 
-          const tableName = 'Codes';
-
-          const getCode = async (type, name) => {
-            console.log(`- Calling: GetItem for Type ${type}, Name ${name}...`);
+          const getCode = async (tableName, type, name) => {
+            console.info(`- Calling: GetItem for Type ${type}, Name ${name}...`);
             const params = {
               TableName: tableName,
               Key: { Type: { S: type }, Name: { S: name }},
@@ -926,27 +900,29 @@ Resources:
           exports.handler = async (event, context) => {
             console.info(`Request body:\n${JSON.stringify(event)}`);
 
+            const tableName = event.ResourceProperties.TableName || 'Codes';
+
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
                 try {
                   const companyName = event.ResourceProperties.CompanyName;
-                  const companyCode = (companyName) ? await getCode('Company', companyName) : '';
+                  const companyCode = (companyName) ? await getCode(tableName, 'Company', companyName) : '';
 
                   const locationName = event.ResourceProperties.LocationName || process.env.AWS_REGION;
-                  const locationCode = (locationName) ? await getCode('Location', locationName) : '';
+                  const locationCode = (locationName) ? await getCode(tableName, 'Location', locationName) : '';
 
                   const environmentName = event.ResourceProperties.EnvironmentName;
-                  const environmentCode = (environmentName) ? await getCode('Environment', environmentName) : '';
+                  const environmentCode = (environmentName) ? await getCode(tableName, 'Environment', environmentName) : '';
 
                   const systemName = event.ResourceProperties.SystemName;
-                  const systemCode = (systemName) ? await getCode('System', systemName) : '';
+                  const systemCode = (systemName) ? await getCode(tableName, 'System', systemName) : '';
 
                   const applicationName = event.ResourceProperties.ApplicationName;
-                  const applicationCode = (applicationName) ? await getCode('Application', applicationName) : '';
+                  const applicationCode = (applicationName) ? await getCode(tableName, 'Application', applicationName) : '';
 
                   const componentName = event.ResourceProperties.ComponentName;
-                  const componentCode = (componentName) ? await getCode('Component', componentName) : '';
+                  const componentCode = (componentName) ? await getCode(tableName, 'Component', componentName) : '';
 
                   let instanceNumber = event.ResourceProperties.InstanceNumber || '';
                   if (instanceNumber) {
@@ -968,7 +944,7 @@ Resources:
                   await response.send(event, context, response.SUCCESS, null, hostname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create HostName`};
+                  const responseData = {Error: `Could not create HostName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
                   console.error(`Error: ${responseData.Error}:\n${err}`);
                   await response.send(event, context, response.FAILED, responseData);
                 }
@@ -1007,10 +983,8 @@ Resources:
 
           const dynamodb = new AWS.DynamoDB();
 
-          const tableName = 'Codes';
-
-          const getCode = async (type, name) => {
-            console.log(`- Calling: GetItem for Type ${type}, Name ${name}...`);
+          const getCode = async (tableName, type, name) => {
+            console.info(`- Calling: GetItem for Type ${type}, Name ${name}...`);
             const params = {
               TableName: tableName,
               Key: { Type: { S: type }, Name: { S: name }},
@@ -1028,6 +1002,8 @@ Resources:
           exports.handler = async (event, context) => {
             console.info(`Request body:\n${JSON.stringify(event)}`);
 
+            const tableName = event.ResourceProperties.TableName || 'Codes';
+
             switch (event.RequestType) {
               case 'Create':
               case 'Update':
@@ -1043,14 +1019,14 @@ Resources:
                   }
 
                   const environmentName = event.ResourceProperties.EnvironmentName;
-                  const environmentCode = (environmentName) ? await getCode('Environment', environmentName) : '';
+                  const environmentCode = (environmentName) ? await getCode(tableName, 'Environment', environmentName) : '';
 
                   const domainname = `${(environmentCode == 'p') ? '' : environmentCode + '.'}${locationName}.${parentDomainName}`;
                   console.info('DomainName: ' + domainname);
                   await response.send(event, context, response.SUCCESS, null, domainname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create DomainName`};
+                  const responseData = {Error: `Could not create DomainName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
                   console.error(`Error: ${responseData.Error}:\n${err}`);
                   await response.send(event, context, response.FAILED, responseData);
                 }
