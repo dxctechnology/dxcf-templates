@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Common-KeyPairFunctions Template.
+  This creates Lambda Functions related to EC2 KeyPairs. Deprecated, moved into Baseline-Baseline.yaml.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - BucketsStackName
+          - TopicsStackName
+      - Label:
+          default: Function Configuration
+        Parameters:
+          - KeyPairFunctionKey
+          - KeyPairFunctionObjectVersion
+          - KeyPairLogRetention
+    ParameterLabels:
+      BucketsStackName:
+        default: Buckets Stack Name
+      TopicsStackName:
+        default: Topics Stack Name
+      KeyPairFunctionKey:
+        default: KeyPair Function S3 Key
+      KeyPairFunctionObjectVersion:
+        default: KeyPair Function S3 Object Version
+      KeyPairLogRetention:
+        default: KeyPair Log Retention
+Parameters:
+  BucketsStackName:
+    Description: Name of the CloudFormation Stack containing Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Topics
+    Type: String
+    MinLength: 8
+    MaxLength: 64
+    Default: Topics
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  KeyPairFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the KeyPair Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: KeyPair.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  KeyPairFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the KeyPair Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  KeyPairLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the KeyPair Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+Conditions:
+  ConfigureKeyPairFunctionObjectVersion: !Not [ !Equals [ !Ref KeyPairFunctionObjectVersion, '' ]]
+Resources:
+  KeyPairRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: KeyPairPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowDescribeKeyPairs
+                Effect: Allow
+                Action:
+                  - ec2:DesribeKeyPairs
+                Resource: '*'
+              - Sid: AllowManageKeyPair
+                Effect: Allow
+                Action:
+                  - ec2:CreateKeyPair
+                  - ec2:ImportKeyPair
+                  - ec2:DeleteKeyPair
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:key-pair/*
+  KeyPairLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/KeyPair
+      RetentionInDays: !Ref KeyPairLogRetention
+  KeyPairFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: KeyPair
+      Description: A Lambda function that uses an external SSH Public Key to import an EC2 KeyPair.
+      Role: !GetAtt KeyPairRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Handler: KeyPair.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref KeyPairFunctionKey
+        S3ObjectVersion: !If [ ConfigureKeyPairFunctionObjectVersion, !Ref KeyPairFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+Outputs:
+  KeyPairFunctionArn:
+    Description: The KeyPair Lambda Function ARN
+    Value: !GetAtt KeyPairFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-KeyPairFunctionArn

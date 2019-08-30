@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Common-UserKeyPairs Template.
+  This imports EC2 User KeyPairs. For each KeyPair, an rsa key must have been previously generated with the ssh-keygen command.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - BaselineStackName
+      - Label:
+          default: KeyPair Configuration
+        Parameters:
+          - MCrawfordPublicKey
+          - SBachhuPublicKey
+          - RKalakotlaPublicKey
+          - AMohammedPublicKey
+    ParameterLabels:
+      BaselineStackName:
+        default: Baseline Stack Name
+      MCrawfordPublicKey:
+        default: MCrawford PublicKey
+      SBachhuPublicKey:
+        default: SBachhu PublicKey
+      RKalakotlaPublicKey:
+        default: RKalakotla PublicKey
+      AMohammedPublicKey:
+        default: AMohammed PublicKey
+Parameters:
+  BaselineStackName:
+    Description: Name of the CloudFormation Stack containing the Baseline Resources
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Baseline
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  MCrawfordPublicKey:
+    Description: Optional public key for the mcrawford KeyPair
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|^ssh-rsa AAAAB3NzaC1yc2E[=/+A-Za-z0-9]{701}( .*)?$)
+    ConstraintDescription: must be a valid Public Key in OpenSSH format, if specified.
+  SBachhuPublicKey:
+    Description: Optional public key for the sbachhu KeyPair
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|^ssh-rsa AAAAB3NzaC1yc2E[=/+A-Za-z0-9]{701}( .*)?$)
+    ConstraintDescription: must be a valid Public Key in OpenSSH format, if specified.
+  RKalakotlaPublicKey:
+    Description: Optional public key for the rkalakotla KeyPair
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|^ssh-rsa AAAAB3NzaC1yc2E[=/+A-Za-z0-9]{701}( .*)?$)
+    ConstraintDescription: must be a valid Public Key in OpenSSH format, if specified.
+  AMohammedPublicKey:
+    Description: Optional public key for the amohammed KeyPair
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|^ssh-rsa AAAAB3NzaC1yc2E[=/+A-Za-z0-9]{701}( .*)?$)
+    ConstraintDescription: must be a valid Public Key in OpenSSH format, if specified.
+Conditions:
+  ConfigureMCrawfordKeyPair: !Not [ !Equals [ !Ref MCrawfordPublicKey, '' ]]
+  ConfigureSBachhuKeyPair: !Not [ !Equals [ !Ref SBachhuPublicKey, '' ]]
+  ConfigureRKalakotlaKeyPair: !Not [ !Equals [ !Ref RKalakotlaPublicKey, '' ]]
+  ConfigureAMohammedKeyPair: !Not [ !Equals [ !Ref AMohammedPublicKey, '' ]]
+Resources:
+  MCrawfordKeyPair:
+    Type: Custom::KeyPair
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${BaselineStackName}-KeyPairFunctionArn
+      KeyName: mcrawford
+      PublicKey: !Ref MCrawfordPublicKey
+    Condition: ConfigureMCrawfordKeyPair
+  SBachhuKeyPair:
+    Type: Custom::KeyPair
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${BaselineStackName}-KeyPairFunctionArn
+      KeyName: sbachhu
+      PublicKey: !Ref SBachhuPublicKey
+    Condition: ConfigureSBachhuKeyPair
+  RKalakotlaKeyPair:
+    Type: Custom::KeyPair
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${BaselineStackName}-KeyPairFunctionArn
+      KeyName: rkalakotla
+      PublicKey: !Ref RKalakotlaPublicKey
+    Condition: ConfigureRKalakotlaKeyPair
+  AMohammedKeyPair:
+    Type: Custom::KeyPair
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${BaselineStackName}-KeyPairFunctionArn
+      KeyName: amohammed
+      PublicKey: !Ref AMohammedPublicKey
+    Condition: ConfigureAMohammedKeyPair
+Outputs:
+  MCrawfordKeyPair:
+    Description: The MCrawford KeyPair
+    Value: !Ref MCrawfordKeyPair
+    Export:
+      Name: !Sub ${AWS::StackName}-MCrawfordKeyPair
+    Condition: ConfigureMCrawfordKeyPair
+  MCrawfordKeyPairFingerprint:
+    Description: The MCrawford KeyPair Fingerprint
+    Value: !GetAtt MCrawfordKeyPair.Fingerprint
+    Condition: ConfigureMCrawfordKeyPair
+  SBachhuKeyPair:
+    Description: The SBachhu KeyPair
+    Value: !Ref SBachhuKeyPair
+    Export:
+      Name: !Sub ${AWS::StackName}-SBachhuKeyPair
+    Condition: ConfigureSBachhuKeyPair
+  SBachhuKeyPairFingerprint:
+    Description: The SBachhu KeyPair Fingerprint
+    Value: !GetAtt SBachhuKeyPair.Fingerprint
+    Condition: ConfigureSBachhuKeyPair
+  RKalakotlaKeyPair:
+    Description: The RKalakotla KeyPair
+    Value: !Ref RKalakotlaKeyPair
+    Export:
+      Name: !Sub ${AWS::StackName}-RKalakotlaKeyPair
+    Condition: ConfigureRKalakotlaKeyPair
+  RKalakotlaKeyPairFingerprint:
+    Description: The RKalakotla KeyPair Fingerprint
+    Value: !GetAtt RKalakotlaKeyPair.Fingerprint
+    Condition: ConfigureRKalakotlaKeyPair
+  AMohammedKeyPair:
+    Description: The AMohammed KeyPair
+    Value: !Ref AMohammedKeyPair
+    Export:
+      Name: !Sub ${AWS::StackName}-AMohammedKeyPair
+    Condition: ConfigureAMohammedKeyPair
+  AMohammedKeyPairFingerprint:
+    Description: The AMohammed KeyPair Fingerprint
+    Value: !GetAtt AMohammedKeyPair.Fingerprint
+    Condition: ConfigureAMohammedKeyPair
