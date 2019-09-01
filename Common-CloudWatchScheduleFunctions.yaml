@@ -1,8 +1,10 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Common-ScheduleFunctions Template.
-  This creates standard Lambda Functions related to Scheduling. This supports an ability to turn Instances on and off to reduce costs.
-  This is a placeholder example, still in Python, that isn't designed very well, but has the right idea. I am leaving this here as a
-  reminder we likely need something like this in the future, and will rewrite this in Node.js with a better design when I can get to it.
+Description: Common-CloudWatchScheduleFunctions Template.
+  This creates CloudWatch Event driven Lambda Functions.
+  Initially, this contains only a function intended to start and stop Instances on a schedule to reduce costs. This
+  is a placeholder example, still in Python, that isn't designed very well, but has the right idea. I am leaving this
+  here as a reminder we likely need something like this in the future, and will rewrite this in Node.js with a better
+  design when I can get to it.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -250,7 +252,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: SchedulerRule
-      Description: ScheduledRule for Scheduler
+      Description: Rule to start and stop Instances based on a schedule expression in a Schedule tag.
       ScheduleExpression: rate(10 minutes)
       State: ENABLED
       Targets:

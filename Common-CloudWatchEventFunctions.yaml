@@ -1,6 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Core-CloudWatchEventDomainFunctions Template.
-  This creates CloudWatch Event driven Lambda Functions related to creating and deleting Private HostedZone Domain Names.
+Description: Common-CloudWatchEventFunctions Template.
+  This creates CloudWatch Event driven Lambda Functions.
+  Initially, this contains only a function intended to dynamically created Private Route53 HostNames, based on Tags.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
