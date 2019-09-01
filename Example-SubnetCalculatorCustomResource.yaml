@@ -25,7 +25,7 @@ Metadata:
         default: Availability Zones
 Parameters:
   EnvironmentName:
-    Description: Name of the Environment associated with the Stack
+    Description: Name of the Environment
     Type: String
     Default: Production
     AllowedValues:
@@ -34,7 +34,14 @@ Parameters:
       - UAT
       - Testing
       - Development
-    ConstraintDescription: 'must be one of the following: Production, Staging, UAT, Testing, Development.'
+      - Build
+      - Core
+      - Recovery
+      - Log
+      - Identity
+      - Management
+      - Organization
+    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
   Network:
     Description: VPC Network
     Type: String
@@ -53,7 +60,7 @@ Parameters:
       - 1024
       - 2048
       - 4096
-    ConstraintDescription: 'must be one of the following: 16, 32, 64, 128, 256, 512, 1024, 2048 or 4096.'
+    ConstraintDescription: must be 16, 32, 64, 128, 256, 512, 1024, 2048 or 4096.
   Subnets:
     Description: Number of Subnets per AvailabilityZone
     Type: Number
@@ -65,7 +72,7 @@ Parameters:
       - 16
       - 32
       - 64
-    ConstraintDescription: 'must be one of the following: 2, 4, 8, 16, 32 or 64.'
+    ConstraintDescription: must be 2, 4, 8, 16, 32 or 64.
   AvailabilityZones:
     Description: Number of AvailabilityZones
     Type: String
@@ -74,7 +81,7 @@ Parameters:
       - 1
       - 2
       - 4
-    ConstraintDescription: 'must be one of the following: 1, 2 or 4.'
+    ConstraintDescription: must be 1, 2 or 4.
 Resources:
   SubnetCalculator:
     Type: Custom::SubnetCalculator

@@ -31,7 +31,7 @@ Metadata:
         default: SecurityGroup
 Parameters:
   EnvironmentName:
-    Description: Name of the Environment associated with the Stack
+    Description: Name of the Environment
     Type: String
     Default: Production
     AllowedValues:
@@ -42,9 +42,12 @@ Parameters:
       - Development
       - Build
       - Core
+      - Recovery
       - Log
       - Identity
-    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Log or Identity.
+      - Management
+      - Organization
+    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
   Network:
     Description: VPC Network
     Type: String
