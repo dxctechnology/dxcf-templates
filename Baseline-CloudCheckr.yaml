@@ -9,10 +9,6 @@ Metadata:
         Parameters:
           - CloudCheckrAccountID
           - CloudCheckrExternalID
-          - SecureParameterLogRetention
-          - MessageLogRetention
-          - MetadataDownloaderLogRetention
-          - SamlProviderLogRetention
     ParameterLabels:
       CloudCheckrAccountID:
         default: CloudCheckr Account ID
@@ -20,9 +16,9 @@ Metadata:
         default: CloudCheckr External ID
 Parameters:
   CloudCheckrAccountID:
-    Description: Enter the CloudCheckr 3rd party Account ID. Default is 352813966189
-    Type: Number
-    Default: 352813966189
+    Description: Enter the CloudCheckr 3rd party Account ID
+    Type: String
+    Default: ''
   CloudCheckrExternalID:
     Description: Enter the CloudCheckr 3rd party External ID
     Type: String
