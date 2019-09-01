@@ -70,34 +70,58 @@ Mappings:
   RegionNameMap:
     us-east-1:
       Name: Virginia
+      Code: ue1
     us-east-2:
       Name: Ohio
+      Code: ue2
     us-west-1:
       Name: California
+      Code: uw1
     us-west-2:
       Name: Oregon
-    ca-central-1:
-      Name: Canada
-    eu-west-1:
-      Name: Ireland
-    eu-central-1:
-      Name: Frankfurt
-    eu-west-2:
-      Name: London
-    eu-west-3:
-      Name: Paris
-    ap-southeast-1:
-      Name: Singapore
-    ap-southeast-2:
-      Name: Sydney
-    ap-northeast-2:
-      Name: Seoul
-    ap-northeast-1:
-      Name: Tokyo
+      Code: uw2
+    ap-east-1:
+      Name: HongKong
+      Code: ae1
     ap-south-1:
       Name: Mumbai
+      Code: ad1
+    ap-northeast-2:
+      Name: Seoul
+      Code: an2
+    ap-southeast-1:
+      Name: Singapore
+      Code: as1
+    ap-southeast-2:
+      Name: Sydney
+      Code: as2
+    ap-northeast-1:
+      Name: Tokyo
+      Code: an1
+    ca-central-1:
+      Name: Canada
+      Code: cc1
+    eu-central-1:
+      Name: Frankfurt
+      Code: ec1
+    eu-west-1:
+      Name: Ireland
+      Code: ew1
+    eu-west-2:
+      Name: London
+      Code: ew2
+    eu-west-3:
+      Name: Paris
+      Code: ew3
+    eu-north-1:
+      Name: Stockholm
+      Code: en1
+    me-south-1:
+      Name: Bahrain
+      Code: ms1
     sa-east-1:
       Name: SaoPaulo
+      Code: se1
   ThresholdMap:
     Low: # 0 = Evenly-spaced NormalAlarms throughout Month - vs - 50% or 75% of Normal = Alarms only near EOM
       none: 0
