@@ -201,15 +201,15 @@ Resources:
 
             const layerName = event.ResourceProperties.LayerName;
             if (! layerName) {
-              const responseData = {Error: `LayerName missing`};
-              console.error(`Error: ${responseData.Error}`);
+              const responseData = {Error: `Error: LayerName missing`};
+              console.error(responseData.Error);
               response.send(event, context, response.FAILED, responseData);
               return;
             }
             const content = event.ResourceProperties.Content.replace(/ /g, '');
             if (! content && event.RequestType != 'Delete') {
-              const responseData = {Error: `Content missing`};
-              console.error(`Error: ${responseData.Error}`);
+              const responseData = {Error: `Error: Content missing`};
+              console.error(responseData.Error);
               response.send(event, context, response.FAILED, responseData);
               return;
             }
@@ -230,8 +230,8 @@ Resources:
                 if (event.ResourceProperties.CompatibleRuntimes) params.CompatibleRuntimes = event.ResourceProperties.CompatibleRuntimes;
                 lambda.publishLayerVersion(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `PublishLayerVersion call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -251,8 +251,8 @@ Resources:
                   };
                   lambda.listLayerVersions(params, function(err, data) {
                   if (err) {
-                    const responseData = {Error: `ListLayerVersions call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -270,8 +270,8 @@ Resources:
                       console.info('LayerVersions deleted');
                       response.send(event, context, response.SUCCESS);
                     }).catch(err => {
-                      const responseData = {Error: `Could not delete all LayerVersions`};
-                      console.error(`Error: ${responseData.Error}:\n${err}`);
+                      const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                      console.error(responseData.Error);
                       response.send(event, context, response.FAILED, responseData);
                     });
                   }
@@ -405,8 +405,8 @@ Resources:
                 if (event.ResourceProperties.ExcludeCharacters) params.ExcludeCharacters = event.ResourceProperties.ExcludeCharacters;
                 secretsmanager.getRandomPassword(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `GetRandomPassword call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -487,15 +487,15 @@ Resources:
 
             const name = event.ResourceProperties.Name || `${event.StackId.split(':')[5].split('/')[1]}-${event.LogicalResourceId}`;
             if (! name) {
-              const responseData = {Error: `Name missing`};
-              console.error(`Error: ${responseData.Error}`);
+              const responseData = {Error: `Error: Name missing`};
+              console.error(responseData.Error);
               response.send(event, context, response.FAILED, responseData);
               return;
             }
             const value = event.ResourceProperties.Value;
             if (! value && event.RequestType != 'Delete') {
-              const responseData = {Error: `Value missing`};
-              console.error(`Error: ${responseData.Error}`);
+              const responseData = {Error: `Error: Value missing`};
+              console.error(responseData.Error);
               response.send(event, context, response.FAILED, responseData);
               return;
             }
@@ -517,8 +517,8 @@ Resources:
                 if (description) params.Description = description;
                 ssm.putParameter(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `PutParameter call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -535,8 +535,8 @@ Resources:
                 };
                 ssm.deleteParameter(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `DeleteParameter call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -544,12 +544,6 @@ Resources:
                     response.send(event, context, response.SUCCESS);
                   }
                 });
-                break;
-
-              default:
-                const responseData = {Error: `Unknown operation: ${event.RequestType}`};
-                console.error(`Error: ${responseData.Error}`);
-                response.send(event, context, response.FAILED, responseData);
             }
           };
   MessageRole:
@@ -610,16 +604,16 @@ Resources:
               case 'Update':
                 const topicArn = event.ResourceProperties.TopicArn;
                 if (! topicArn) {
-                  const responseData = {Error: `TopicArn missing`};
-                  console.error(`Error: ${responseData.Error}`);
+                  const responseData = {Error: `Error: TopicArn missing`};
+                  console.error(responseData.Error);
                   response.send(event, context, response.FAILED, responseData);
                   return;
                 }
 
                 const message = event.ResourceProperties.Message;
                 if (! message) {
-                  const responseData = {Error: `Message missing`};
-                  console.error(`Error: ${responseData.Error}`);
+                  const responseData = {Error: `Error: Message missing`};
+                  console.error(responseData.Error);
                   response.send(event, context, response.FAILED, responseData);
                   return;
                 }
@@ -631,8 +625,8 @@ Resources:
                 };
                 sns.publish(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `Publish call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -758,8 +752,8 @@ Resources:
                   await response.send(event, context, response.SUCCESS, responseData, keyName);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not ${(event.RequestType) ? 'create' : 'update'} KeyPair: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
                 break;
@@ -784,8 +778,8 @@ Resources:
                   await response.send(event, context, response.SUCCESS);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not delete KeyPair: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
             }

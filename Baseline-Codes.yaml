@@ -223,20 +223,19 @@ Resources:
                   }
 
                   console.info(`- Waiting for all PutItem calls to finish...`);
-                  const results = await Promise.all(putPromises);
+                  await Promise.all(putPromises);
                   console.info(`Codes ${(event.RequestType =='Create') ? 'created' : 'updated'}`);
                   await response.send(event, context, response.SUCCESS);
                 }
                 catch (err) {
-                  const responseData = {Error: `Codes table could not be loaded: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
                 break;
 
               case 'Delete':
                 await response.send(event, context, response.SUCCESS);
-                break;
             }
           };
   CodesLoader:
@@ -767,8 +766,8 @@ Resources:
                   await response.send(event, context, response.SUCCESS, null, aliasname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create AliasName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
                 break;
@@ -848,8 +847,8 @@ Resources:
                   await response.send(event, context, response.SUCCESS, null, loggroupname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create LogGroupName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
                 break;
@@ -950,8 +949,8 @@ Resources:
                   await response.send(event, context, response.SUCCESS, null, hostname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create HostName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
                 break;
@@ -1032,8 +1031,8 @@ Resources:
                   await response.send(event, context, response.SUCCESS, null, domainname);
                 }
                 catch (err) {
-                  const responseData = {Error: `Could not create DomainName: See the details in CloudWatch Log Stream: ${context.logStreamName}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
                 break;

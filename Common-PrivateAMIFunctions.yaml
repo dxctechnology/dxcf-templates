@@ -118,7 +118,7 @@ Resources:
           };
 
           exports.handler = async (event, context) => {
-            console.info('Request body:\n' + JSON.stringify(event));
+            console.info(`Request body:\n${JSON.stringify(event)}`);
 
             switch (event.RequestType) {
               case 'Create':
@@ -152,14 +152,12 @@ Resources:
                     await response.send(event, context, response.SUCCESS, responseData, image.ImageId);
                   }
                   else {
-                    const responseData = {Error: `Could not find Image(s) matching pattern ${amiNameFilter}`};
-                    console.error(`Error: ${responseData.Error}`);
-                    await response.send(event, context, response.FAILED, responseData);
+                    throw new Error(`Could not find Image(s) matching pattern ${amiNameFilter}`);
                   }
                 }
                 catch (err) {
-                  const responseData = {Error: `DescribeImages call failed`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                  console.error(responseData.Error);
                   await response.send(event, context, response.FAILED, responseData);
                 }
                 break;

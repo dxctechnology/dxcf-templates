@@ -244,79 +244,83 @@ Resources:
           exports.handler = (event, context) => {
             console.info(`Request body:\n${JSON.stringify(event)}`);
 
-            if (event.RequestType == 'Delete') {
-              response.send(event, context, response.SUCCESS);
-              return;
-            }
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                const properties = event.ResourceProperties;
+                console.info(`Validating: Parameters...`);
+                const lowAmount = (properties.LowAmount) ? Number(properties.LowAmount) : 0;
+                if (! Number.isInteger(lowAmount) || lowAmount < 0 || lowAmount % 10) {
+                  const responseData = {Error: `Error: LowAmount invalid: must be a positive integer divisible by 10 or 0`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
 
-            console.info(`Validating: Parameters...`);
-            const lowAmount = (event.ResourceProperties.LowAmount) ? Number(event.ResourceProperties.LowAmount) : 0;
-            if (! Number.isInteger(lowAmount) || lowAmount < 0 || lowAmount % 10) {
-              const responseData = {Error: `LowAmount invalid: must be a positive integer divisible by 10 or 0`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
+                const normalAmount = (properties.NormalAmount) ? Number(properties.NormalAmount) : 'invalid';
+                if (! Number.isInteger(normalAmount) || normalAmount < 0 || normalAmount <= lowAmount || normalAmount % 10) {
+                  const responseData = {Error: `Error: NormalAmount invalid: must be a positive integer divisible by 10 and greater than LowAmount`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
 
-            const normalAmount = (event.ResourceProperties.NormalAmount) ? Number(event.ResourceProperties.NormalAmount) : 'invalid';
-            if (! Number.isInteger(normalAmount) || normalAmount < 0 || normalAmount <= lowAmount || normalAmount % 10) {
-              const responseData = {Error: `NormalAmount invalid: must be a positive integer divisible by 10 and greater than LowAmount`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
+                const highAmount = (properties.HighAmount) ? Number(properties.HighAmount) : normalAmount * 1.2;
+                if (! Number.isInteger(highAmount) || highAmount < 0 || highAmount <= normalAmount || highAmount % 10) {
+                  const responseData = {Error: `Error: HighAmount invalid: must be a positive integer divisible by 10 and greater than NormalAmount`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
 
-            const highAmount = (event.ResourceProperties.HighAmount) ? Number(event.ResourceProperties.HighAmount) : normalAmount * 1.2;
-            if (! Number.isInteger(highAmount) || highAmount < 0 || highAmount <= normalAmount || highAmount % 10) {
-              const responseData = {Error: `HighAmount invalid: must be a positive integer divisible by 10 and greater than NormalAmount`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
+                const normalAlarms = (properties.NormalAlarms) ? Number(properties.NormalAlarms) : 5;
+                if (! /^(5|10|20)$/.test(normalAlarms)) {
+                  const responseData = {Error: `Error: NormalAlarms invalid: must be 5, 10 or 20`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
 
-            const normalAlarms = (event.ResourceProperties.NormalAlarms) ? Number(event.ResourceProperties.NormalAlarms) : 5;
-            if (! /^(5|10|20)$/.test(normalAlarms)) {
-              const responseData = {Error: `NormalAlarms invalid: must be 5, 10 or 20`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
+                const highAlarms = (properties.HighAlarms) ? Number(properties.HighAlarms) : 5;
+                if (! /^(5|10|20)$/.test(highAlarms)) {
+                  const responseData = {Error: `Error: HighAlarms invalid: must be 5, 10 or 20`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
 
-            const highAlarms = (event.ResourceProperties.HighAlarms) ? Number(event.ResourceProperties.HighAlarms) : 5;
-            if (! /^(5|10|20)$/.test(highAlarms)) {
-              const responseData = {Error: `HighAlarms invalid: must be 5, 10 or 20`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
+                if ((normalAmount - lowAmount) < normalAlarms) {
+                  const responseData = {Error: `Error: NormalAlarms invalid: NormalAmount - LowAmount must be greater than or equal to NormalAlarms`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
 
-            if ((normalAmount - lowAmount) < normalAlarms) {
-              const responseData = {Error: `NormalAlarms invalid: NormalAmount - LowAmount must be greater than or equal to NormalAlarms`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
+                if ((highAmount - normalAmount) < highAlarms) {
+                  const responseData = {Error: `Error: HighAlarms invalid: HighAmount - NormalAmount must be greater than or equal to HighAlarms`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
 
-            if ((highAmount - normalAmount) < highAlarms) {
-              const responseData = {Error: `HighAlarms invalid: HighAmount - NormalAmount must be greater than or equal to HighAlarms`};
-              console.error(`Error: ${responseData.Error}`);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
+                console.info(`Calculating Alarm Threshholds...`);
+                let responseData = {};
+                for (let alarm = 1; alarm <= normalAlarms; alarm++) {
+                  console.info(`Normal${alarm.toString().padStart(2,'0')}: ${(lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm))}`);
+                  responseData[`Normal${alarm.toString().padStart(2,'0')}`] = lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm);
+                }
 
-            console.info(`Calculating Alarm Threshholds...`);
-            let responseData = {};
-            for (let alarm = 1; alarm <= normalAlarms; alarm++) {
-              console.info(`Normal${alarm.toString().padStart(2,'0')}: ${(lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm))}`);
-              responseData[`Normal${alarm.toString().padStart(2,'0')}`] = lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm);
-            }
+                for (let alarm = 1; alarm <= highAlarms; alarm++) {
+                  console.info(`High${alarm.toString().padStart(2,'0')}: ${(normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm))}`);
+                  responseData[`High${alarm.toString().padStart(2,'0')}`] = normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm);
+                }
 
-            for (let alarm = 1; alarm <= highAlarms; alarm++) {
-              console.info(`High${alarm.toString().padStart(2,'0')}: ${(normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm))}`);
-              responseData[`High${alarm.toString().padStart(2,'0')}`] = normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm);
-            }
+                response.send(event, context, response.SUCCESS, responseData);
+                break;
 
-            response.send(event, context, response.SUCCESS, responseData);
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
+            }
           };
   BilingAlarmThresholdCalculator:
     Type: Custom::BilingAlarmThresholdCalculator

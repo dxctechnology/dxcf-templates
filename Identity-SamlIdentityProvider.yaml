@@ -188,8 +188,8 @@ Resources:
 
             const metadataUrl = event.ResourceProperties.MetadataUrl;
             if (! metadataUrl) {
-              const responseData = {Error: `MetadataUrl missing`};
-              console.error(`Error: ${responseData.Error}`);
+              const responseData = {Error: `Error: MetadataUrl missing`};
+              console.error(responseData.Error);
               response.send(event, context, response.FAILED, responseData);
               return;
             }
@@ -202,21 +202,14 @@ Resources:
                   console.info(`Downloaded Metadata from: ${metadataUrl}`);
                   response.send(event, context, response.SUCCESS, responseData, metadataUrl);
                 }).catch(function(err) {
-                  const responseData = {Error: `Failed to download Metadata from ${metadataUrl}`};
-                  console.error(`Error: ${responseData.Error}:\n${err}`);
+                  const responseData = {Error: `Error: Failed to download Metadata from ${metadataUrl}`};
+                  console.error(responseData.Error);
                   response.send(event, context, response.FAILURE, responseData);
                 });
                 return;
 
               case 'Delete':
                 response.send(event, context, response.SUCCESS);
-                return;
-
-              default:
-                const responseData = {Error: `Unknown operation: ${event.RequestType}`};
-                console.error(`Error: ${responseData.Error}`);
-                response.send(event, context, response.FAILED, responseData);
-                return;
             }
           };
   SamlProviderRole:
@@ -277,16 +270,16 @@ Resources:
 
             const providerName = event.ResourceProperties.ProviderName;
             if (! providerName) {
-              const responseData = {Error: `ProviderName missing`};
-              console.error(`Error: ${responseData.Error}`);
+              const responseData = {Error: `Error: ProviderName missing`};
+              console.error(responseData.Error);
               response.send(event, context, response.FAILED, responseData);
               return;
             }
 
             const providerMetadata = event.ResourceProperties.ProviderMetadata;
             if (! providerMetadata && event.RequestType != 'Delete') {
-              const responseData = {Error: `ProviderMetadata missing`};
-              console.error(`Error: ${responseData.Error}`);
+              const responseData = {Error: `Error: ProviderMetadata missing`};
+              console.error(responseData.Error);
               response.send(event, context, response.FAILED, responseData);
               return;
             }
@@ -303,8 +296,8 @@ Resources:
                 };
                 iam.createSAMLProvider(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `CreateSAMLProvider call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -323,8 +316,8 @@ Resources:
                 };
                 iam.updateSAMLProvider(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `UpdateSAMLProvider call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
@@ -342,8 +335,8 @@ Resources:
                 };
                 iam.deleteSAMLProvider(params, (err, data) => {
                   if (err) {
-                    const responseData = {Error: `DeleteSAMLProvider call failed`};
-                    console.error(`Error: ${responseData.Error}:\n${err}`);
+                    const responseData = {Error: `${(err.code) ? err.code : 'Error'}: ${err.message}`};
+                    console.error(responseData.Error);
                     response.send(event, context, response.FAILED, responseData);
                   }
                   else {
