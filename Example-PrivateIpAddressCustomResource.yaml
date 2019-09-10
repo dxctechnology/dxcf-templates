@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Example-PrivateIpAddressCustomResource Template.
+  This demonstrates how to dynamically get a PrivateIpAddress at a relative offset within a VPC Subnet.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - VPCStackName
+    ParameterLabels:
+      VPCStackName:
+        default: VPC Stack Name
+Parameters:
+  VPCStackName:
+    Description: Name of the CloudFormation Stack containing the VPC
+    Type: String
+    MinLength: 6
+    MaxLength: 64
+    Default: Production-VPC
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  Offset:
+    Description: Offset of IP Address within Subnet
+    Type: String
+    Default: 4
+    AllowedPattern: ^(0|[1-9][0-9]*)$
+    ConstraintDescription: must be a positive integer.
+Resources:
+  PrivateIpAddressA:
+    Type: Custom::PrivateIpAddress
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PrivateIpAddress
+      SubnetId: !ImportValue
+        Fn::Sub: ${VPCStackName}-Public1SubnetA
+      Offset: !Ref Offset
+  PrivateIpAddressB:
+    Type: Custom::PrivateIpAddress
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PrivateIpAddress
+      SubnetId: !ImportValue
+        Fn::Sub: ${VPCStackName}-Public1SubnetB
+      Offset: !Ref Offset
+Outputs:
+  PrivateIpAddressA:
+    Description: The PrivateIpAddressA Address
+    Value: !Ref PrivateIpAddressA
+  PrivateIpAddressB:
+    Description: The PrivateIpAddressB Address
+    Value: !Ref PrivateIpAddressB
