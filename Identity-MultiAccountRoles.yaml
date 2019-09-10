@@ -161,6 +161,7 @@ Conditions:
   ConfigureJumpstartAccount: !Not [ !Equals [ !Ref JumpstartAccount, '' ]]
   ConfigureManagementRoles: !Equals [ !Ref ManagementAccount, !Ref 'AWS::AccountId' ]
   ConfigureManagementAccount: !Not [ !Equals [ !Ref ManagementAccount, '' ]]
+  ConfigureManagementDomainRoles: !And [ !Condition ConfigureManagementRoles, !Not [ !Condition ConfigureOrganizationAccount ]]
   ConfigureIdentityRoles: !Equals [ !Ref IdentityAccount, !Ref 'AWS::AccountId' ]
   ConfigureIdentityAccount: !Not [ !Equals [ !Ref IdentityAccount, '' ]]
   ConfigureLogRoles: !Equals [ !Ref LogAccount, !Ref 'AWS::AccountId' ]
@@ -318,6 +319,62 @@ Resources:
         - !ImportValue
           Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
     Condition: ConfigureManagementRoles
+  ManagementAccountHostedZoneDelegationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CrossAccountHostedZoneDelegationRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !If
+                    - ConfigureJumpstartAccount
+                    - !Sub arn:aws:iam::${JumpstartAccount}:root
+                    - !Ref AWS::NoValue
+                - !If
+                    - ConfigureIdentityAccount
+                    - !Sub arn:aws:iam::${IdentityAccount}:root
+                    - !Ref AWS::NoValue
+                - !If
+                    - ConfigureProductionAccount
+                    - !Sub arn:aws:iam::${ProductionAccount}:root
+                    - !Ref AWS::NoValue
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !ImportValue
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountHostedZoneDelegationAccess
+    Condition: ConfigureManagementDomainRoles
+  ManagementAccountDomainNameServersRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CrossAccountDomainNameServersRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !If
+                    - ConfigureJumpstartAccount
+                    - !Sub arn:aws:iam::${JumpstartAccount}:root
+                    - !Ref AWS::NoValue
+                - !If
+                    - ConfigureProductionAccount
+                    - !Sub arn:aws:iam::${ProductionAccount}:root
+                    - !Ref AWS::NoValue
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !ImportValue
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountDomainNameServersAccess
+    Condition: ConfigureManagementDomainRoles
   IdentityAccountReadOnlyRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1138,6 +1195,18 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ManagementAccountReadOnlyRole
     Condition: ConfigureManagementRoles
+  ManagementAccountHostedZoneDelegationRole:
+    Description: The ManagementAccountHostedZoneDelegationRole Name
+    Value: !Ref ManagementAccountHostedZoneDelegationRole
+    Export:
+      Name: !Sub ${AWS::StackName}-ManagementAccountHostedZoneDelegationRole
+    Condition: ConfigureManagementDomainRoles
+  ManagementAccountDomainNameServersRole:
+    Description: The ManagementAccountDomainNameServersRole Name
+    Value: !Ref ManagementAccountDomainNameServersRole
+    Export:
+      Name: !Sub ${AWS::StackName}-ManagementAccountDomainNameServersRole
+    Condition: ConfigureManagementDomainRoles
   IdentityAccountReadOnlyRole:
     Description: The IdentityAccountReadOnlyRole Name
     Value: !Ref IdentityAccountReadOnlyRole
