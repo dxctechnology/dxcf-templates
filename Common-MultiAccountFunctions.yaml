@@ -382,7 +382,7 @@ Resources:
       Layers:
         - !ImportValue
             Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
-      Handler: CrossAccountVpcFunction.handler
+      Handler: CrossAccountVpc.handler
       Code:
         S3Bucket: !ImportValue
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
