@@ -46,23 +46,23 @@ Parameters:
   AccountId:
     Description: Account which contains the Export
     Type: String
-    Default: 448496307850
+    Default: 799051511999
     AllowedPattern: (^$|^[0-9]{12}$)
     ConstraintDescription: must be a valid 12-digit AWS Account Id or blank (to use current Account Id).
   StackName:
     Description: Name of the CloudFormation Stack containing the Export (Used as prefix for Export Name)
     Type: String
-    MinLength: 8
+    MinLength: 2
     MaxLength: 64
-    Default: StandardTopics
+    Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   ExportName:
     Description: Name of the Export (Will be appended to StackName with a dash to construct full Export Name)
     Type: String
-    MinLength: 8
+    MinLength: 2
     MaxLength: 64
-    Default: UsersTopic
+    Default: EventsTopic
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
 Conditions:
@@ -86,6 +86,3 @@ Outputs:
   StackExportValue:
     Description: The Stack Export Value
     Value: !Ref StackExportReference
-  StackExportName:
-    Description: The Stack Export Name
-    Value: !GetAtt StackExportReference.Name
