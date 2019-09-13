@@ -16,6 +16,26 @@ Resources:
       PolicyDocument:
         Version: 2012-10-17
         Statement:
+          - Sid: AllowGetRole
+            Effect: Allow
+            Action:
+              - iam:GetRole
+            Resource: '*'
+          - Sid: AllowDescribeVpcs
+            Effect: Allow
+            Action:
+              - ec2:DescribeVpcs
+            Resource: '*'
+          - Sid: AllowDescribeSubnets
+            Effect: Allow
+            Action:
+              - ec2:DescribeSubnets
+            Resource: '*'
+          - Sid: AllowDescribeSecurityGroups
+            Effect: Allow
+            Action:
+              - ec2:DescribeSecurityGroups
+            Resource: '*'
           - Sid: AllowListExports
             Effect: Allow
             Action:
@@ -25,16 +45,6 @@ Resources:
             Effect: Allow
             Action:
               - cloudformation:DescribeStacks
-            Resource: '*'
-          - Sid: AllowDescribeVpcs
-            Effect: Allow
-            Action:
-              - ec2:DescribeVpcs
-            Resource: '*'
-          - Sid: AllowDescribeSecurityGroups
-            Effect: Allow
-            Action:
-              - ec2:DescribeSecurityGroups
             Resource: '*'
           - Sid: AllowListBuckets
             Effect: Allow
