@@ -1,8 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Example-MessageCustomResource Template.
-  This demonstrates how to use the Message Lambda Function to send a Message from within a Stack.
-  Currently, only the Messages sent to the UrgentMessages Topic Phone Subscription is received, due to the fact we create the Email Subscriptions in this
-  same stack, so when the Messages are sent, Email Subscriptions will not have been confirmed, so any Messages sent are not queued, but are not sent.
+Description: Example-KeyPairCustomResource Template.
+  This demonstrates how to import an existing SSH Key as a KeyPair, using the existing Key's Public Key.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
