@@ -22,6 +22,9 @@ Metadata:
           - CrossAccountSecurityGroupFunctionKey
           - CrossAccountSecurityGroupFunctionObjectVersion
           - CrossAccountSecurityGroupLogRetention
+          - CrossAccountSubnetGroupFunctionKey
+          - CrossAccountSubnetFunctionObjectVersion
+          - CrossAccountSubnetLogRetention
           - CrossAccountVpcFunctionKey
           - CrossAccountVpcFunctionObjectVersion
           - CrossAccountVpcLogRetention
@@ -56,6 +59,12 @@ Metadata:
         default: CrossAccountSecurityGroup Function S3 Object Version
       CrossAccountSecurityGroupLogRetention:
         default: CrossAccountSecurityGroup Log Retention
+      CrossAccountSubnetFunctionKey:
+        default: CrossAccountSubnet Function S3 Key
+      CrossAccountSubnetFunctionObjectVersion:
+        default: CrossAccountSubnet Function S3 Object Version
+      CrossAccountSubnetLogRetention:
+        default: CrossAccountSubnet Log Retention
       CrossAccountVpcFunctionKey:
         default: CrossAccountVpc Function S3 Key
       CrossAccountVpcFunctionObjectVersion:
@@ -183,6 +192,34 @@ Parameters:
       - 60
       - 90
     ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+  CrossAccountSubnetFunctionKey:
+    Description: Key of Object within the S3 Bucket containing the CrossAccountSubnet Lambda Function zipfile
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: CrossAccountSubnet.zip
+    AllowedPattern: ^[-_.a-zA-Z0-9]*\.zip$
+    ConstraintDescription: must be a valid zipfilename, not containing slashes.
+  CrossAccountSubnetFunctionObjectVersion:
+    Description: Version of Object within the S3 Bucket containing the CrossAccountSubnet Lambda Function zipfile
+    Type: String
+    MaxLength: 32
+    Default: ''
+    ConstraintDescription: must be a valid S3 Object Version.
+  CrossAccountSubnetLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the CrossAccountSubnet Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
   CrossAccountVpcFunctionKey:
     Description: Key of Object within the S3 Bucket containing the CrossAccountVpc Lambda Function zipfile
     Type: String
@@ -271,6 +308,7 @@ Conditions:
   ConfigureCrossAccountStackExportFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountStackExportFunctionObjectVersion, '' ]]
   ConfigureCrossAccountStackExportsFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountStackExportsFunctionObjectVersion, '' ]]
   ConfigureCrossAccountSecurityGroupFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountSecurityGroupFunctionObjectVersion, '' ]]
+  ConfigureCrossAccountSubnetFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountSubnetFunctionObjectVersion, '' ]]
   ConfigureCrossAccountVpcFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountVpcFunctionObjectVersion, '' ]]
   ConfigureCrossAccountDomainNameServersFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountDomainNameServersFunctionObjectVersion, '' ]]
   ConfigureCrossAccountHostedZoneDelegationFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountHostedZoneDelegationFunctionObjectVersion, '' ]]
@@ -366,6 +404,28 @@ Resources:
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref CrossAccountSecurityGroupFunctionKey
         S3ObjectVersion: !If [ ConfigureCrossAccountSecurityGroupFunctionObjectVersion, !Ref CrossAccountSecurityGroupFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+  CrossAccountSubnetLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/CrossAccountSubnet
+      RetentionInDays: !Ref CrossAccountSubnetLogRetention
+  CrossAccountSubnetFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CrossAccountSubnet
+      Description: A Lambda function that returns information about a single Subnet which may be in another Account and/or Region.
+      Role: !GetAtt CrossAccountQueryRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
+      Handler: CrossAccountSubnet.handler
+      Code:
+        S3Bucket: !ImportValue
+          Fn::Sub: ${BucketsStackName}-FunctionsBucket
+        S3Key: !Ref CrossAccountSubnetFunctionKey
+        S3ObjectVersion: !If [ ConfigureCrossAccountSubnetFunctionObjectVersion, !Ref CrossAccountSubnetFunctionObjectVersion, !Ref 'AWS::NoValue' ]
   CrossAccountVpcLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -498,6 +558,11 @@ Outputs:
     Value: !GetAtt CrossAccountSecurityGroupFunction.Arn
     Export:
       Name: !Sub ${AWS::StackName}-CrossAccountSecurityGroupFunctionArn
+  CrossAccountSubnetFunctionArn:
+    Description: The CrossAccountSubnet Lambda Function ARN
+    Value: !GetAtt CrossAccountSubnetFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CrossAccountSubnetFunctionArn
   CrossAccountVpcFunctionArn:
     Description: The CrossAccountVpc Lambda Function ARN
     Value: !GetAtt CrossAccountVpcFunction.Arn
