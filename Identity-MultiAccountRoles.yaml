@@ -185,10 +185,10 @@ Conditions:
   ConfigureDevelopmentRoles: !Equals [ !Ref DevelopmentAccount, !Ref 'AWS::AccountId' ]
   ConfigureDevelopmentAccount: !Not [ !Equals [ !Ref DevelopmentAccount, '' ]]
 Resources:
-  OrganizationAccountReadOnlyRole:
+  OrganizationAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -197,24 +197,32 @@ Resources:
             Principal:
               AWS:
                 - !If
-                    - ConfigureOrganizationAccount
-                    - !Sub arn:aws:iam::${OrganizationAccount}:root
+                    - ConfigureJumpstartAccount
+                    - !Sub arn:aws:iam::${JumpstartAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
+                    - !Ref AWS::NoValue
+                - !If
+                    - ConfigureIdentityAccount
+                    - !Sub arn:aws:iam::${IdentityAccount}:root
+                    - !Ref AWS::NoValue
+                - !If
+                    - ConfigureProductionAccount
+                    - !Sub arn:aws:iam::${ProductionAccount}:root
                     - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureOrganizationRoles
   OrganizationAccountHostedZoneDelegationRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountHostedZoneDelegationRole
+      RoleName: HostedZoneDelegationProxyRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -225,6 +233,10 @@ Resources:
                 - !If
                     - ConfigureJumpstartAccount
                     - !Sub arn:aws:iam::${JumpstartAccount}:root
+                    - !Ref AWS::NoValue
+                - !If
+                    - ConfigureManagementAccount
+                    - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureIdentityAccount
@@ -239,12 +251,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountHostedZoneDelegationAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-HostedZoneDelegationProxyAccess
     Condition: ConfigureOrganizationRoles
   OrganizationAccountDomainNameServersRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountDomainNameServersRole
+      RoleName: DomainNameServersProxyRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -256,6 +268,54 @@ Resources:
                     - ConfigureJumpstartAccount
                     - !Sub arn:aws:iam::${JumpstartAccount}:root
                     - !Ref AWS::NoValue
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !ImportValue
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-DomainNameServersProxyAccess
+    Condition: ConfigureOrganizationRoles
+  JumpstartAccountReferenceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ReferenceRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !If
+                    - ConfigureOrganizationAccount
+                    - !Sub arn:aws:iam::${OrganizationAccount}:root
+                    - !Ref AWS::NoValue
+                - !If
+                    - ConfigureManagementAccount
+                    - !Sub arn:aws:iam::${ManagementAccount}:root
+                    - !Ref AWS::NoValue
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !ImportValue
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
+    Condition: ConfigureJumpstartRoles
+  ManagementAccountReferenceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ReferenceRole
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !If
+                    - ConfigureOrganizationAccount
+                    - !Sub arn:aws:iam::${OrganizationAccount}:root
+                    - !Ref AWS::NoValue
                 - !If
                     - ConfigureProductionAccount
                     - !Sub arn:aws:iam::${ProductionAccount}:root
@@ -265,64 +325,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountDomainNameServersAccess
-    Condition: ConfigureOrganizationRoles
-  JumpstartAccountReadOnlyRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: CrossAccountReadOnlyRole
-      Path: /
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS:
-                - !If
-                    - ConfigureOrganizationAccount
-                    - !Sub arn:aws:iam::${OrganizationAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureManagementAccount
-                    - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
-    Condition: ConfigureJumpstartRoles
-  ManagementAccountReadOnlyRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: CrossAccountReadOnlyRole
-      Path: /
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS:
-                - !If
-                    - ConfigureOrganizationAccount
-                    - !Sub arn:aws:iam::${OrganizationAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureManagementAccount
-                    - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureManagementRoles
   ManagementAccountHostedZoneDelegationRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountHostedZoneDelegationRole
+      RoleName: HostedZoneDelegationProxyRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -347,12 +355,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountHostedZoneDelegationAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-HostedZoneDelegationProxyAccess
     Condition: ConfigureManagementDomainRoles
   ManagementAccountDomainNameServersRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountDomainNameServersRole
+      RoleName: DomainNameServersProxyRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -364,21 +372,17 @@ Resources:
                     - ConfigureJumpstartAccount
                     - !Sub arn:aws:iam::${JumpstartAccount}:root
                     - !Ref AWS::NoValue
-                - !If
-                    - ConfigureProductionAccount
-                    - !Sub arn:aws:iam::${ProductionAccount}:root
-                    - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountDomainNameServersAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-DomainNameServersProxyAccess
     Condition: ConfigureManagementDomainRoles
-  IdentityAccountReadOnlyRole:
+  IdentityAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -393,10 +397,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureLogAccount
@@ -443,12 +443,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureIdentityRoles
-  LogAccountReadOnlyRole:
+  LogAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -467,10 +467,6 @@ Resources:
                 - !If
                     - ConfigureIdentityAccount
                     - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureLogAccount
-                    - !Sub arn:aws:iam::${LogAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureRecoveryAccount
@@ -513,12 +509,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureLogRoles
-  RecoveryAccountReadOnlyRole:
+  RecoveryAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -541,10 +537,6 @@ Resources:
                 - !If
                     - ConfigureLogAccount
                     - !Sub arn:aws:iam::${LogAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureRecoveryAccount
-                    - !Sub arn:aws:iam::${RecoveryAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureBuildAccount
@@ -583,12 +575,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureRecoveryRoles
-  BuildAccountReadOnlyRole:
+  BuildAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -615,10 +607,6 @@ Resources:
                 - !If
                     - ConfigureRecoveryAccount
                     - !Sub arn:aws:iam::${RecoveryAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureBuildAccount
-                    - !Sub arn:aws:iam::${BuildAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureCoreAccount
@@ -653,12 +641,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureBuildRoles
-  CoreAccountReadOnlyRole:
+  CoreAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -691,10 +679,6 @@ Resources:
                     - !Sub arn:aws:iam::${BuildAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureCoreAccount
-                    - !Sub arn:aws:iam::${CoreAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureProductionAccount
                     - !Sub arn:aws:iam::${ProductionAccount}:root
                     - !Ref AWS::NoValue
@@ -723,12 +707,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureCoreRoles
   CoreAccountVPCPeeringConnectionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountVPCPeeringConnectionRole
+      RoleName: VPCPeeringConnectionRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -759,10 +743,6 @@ Resources:
                 - !If
                     - ConfigureBuildAccount
                     - !Sub arn:aws:iam::${BuildAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureCoreAccount
-                    - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureProductionAccount
@@ -792,12 +772,12 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountVPCPeeringConnectionAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-VPCPeeringConnectionAccess
     Condition: ConfigureCoreRoles
-  ProductionAccountReadOnlyRole:
+  ProductionAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -833,21 +813,17 @@ Resources:
                     - ConfigureCoreAccount
                     - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
-                - !If
-                    - ConfigureProductionAccount
-                    - !Sub arn:aws:iam::${ProductionAccount}:root
-                    - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureProductionRoles
   ProductionAccountHostedZoneDelegationRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountHostedZoneDelegationRole
+      RoleName: HostedZoneDelegationProxyRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -884,10 +860,6 @@ Resources:
                     - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureProductionAccount
-                    - !Sub arn:aws:iam::${ProductionAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureStagingAccount
                     - !Sub arn:aws:iam::${StagingAccount}:root
                     - !Ref AWS::NoValue
@@ -912,12 +884,12 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountHostedZoneDelegationAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-HostedZoneDelegationProxyAccess
     Condition: ConfigureProductionRoles
-  StagingAccountReadOnlyRole:
+  StagingAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -953,21 +925,17 @@ Resources:
                     - ConfigureCoreAccount
                     - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
-                - !If
-                    - ConfigureStagingAccount
-                    - !Sub arn:aws:iam::${StagingAccount}:root
-                    - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureStagingRoles
-  UATAccountReadOnlyRole:
+  UATAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -1003,21 +971,17 @@ Resources:
                     - ConfigureCoreAccount
                     - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
-                - !If
-                    - ConfigureUATAccount
-                    - !Sub arn:aws:iam::${UATAccount}:root
-                    - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureUATRoles
-  QAAccountReadOnlyRole:
+  QAAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -1053,21 +1017,17 @@ Resources:
                     - ConfigureCoreAccount
                     - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
-                - !If
-                    - ConfigureQAAccount
-                    - !Sub arn:aws:iam::${QAAccount}:root
-                    - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureQARoles
-  TestingAccountReadOnlyRole:
+  TestingAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -1103,21 +1063,17 @@ Resources:
                     - ConfigureCoreAccount
                     - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
-                - !If
-                    - ConfigureTestingAccount
-                    - !Sub arn:aws:iam::${TestingAccount}:root
-                    - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureTestingRoles
-  DevelopmentAccountReadOnlyRole:
+  DevelopmentAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: CrossAccountReadOnlyRole
+      RoleName: ReferenceRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -1153,23 +1109,19 @@ Resources:
                     - ConfigureCoreAccount
                     - !Sub arn:aws:iam::${CoreAccount}:root
                     - !Ref AWS::NoValue
-                - !If
-                    - ConfigureDevelopmentAccount
-                    - !Sub arn:aws:iam::${DevelopmentAccount}:root
-                    - !Ref AWS::NoValue
             Action:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-CrossAccountReadOnlyAccess
+          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
     Condition: ConfigureDevelopmentRoles
 Outputs:
-  OrganizationAccountReadOnlyRole:
-    Description: The OrganizationAccountReadOnlyRole Name
-    Value: !Ref OrganizationAccountReadOnlyRole
+  OrganizationAccountReferenceRole:
+    Description: The OrganizationAccountReferenceRole Name
+    Value: !Ref OrganizationAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-OrganizationAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-OrganizationAccountReferenceRole
     Condition: ConfigureOrganizationRoles
   OrganizationAccountHostedZoneDelegationRole:
     Description: The OrganizationAccountHostedZoneDelegationRole Name
@@ -1183,17 +1135,17 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-OrganizationAccountDomainNameServersRole
     Condition: ConfigureOrganizationRoles
-  JumpstartAccountReadOnlyRole:
-    Description: The JumpstartAccountReadOnlyRole Name
-    Value: !Ref JumpstartAccountReadOnlyRole
+  JumpstartAccountReferenceRole:
+    Description: The JumpstartAccountReferenceRole Name
+    Value: !Ref JumpstartAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-JumpstartAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-JumpstartAccountReferenceRole
     Condition: ConfigureJumpstartRoles
-  ManagementAccountReadOnlyRole:
-    Description: The ManagementAccountReadOnlyRole Name
-    Value: !Ref ManagementAccountReadOnlyRole
+  ManagementAccountReferenceRole:
+    Description: The ManagementAccountReferenceRole Name
+    Value: !Ref ManagementAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-ManagementAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-ManagementAccountReferenceRole
     Condition: ConfigureManagementRoles
   ManagementAccountHostedZoneDelegationRole:
     Description: The ManagementAccountHostedZoneDelegationRole Name
@@ -1207,35 +1159,35 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ManagementAccountDomainNameServersRole
     Condition: ConfigureManagementDomainRoles
-  IdentityAccountReadOnlyRole:
-    Description: The IdentityAccountReadOnlyRole Name
-    Value: !Ref IdentityAccountReadOnlyRole
+  IdentityAccountReferenceRole:
+    Description: The IdentityAccountReferenceRole Name
+    Value: !Ref IdentityAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-IdentityAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-IdentityAccountReferenceRole
     Condition: ConfigureIdentityRoles
-  LogAccountReadOnlyRole:
-    Description: The LogAccountReadOnlyRole Name
-    Value: !Ref LogAccountReadOnlyRole
+  LogAccountReferenceRole:
+    Description: The LogAccountReferenceRole Name
+    Value: !Ref LogAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-LogAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-LogAccountReferenceRole
     Condition: ConfigureLogRoles
-  RecoveryAccountReadOnlyRole:
-    Description: The RecoveryAccountReadOnlyRole Name
-    Value: !Ref RecoveryAccountReadOnlyRole
+  RecoveryAccountReferenceRole:
+    Description: The RecoveryAccountReferenceRole Name
+    Value: !Ref RecoveryAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-RecoveryAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-RecoveryAccountReferenceRole
     Condition: ConfigureRecoveryRoles
-  BuildAccountReadOnlyRole:
-    Description: The BuildAccountReadOnlyRole Name
-    Value: !Ref BuildAccountReadOnlyRole
+  BuildAccountReferenceRole:
+    Description: The BuildAccountReferenceRole Name
+    Value: !Ref BuildAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-BuildAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-BuildAccountReferenceRole
     Condition: ConfigureBuildRoles
-  CoreAccountReadOnlyRole:
-    Description: The CoreAccountReadOnlyRole Name
-    Value: !Ref CoreAccountReadOnlyRole
+  CoreAccountReferenceRole:
+    Description: The CoreAccountReferenceRole Name
+    Value: !Ref CoreAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-CoreAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-CoreAccountReferenceRole
     Condition: ConfigureCoreRoles
   CoreAccountVPCPeeringConnectionRole:
     Description: The CoreAccountVPCPeeringConnectionRole Name
@@ -1243,11 +1195,11 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-CoreAccountVPCPeeringConnectionRole
     Condition: ConfigureCoreRoles
-  ProductionAccountReadOnlyRole:
-    Description: The ProductionAccountReadOnlyRole Name
-    Value: !Ref ProductionAccountReadOnlyRole
+  ProductionAccountReferenceRole:
+    Description: The ProductionAccountReferenceRole Name
+    Value: !Ref ProductionAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-ProductionAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-ProductionAccountReferenceRole
     Condition: ConfigureProductionRoles
   ProductionAccountHostedZoneDelegationRole:
     Description: The ProductionAccountHostedZoneDelegationRole Name
@@ -1255,33 +1207,33 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ProductionAccountHostedZoneDelegationRole
     Condition: ConfigureProductionRoles
-  StagingAccountReadOnlyRole:
-    Description: The StagingAccountReadOnlyRole Name
-    Value: !Ref StagingAccountReadOnlyRole
+  StagingAccountReferenceRole:
+    Description: The StagingAccountReferenceRole Name
+    Value: !Ref StagingAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-StagingAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-StagingAccountReferenceRole
     Condition: ConfigureStagingRoles
-  UATAccountReadOnlyRole:
-    Description: The UATAccountReadOnlyRole Name
-    Value: !Ref UATAccountReadOnlyRole
+  UATAccountReferenceRole:
+    Description: The UATAccountReferenceRole Name
+    Value: !Ref UATAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-UATAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-UATAccountReferenceRole
     Condition: ConfigureUATRoles
-  QAAccountReadOnlyRole:
-    Description: The QAAccountReadOnlyRole Name
-    Value: !Ref QAAccountReadOnlyRole
+  QAAccountReferenceRole:
+    Description: The QAAccountReferenceRole Name
+    Value: !Ref QAAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-QAAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-QAAccountReferenceRole
     Condition: ConfigureQARoles
-  TestingAccountReadOnlyRole:
-    Description: The TestingAccountReadOnlyRole Name
-    Value: !Ref TestingAccountReadOnlyRole
+  TestingAccountReferenceRole:
+    Description: The TestingAccountReferenceRole Name
+    Value: !Ref TestingAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-TestingAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-TestingAccountReferenceRole
     Condition: ConfigureTestingRoles
-  DevelopmentAccountReadOnlyRole:
-    Description: The DevelopmentAccountReadOnlyRole Name
-    Value: !Ref DevelopmentAccountReadOnlyRole
+  DevelopmentAccountReferenceRole:
+    Description: The DevelopmentAccountReferenceRole Name
+    Value: !Ref DevelopmentAccountReferenceRole
     Export:
-      Name: !Sub ${AWS::StackName}-DevelopmentAccountReadOnlyRole
+      Name: !Sub ${AWS::StackName}-DevelopmentAccountReferenceRole
     Condition: ConfigureDevelopmentRoles
