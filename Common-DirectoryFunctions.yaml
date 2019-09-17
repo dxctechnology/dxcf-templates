@@ -209,6 +209,7 @@ Resources:
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref DirectoryAliasFunctionKey
         S3ObjectVersion: !If [ ConfigureDirectoryAliasFunctionObjectVersion, !Ref DirectoryAliasFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+    DependsOn: DirectoryAliasLogGroup
   DirectoryConditionalForwarderRole:
     Type: AWS::IAM::Role
     Properties:
@@ -257,6 +258,7 @@ Resources:
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref DirectoryConditionalForwarderFunctionKey
         S3ObjectVersion: !If [ ConfigureDirectoryConditionalForwarderFunctionObjectVersion, !Ref DirectoryConditionalForwarderFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+    DependsOn: DirectoryConditionalForwarderLogGroup
   DirectoryLogSubscriptionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -305,6 +307,7 @@ Resources:
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref DirectoryLogSubscriptionFunctionKey
         S3ObjectVersion: !If [ ConfigureDirectoryLogSubscriptionFunctionObjectVersion, !Ref DirectoryLogSubscriptionFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+    DependsOn: DirectoryLogSubscriptionLogGroup
 Outputs:
   DirectoryAliasFunctionArn:
     Description: The DirectoryAlias Lambda Function ARN

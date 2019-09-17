@@ -135,6 +135,7 @@ Resources:
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref VpcDefaultResourceTaggerFunctionKey
         S3ObjectVersion: !If [ ConfigureVpcDefaultResourceTaggerFunctionObjectVersion, !Ref VpcDefaultResourceTaggerFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+    DependsOn: VpcDefaultResourceTaggerLogGroup
 Outputs:
   VpcDefaultResourceTaggerFunctionArn:
     Description: The VpcDefaultResourceTagger Lambda Function ARN

@@ -167,6 +167,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: AmazonLinux2ImageLogGroup
   AmazonLinuxImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -251,6 +252,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: AmazonLinuxImageLogGroup
   WindowsImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -339,6 +341,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: WindowsImageLogGroup
   RHELImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -434,6 +437,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: RHELImageLogGroup
   UbuntuImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -516,6 +520,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: UbuntuImageLogGroup
   AmazonNATImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -600,6 +605,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: AmazonNATImageLogGroup
 Outputs:
   AmazonLinux2ImageFunctionArn:
     Description: The AmazonLinux2Image Lambda Function ARN

@@ -166,6 +166,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: BaselineAmazonLinuxImageLogGroup
 Outputs:
   BaselineAmazonLinuxImageFunctionArn:
     Description: The BaselineAmazonLinuxImage Lambda Function ARN

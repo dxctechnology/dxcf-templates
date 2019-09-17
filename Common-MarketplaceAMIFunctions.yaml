@@ -167,6 +167,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: CISAmazonLinuxImageLogGroup
   CISWindowsImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -253,6 +254,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: CISWindowsImageLogGroup
   CISRHELImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -334,6 +336,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: CISRHELImageLogGroup
   CISCentosImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -419,6 +422,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: CISCentosImageLogGroup
   CISUbuntuImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -501,6 +505,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: CISUbuntuImageLogGroup
   OpenVPNASImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -586,6 +591,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: OpenVPNASImageLogGroup
   DeepSecurityImageLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -667,6 +673,7 @@ Resources:
                 await response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: DeepSecurityImageLogGroup
 Outputs:
   CISAmazonLinuxImageFunctionArn:
     Description: The CISAmazonLinuxImage Lambda Function ARN
