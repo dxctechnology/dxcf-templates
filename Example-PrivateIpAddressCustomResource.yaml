@@ -5,21 +5,43 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: Stack Dependencies
+          default: VPC Configuration
         Parameters:
-          - VPCStackName
+          - EnvironmentName
+          - Network
+          - Offset
     ParameterLabels:
-      VPCStackName:
-        default: VPC Stack Name
+      EnvironmentName:
+        default: Environment Name
+      Network:
+        default: Network
+      Offset:
+        default: Offset
 Parameters:
-  VPCStackName:
-    Description: Name of the CloudFormation Stack containing the VPC
+  EnvironmentName:
+    Description: Name of the Environment
     Type: String
-    MinLength: 6
-    MaxLength: 64
-    Default: Production-VPC
-    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+    Default: Production
+    AllowedValues:
+      - Production
+      - Staging
+      - UAT
+      - Testing
+      - Development
+      - Build
+      - Core
+      - Recovery
+      - Log
+      - Identity
+      - Management
+      - Organization
+    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
+  Network:
+    Description: VPC Network
+    Type: String
+    Default: 172.21.0.0/21
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-7]))$
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/16-27.
   Offset:
     Description: Offset of IP Address within Subnet
     Type: String
@@ -27,19 +49,48 @@ Parameters:
     AllowedPattern: ^(0|[1-9][0-9]*)$
     ConstraintDescription: must be a positive integer.
 Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: !Ref Network
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-VPC
+        - Key: Environment
+          Value: !Ref EnvironmentName
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt VPC.CidrBlock, 32, 4 ]]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PublicSubnetA
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 16, !Cidr [ !GetAtt VPC.CidrBlock, 32, 4 ]]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-PublicSubnetB
   PrivateIpAddressA:
     Type: Custom::PrivateIpAddress
     Properties:
       ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PrivateIpAddress
-      SubnetId: !ImportValue
-        Fn::Sub: ${VPCStackName}-Public1SubnetA
+      SubnetId: !Ref PublicSubnetA
       Offset: !Ref Offset
   PrivateIpAddressB:
     Type: Custom::PrivateIpAddress
     Properties:
       ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:PrivateIpAddress
-      SubnetId: !ImportValue
-        Fn::Sub: ${VPCStackName}-Public1SubnetB
+      SubnetId: !Ref PublicSubnetB
       Offset: !Ref Offset
 Outputs:
   PrivateIpAddressA:
