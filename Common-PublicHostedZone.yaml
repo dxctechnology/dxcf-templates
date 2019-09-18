@@ -7,7 +7,6 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
-          - MultiAccountFunctionsStackName
           - DomainFunctionsStackName
       - Label:
           default: Environment Configuration
@@ -24,8 +23,6 @@ Metadata:
           - UseHostedZoneDelegation
           - UseDomainNameServers
     ParameterLabels:
-      MultiAccountFunctionsStackName:
-        default: MultiAccountFunctions Stack Name
       DomainFunctionsStackName:
         default: DomainFunctions Stack Name
       EnvironmentName:
@@ -39,14 +36,6 @@ Metadata:
       UseDomainNameServers:
         default: Use Domain NameServers Method
 Parameters:
-  MultiAccountFunctionsStackName:
-    Description: Name of the CloudFormation Stack containing the MultiAccount Functions
-    Type: String
-    MinLength: 8
-    MaxLength: 64
-    Default: MultiAccountFunctions
-    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   DomainFunctionsStackName:
     Description: Name of the CloudFormation Stack containing the Domain Functions
     Type: String
@@ -112,9 +101,9 @@ Rules:
 Conditions:
   ConfigureAccountId: !Not [ !Equals [ !Ref AccountId, '' ]]
   ConfigureHostedZoneDelegation: !And [ !Equals [ !Ref UseHostedZoneDelegation, true ], !Not [ !Condition ConfigureAccountId ]]
-  ConfigureCrossAccountHostedZoneDelegation: !And [ !Equals [ !Ref UseHostedZoneDelegation, true ], !Condition ConfigureAccountId ]
+  ConfigureHostedZoneDelegationProxy: !And [ !Equals [ !Ref UseHostedZoneDelegation, true ], !Condition ConfigureAccountId ]
   ConfigureDomainNameServers: !And [ !Equals [ !Ref UseDomainNameServers, true ], !Not [ !Condition ConfigureAccountId ]]
-  ConfigureCrossAccountDomainNameServers: !And [ !Equals [ !Ref UseDomainNameServers, true ], !Condition ConfigureAccountId ]
+  ConfigureDomainNameServersProxy: !And [ !Equals [ !Ref UseDomainNameServers, true ], !Condition ConfigureAccountId ]
 Resources:
   PublicHostedZone:
     Type: AWS::Route53::HostedZone
@@ -134,16 +123,16 @@ Resources:
       NameServers: !GetAtt PublicHostedZone.NameServers
     DependsOn: PublicHostedZone
     Condition: ConfigureHostedZoneDelegation
-  PublicCrossAccountHostedZoneDelegation:
-    Type: Custom::CrossAccountHostedZoneDelegation
+  PublicHostedZoneDelegationProxy:
+    Type: Custom::HostedZoneDelegationProxy
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${MultiAccountFunctionsStackName}-CrossAccountHostedZoneDelegationFunctionArn
+        Fn::Sub: ${DomainFunctionsStackName}-HostedZoneDelegationProxyFunctionArn
       AccountId: !Ref AccountId
       DomainName: !Ref PublicDomain
       NameServers: !GetAtt PublicHostedZone.NameServers
     DependsOn: PublicHostedZone
-    Condition: ConfigureCrossAccountHostedZoneDelegation
+    Condition: ConfigureHostedZoneDelegationProxy
   PublicDomainNameServers:
     Type: Custom::DomainNameServers
     Properties:
@@ -153,16 +142,16 @@ Resources:
       NameServers: !GetAtt PublicHostedZone.NameServers
     DependsOn: PublicHostedZone
     Condition: ConfigureDomainNameServers
-  PublicCrossAccountDomainNameServers:
-    Type: Custom::CrossAccountDomainNameServers
+  PublicDomainNameServersProxy:
+    Type: Custom::DomainNameServersProxy
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${MultiAccountFunctionsStackName}-CrossAccountDomainNameServersFunctionArn
+        Fn::Sub: ${DomainFunctionsStackName}-DomainNameServersProxyFunctionArn
       AccountId: !Ref AccountId
       DomainName: !Sub ${PublicDomain}.
       NameServers: !GetAtt PublicHostedZone.NameServers
     DependsOn: PublicHostedZone
-    Condition: ConfigureCrossAccountDomainNameServers
+    Condition: ConfigureDomainNameServersProxy
 Outputs:
   PublicDomain:
     Description: The PublicDomain
