@@ -113,41 +113,41 @@ Mappings:
       Code: se1
   RegionLoadBalancerAccountMap:
     us-east-1:
-      Account: 127311923021
+      Account: '127311923021'
     us-east-2:
-      Account: 033677994240
+      Account: '033677994240'
     us-west-1:
-      Account: 027434742980
+      Account: '027434742980'
     us-west-2:
-      Account: 797873946194
+      Account: '797873946194'
     ap-east-1:
-      Account: 754344448648
+      Account: '754344448648'
     ap-south-1:
-      Account: 718504428378
+      Account: '718504428378'
     ap-northeast-2:
-      Account: 600734575887
+      Account: '600734575887'
     ap-southeast-1:
-      Account: 114774131450
+      Account: '114774131450'
     ap-southeast-2:
-      Account: 783225319266
+      Account: '783225319266'
     ap-northeast-1:
-      Account: 582318560864
+      Account: '582318560864'
     ca-central-1:
-      Account: 985666609251
+      Account: '985666609251'
     eu-central-1:
-      Account: 054676820928
+      Account: '054676820928'
     eu-west-1:
-      Account: 156460612806
+      Account: '156460612806'
     eu-west-2:
-      Account: 652711504416
+      Account: '652711504416'
     eu-west-3:
-      Account: 009996457667
+      Account: '009996457667'
     eu-north-1:
-      Account: 897822967062
+      Account: '897822967062'
     me-south-1:
-      Account: 076674570225
+      Account: '076674570225'
     sa-east-1:
-      Account: 507241528517
+      Account: '507241528517'
 Conditions:
   AppendAccountId: !Equals [ !Ref AccountAlias, '' ]
   ConfigureGlacier: !Equals [ !Ref UseGlacier, true ]
