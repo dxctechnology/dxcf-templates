@@ -81,7 +81,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
 Conditions:
   ConfigureVpcDefaultResourceTaggerFunctionObjectVersion: !Not [ !Equals [ !Ref VpcDefaultResourceTaggerFunctionObjectVersion, '' ]]
 Resources:

@@ -99,7 +99,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   DirectoryConditionalForwarderFunctionKey:
     Description: Key of Object within the S3 Bucket containing the DirectoryConditionalForwarder Lambda Function zipfile
     Type: String
@@ -127,7 +127,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   DirectoryLogSubscriptionFunctionKey:
     Description: Key of Object within the S3 Bucket containing the DirectoryLogSubscription Lambda Function zipfile
     Type: String
@@ -155,7 +155,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
 Conditions:
   ConfigureDirectoryAliasFunctionObjectVersion: !Not [ !Equals [ !Ref DirectoryAliasFunctionObjectVersion, '' ]]
   ConfigureDirectoryConditionalForwarderFunctionObjectVersion: !Not [ !Equals [ !Ref DirectoryConditionalForwarderFunctionObjectVersion, '' ]]

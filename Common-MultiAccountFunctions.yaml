@@ -135,7 +135,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   CrossAccountStackExportsFunctionKey:
     Description: Key of Object within the S3 Bucket containing the CrossAccountStackExports Lambda Function zipfile
     Type: String
@@ -163,7 +163,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   CrossAccountSecurityGroupFunctionKey:
     Description: Key of Object within the S3 Bucket containing the CrossAccountSecurityGroup Lambda Function zipfile
     Type: String
@@ -191,7 +191,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   CrossAccountSubnetFunctionKey:
     Description: Key of Object within the S3 Bucket containing the CrossAccountSubnet Lambda Function zipfile
     Type: String
@@ -219,7 +219,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   CrossAccountVpcFunctionKey:
     Description: Key of Object within the S3 Bucket containing the CrossAccountVpc Lambda Function zipfile
     Type: String
@@ -247,7 +247,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   CrossAccountDomainNameServersFunctionKey:
     Description: Key of Object within the S3 Bucket containing the CrossAccountDomainNameServers Lambda Function zipfile
     Type: String
@@ -275,7 +275,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   CrossAccountHostedZoneDelegationFunctionKey:
     Description: Key of Object within the S3 Bucket containing the CrossAccountHostedZoneDelegation Lambda Function zipfile
     Type: String
@@ -303,7 +303,7 @@ Parameters:
       - 30
       - 60
       - 90
-    ConstraintDescription: 'must be: 1, 3, 5, 7, 14, 30, 60 or 90.'
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
 Conditions:
   ConfigureCrossAccountStackExportFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountStackExportFunctionObjectVersion, '' ]]
   ConfigureCrossAccountStackExportsFunctionObjectVersion: !Not [ !Equals [ !Ref CrossAccountStackExportsFunctionObjectVersion, '' ]]
