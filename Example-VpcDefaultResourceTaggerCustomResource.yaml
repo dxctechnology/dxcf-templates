@@ -7,7 +7,7 @@ Metadata:
       - Label:
           default: VPC Configuration
         Parameters:
-          - Name
+          - EnvironmentName
           - Network
       - Label:
           default: Name Tag Replacement Text
@@ -17,8 +17,8 @@ Metadata:
           - NetworkAclNameTagReplaceText
           - SecurityGroupNameTagReplaceText
     ParameterLabels:
-      Name:
-        default: Name
+      EnvironmentName:
+        default: Environment Name
       Network:
         default: Network
       VpcNameTagReplaceText:
@@ -30,8 +30,8 @@ Metadata:
       SecurityGroupNameTagReplaceText:
         default: SecurityGroup
 Parameters:
-  Name:
-    Description: Name of the Environment associated with the Stack
+  EnvironmentName:
+    Description: Name of the Environment
     Type: String
     Default: Production
     AllowedValues:
@@ -42,9 +42,12 @@ Parameters:
       - Development
       - Build
       - Core
+      - Recovery
       - Log
       - Identity
-    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Log or Identity.
+      - Management
+      - Organization
+    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
   Network:
     Description: VPC Network
     Type: String
@@ -95,10 +98,10 @@ Resources:
         - Key: Name
           Value: !If
             - ConfigureVpcNameTagReplaceText
-            - !Sub ${Name}-${VpcNameTagReplaceText}
-            - !Sub ${Name}-VPC
+            - !Sub ${EnvironmentName}-${VpcNameTagReplaceText}
+            - !Sub ${EnvironmentName}-VPC
         - Key: Environment
-          Value: !Ref Name
+          Value: !Ref EnvironmentName
   VpcDefaultResourceTagger:
     Type: Custom::VpcDefaultResourceTagger
     Properties:

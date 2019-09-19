@@ -15,8 +15,8 @@ Parameters:
   TopicPrefix:
     Description: Optional Prefix for Topic Display Name
     Type: String
-    Default: HLSB
-    AllowedPattern: (^&|^[A-Z][A-Z0-9]{1,4}$)
+    Default: ''
+    AllowedPattern: (^$|^[A-Z][A-Z0-9]{1,4}$)
     ConstraintDescription: must begin with an upper-case letter and consist of 1 to 4 additional upper-case letters or digits, if specified.
 Rules:
   ValidateRegion:
@@ -34,10 +34,10 @@ Resources:
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Bills
         - Bills
-  BillsSMSTopic:
+  UrgentBillsTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: BillsSMS
+      TopicName: UrgentBills
       DisplayName: !If
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Bills
@@ -48,8 +48,8 @@ Outputs:
     Value: !Ref BillsTopic
     Export:
       Name: !Sub ${AWS::StackName}-BillsTopic
-  BillsSMSTopic:
-    Description: The BillsSMS Topic ARN
-    Value: !Ref BillsSMSTopic
+  UrgentBillsTopic:
+    Description: The UrgentBills Topic ARN
+    Value: !Ref UrgentBillsTopic
     Export:
-      Name: !Sub ${AWS::StackName}-BillsSMSTopic
+      Name: !Sub ${AWS::StackName}-UrgentBillsTopic

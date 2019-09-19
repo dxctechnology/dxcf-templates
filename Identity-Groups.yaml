@@ -10,7 +10,7 @@ Metadata:
           - ManagedPoliciesStackName
     ParameterLabels:
       ManagedPoliciesStackName:
-        default: ManagedPolicies Stack Name
+        default: Managed Policies Stack Name
 Parameters:
   ManagedPoliciesStackName:
     Description: Name of the CloudFormation Stack containing ManagedPolicies
@@ -63,6 +63,13 @@ Resources:
       Path: /
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/job-function/DatabaseAdministrator
+  SecurityAdministratorsGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: SecurityAdministrators
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/SecurityAudit
   DevelopersGroup:
     Type: AWS::IAM::Group
     Properties:
@@ -133,6 +140,11 @@ Outputs:
     Value: !Ref DatabaseAdministratorsGroup
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseAdministratorsGroup
+  SecurityAdministratorsGroup:
+    Description: The SecurityAdministratorsGroup Name
+    Value: !Ref SecurityAdministratorsGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-SecurityAdministratorsGroup
   DevelopersGroup:
     Description: The DevelopersGroup Name
     Value: !Ref DevelopersGroup

@@ -11,9 +11,9 @@ Metadata:
           - ManagedPoliciesStackName
     ParameterLabels:
       CustomManagedPoliciesStackName:
-        default: Custom ManagedPolicies Stack Name
+        default: Custom Managed Policies Stack Name
       ManagedPoliciesStackName:
-        default: ManagedPolicies Stack Name
+        default: Managed Policies Stack Name
 Parameters:
   CustomManagedPoliciesStackName:
     Description: Name of the CloudFormation Stack containing Custom ManagedPolicies

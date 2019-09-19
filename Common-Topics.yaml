@@ -15,8 +15,8 @@ Parameters:
   TopicPrefix:
     Description: Optional Prefix for Topic Display Name
     Type: String
-    Default: HLSB
-    AllowedPattern: (^&|^[A-Z][A-Z0-9]{1,4}$)
+    Default: ''
+    AllowedPattern: (^$|^[A-Z][A-Z0-9]{1,4}$)
     ConstraintDescription: must begin with an upper-case letter and consist of 1 to 4 additional upper-case letters or digits, if specified.
 Conditions:
   ConfigureTopicPrefix: !Not [ !Equals [ !Ref TopicPrefix, '' ]]
@@ -29,10 +29,10 @@ Resources:
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Events
         - Events
-  EventsSMSTopic:
+  UrgentEventsTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: EventsSMS
+      TopicName: UrgentEvents
       DisplayName: !If
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Events
@@ -45,10 +45,10 @@ Resources:
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Alarms
         - Alarms
-  AlarmsSMSTopic:
+  UrgentAlarmsTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: AlarmsSMS
+      TopicName: UrgentAlarms
       DisplayName: !If
         - ConfigureTopicPrefix
         - !Sub ${TopicPrefix} Alarms
@@ -81,21 +81,21 @@ Outputs:
     Value: !Ref EventsTopic
     Export:
       Name: !Sub ${AWS::StackName}-EventsTopic
-  EventsSMSTopic:
-    Description: The EventsSMS Topic ARN
-    Value: !Ref EventsSMSTopic
+  UrgentEventsTopic:
+    Description: The UrgentEvents Topic ARN
+    Value: !Ref UrgentEventsTopic
     Export:
-      Name: !Sub ${AWS::StackName}-EventsSMSTopic
+      Name: !Sub ${AWS::StackName}-UrgentEventsTopic
   AlarmsTopic:
     Description: The Alarms Topic ARN
     Value: !Ref AlarmsTopic
     Export:
       Name: !Sub ${AWS::StackName}-AlarmsTopic
-  AlarmsSMSTopic:
-    Description: The AlarmsSMS Topic ARN
-    Value: !Ref AlarmsSMSTopic
+  UrgentAlarmsTopic:
+    Description: The UrgentAlarms Topic ARN
+    Value: !Ref UrgentAlarmsTopic
     Export:
-      Name: !Sub ${AWS::StackName}-AlarmsSMSTopic
+      Name: !Sub ${AWS::StackName}-UrgentAlarmsTopic
   CloudTrailTopic:
     Description: The CloudTrail Topic ARN
     Value: !Ref CloudTrailTopic

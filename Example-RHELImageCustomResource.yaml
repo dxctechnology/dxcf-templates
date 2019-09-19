@@ -27,10 +27,11 @@ Parameters:
   Version:
     Description: RHEL Version
     Type: String
-    Default: RHEL 7.5
+    Default: RHEL 7.6
     AllowedValues:
       - ''
       - RHEL 7
+      - RHEL 7.7
       - RHEL 7.6
       - RHEL 7.5
       - RHEL 7.4
@@ -46,7 +47,7 @@ Parameters:
   Date:
     Description: Optional RHEL Date, specify to select a specific publication date for the Image
     Type: String
-    Default: 20180322
+    Default: 20181017
     AllowedPattern: (^$|^20(1[6-9]|[2-9][0-9])(0[1-9]|1[0-2])(0[1-9]|[1-2][0-9]|3[0-1])$)
     ConstraintDescription: Must be a valid date or blank.
 Conditions:

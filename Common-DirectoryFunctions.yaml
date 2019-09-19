@@ -7,40 +7,69 @@ Metadata:
       - Label:
           default: Stack Dependencies
         Parameters:
+          - LayersStackName
           - BucketsStackName
+          - TopicsStackName
       - Label:
           default: Function Configuration
         Parameters:
           - DirectoryAliasFunctionKey
           - DirectoryAliasFunctionObjectVersion
+          - DirectoryAliasLogRetention
           - DirectoryConditionalForwarderFunctionKey
           - DirectoryConditionalForwarderFunctionObjectVersion
+          - DirectoryConditionalForwarderLogRetention
           - DirectoryLogSubscriptionFunctionKey
           - DirectoryLogSubscriptionFunctionObjectVersion
+          - DirectoryLogSubscriptionLogRetention
     ParameterLabels:
+      LayersStackName:
+        default: Layers Stack Name
       BucketsStackName:
         default: Buckets Stack Name
-      FunctionFolder:
-        default: Function Folder
+      TopicsStackName:
+        default: Topics Stack Name
       DirectoryAliasFunctionKey:
         default: DirectoryAlias Function S3 Key
       DirectoryAliasFunctionObjectVersion:
         default: DirectoryAlias Function S3 Object Version
+      DirectoryAliasLogRetention:
+        default: DirectoryAlias Log Retention
       DirectoryConditionalForwarderFunctionKey:
         default: DirectoryConditionalForwarder Function S3 Key
       DirectoryConditionalForwarderFunctionObjectVersion:
         default: DirectoryConditionalForwarder Function S3 Object Version
+      DirectoryConditionalForwarderLogRetention:
+        default: DirectoryConditionalForwarder Log Retention
       DirectoryLogSubscriptionFunctionKey:
         default: DirectoryLogSubscription Function S3 Key
       DirectoryLogSubscriptionFunctionObjectVersion:
         default: DirectoryLogSubscription Function S3 Object Version
+      DirectoryLogSubscriptionLogRetention:
+        default: DirectoryLogSubscription LogRetention
 Parameters:
+  LayersStackName:
+    Description: Name of the CloudFormation Stack containing Layers
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Layers
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
     MinLength: 2
     MaxLength: 64
     Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Topics
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   DirectoryAliasFunctionKey:
@@ -57,6 +86,20 @@ Parameters:
     MaxLength: 32
     Default: ''
     ConstraintDescription: must be a valid S3 Object Version.
+  DirectoryAliasLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the DirectoryAlias Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   DirectoryConditionalForwarderFunctionKey:
     Description: Key of Object within the S3 Bucket containing the DirectoryConditionalForwarder Lambda Function zipfile
     Type: String
@@ -71,6 +114,20 @@ Parameters:
     MaxLength: 32
     Default: ''
     ConstraintDescription: must be a valid S3 Object Version.
+  DirectoryConditionalForwarderLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the DirectoryConditionalForwarder Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
   DirectoryLogSubscriptionFunctionKey:
     Description: Key of Object within the S3 Bucket containing the DirectoryLogSubscription Lambda Function zipfile
     Type: String
@@ -85,6 +142,20 @@ Parameters:
     MaxLength: 32
     Default: ''
     ConstraintDescription: must be a valid S3 Object Version.
+  DirectoryLogSubscriptionLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the DirectoryLogSubscription Lambda Function
+    Type: Number
+    Default: 30
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60 or 90.
 Conditions:
   ConfigureDirectoryAliasFunctionObjectVersion: !Not [ !Equals [ !Ref DirectoryAliasFunctionObjectVersion, '' ]]
   ConfigureDirectoryConditionalForwarderFunctionObjectVersion: !Not [ !Equals [ !Ref DirectoryConditionalForwarderFunctionObjectVersion, '' ]]
@@ -116,6 +187,11 @@ Resources:
                   - ds:EnableSso
                   - ds:DisableSso
                 Resource: '*'
+  DirectoryAliasLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/DirectoryAlias
+      RetentionInDays: !Ref DirectoryAliasLogRetention
   DirectoryAliasFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -124,12 +200,16 @@ Resources:
       Role: !GetAtt DirectoryAliasRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: DirectoryAlias.handler
       Code:
         S3Bucket: !ImportValue
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref DirectoryAliasFunctionKey
         S3ObjectVersion: !If [ ConfigureDirectoryAliasFunctionObjectVersion, !Ref DirectoryAliasFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+    DependsOn: DirectoryAliasLogGroup
   DirectoryConditionalForwarderRole:
     Type: AWS::IAM::Role
     Properties:
@@ -156,6 +236,11 @@ Resources:
                   - ds:CreateConditionalForwarder
                   - ds:DeleteConditionalForwarder
                 Resource: '*'
+  DirectoryConditionalForwarderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/DirectoryConditionalForwarder
+      RetentionInDays: !Ref DirectoryConditionalForwarderLogRetention
   DirectoryConditionalForwarderFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -164,12 +249,16 @@ Resources:
       Role: !GetAtt DirectoryConditionalForwarderRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: DirectoryConditionalForwarder.handler
       Code:
         S3Bucket: !ImportValue
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref DirectoryConditionalForwarderFunctionKey
         S3ObjectVersion: !If [ ConfigureDirectoryConditionalForwarderFunctionObjectVersion, !Ref DirectoryConditionalForwarderFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+    DependsOn: DirectoryConditionalForwarderLogGroup
   DirectoryLogSubscriptionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -196,6 +285,11 @@ Resources:
                   - ds:CreateLogSubscription
                   - ds:DeleteLogSubscription
                 Resource: '*'
+  DirectoryLogSubscriptionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/DirectoryLogSubscription
+      RetentionInDays: !Ref DirectoryLogSubscriptionLogRetention
   DirectoryLogSubscriptionFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -204,12 +298,16 @@ Resources:
       Role: !GetAtt DirectoryLogSubscriptionRole.Arn
       Runtime: nodejs8.10
       Timeout: 30
+      Layers:
+        - !ImportValue
+            Fn::Sub: ${LayersStackName}-AsyncCustomResourceLayerVersionArn
       Handler: DirectoryLogSubscription.handler
       Code:
         S3Bucket: !ImportValue
           Fn::Sub: ${BucketsStackName}-FunctionsBucket
         S3Key: !Ref DirectoryLogSubscriptionFunctionKey
         S3ObjectVersion: !If [ ConfigureDirectoryLogSubscriptionFunctionObjectVersion, !Ref DirectoryLogSubscriptionFunctionObjectVersion, !Ref 'AWS::NoValue' ]
+    DependsOn: DirectoryLogSubscriptionLogGroup
 Outputs:
   DirectoryAliasFunctionArn:
     Description: The DirectoryAlias Lambda Function ARN

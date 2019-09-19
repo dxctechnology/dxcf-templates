@@ -36,8 +36,8 @@ Parameters:
   Version:
     Description: Deep Security Version. Used to select a prior Deep Security version if non-blank
     Type: String
-    Default: 11.3.184
-    AllowedPattern: (^$|^[0-9]*\.[0-9]*\.[0-9]*$)
+    Default: 12.0.300
+    AllowedPattern: (^$|^([0-9]|[1-9][0-9])\.([0-9]|[1-9][0-9])\.([0-9]|[1-9][0-9]|[1-9][0-9][0-9])$)
     ConstraintDescription: must be a version of the form x.y.z or blank.
 Conditions:
   ConfigureRegion: !Not [ !Equals [ !Ref Region, '' ]]

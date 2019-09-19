@@ -9,12 +9,18 @@ Metadata:
         Parameters:
           - BillingTopicsStackName
       - Label:
+          default: Function Configuration
+        Parameters:
+          - BillingAlarmThresholdCalculatorLogRetention
+      - Label:
           default: Environment Configuration
         Parameters:
           - EnvironmentType
     ParameterLabels:
       BillingTopicsStackName:
         default: Billing Topics Stack Name
+      BillingAlarmThresholdCalculatorLogRetention:
+        default: BillingAlarmThresholdCalculator Log Retention
       EnvironmentType:
         default: Environment Type
 Parameters:
@@ -26,6 +32,22 @@ Parameters:
     Default: BillingTopics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  BillingAlarmThresholdCalculatorLogRetention:
+    Description: Number of days to retain CloudWatch Log Events for the BillingAlarmThresholdCalculator Lambda Function
+    Type: Number
+    Default: 365
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 365
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90 120 or 365.
   EnvironmentType:
     Description: Type of the Environment to configure alarms for monitoring costs. Used to select which Alarms to create
     Type: String
@@ -48,34 +70,58 @@ Mappings:
   RegionNameMap:
     us-east-1:
       Name: Virginia
+      Code: ue1
     us-east-2:
       Name: Ohio
+      Code: ue2
     us-west-1:
       Name: California
+      Code: uw1
     us-west-2:
       Name: Oregon
-    ca-central-1:
-      Name: Canada
-    eu-west-1:
-      Name: Ireland
-    eu-central-1:
-      Name: Frankfurt
-    eu-west-2:
-      Name: London
-    eu-west-3:
-      Name: Paris
-    ap-southeast-1:
-      Name: Singapore
-    ap-southeast-2:
-      Name: Sydney
-    ap-northeast-2:
-      Name: Seoul
-    ap-northeast-1:
-      Name: Tokyo
+      Code: uw2
+    ap-east-1:
+      Name: HongKong
+      Code: ae1
     ap-south-1:
       Name: Mumbai
+      Code: ad1
+    ap-northeast-2:
+      Name: Seoul
+      Code: an2
+    ap-southeast-1:
+      Name: Singapore
+      Code: as1
+    ap-southeast-2:
+      Name: Sydney
+      Code: as2
+    ap-northeast-1:
+      Name: Tokyo
+      Code: an1
+    ca-central-1:
+      Name: Canada
+      Code: cc1
+    eu-central-1:
+      Name: Frankfurt
+      Code: ec1
+    eu-west-1:
+      Name: Ireland
+      Code: ew1
+    eu-west-2:
+      Name: London
+      Code: ew2
+    eu-west-3:
+      Name: Paris
+      Code: ew3
+    eu-north-1:
+      Name: Stockholm
+      Code: en1
+    me-south-1:
+      Name: Bahrain
+      Code: ms1
     sa-east-1:
       Name: SaoPaulo
+      Code: se1
   ThresholdMap:
     Low: # 0 = Evenly-spaced NormalAlarms throughout Month - vs - 50% or 75% of Normal = Alarms only near EOM
       none: 0
@@ -165,7 +211,6 @@ Resources:
   BillingAlarmThresholdCalculatorRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: BillingAlarmThresholdCalculatorRole
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -178,6 +223,11 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  BillingAlarmThresholdCalculatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/BilingAlarmThresholdCalculator
+      RetentionInDays: !Ref BillingAlarmThresholdCalculatorLogRetention
   BillingAlarmThresholdCalculatorFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -189,85 +239,88 @@ Resources:
       Handler: index.handler
       Code:
         ZipFile: |
-          var response = require('cfn-response');
+          const response = require('cfn-response');
 
-          exports.handler = function(event, context) {
-            console.log('Request body:\n' + JSON.stringify(event));
+          exports.handler = (event, context) => {
+            console.info(`Request body:\n${JSON.stringify(event)}`);
 
-            if (event.RequestType == 'Delete') {
-              response.send(event, context, response.SUCCESS);
-              return;
+            switch (event.RequestType) {
+              case 'Create':
+              case 'Update':
+                const properties = event.ResourceProperties;
+                console.info(`Validating: Parameters...`);
+                const lowAmount = (properties.LowAmount) ? Number(properties.LowAmount) : 0;
+                if (! Number.isInteger(lowAmount) || lowAmount < 0 || lowAmount % 10) {
+                  const responseData = {Error: `Error: LowAmount invalid: must be a positive integer divisible by 10 or 0`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                const normalAmount = (properties.NormalAmount) ? Number(properties.NormalAmount) : 'invalid';
+                if (! Number.isInteger(normalAmount) || normalAmount < 0 || normalAmount <= lowAmount || normalAmount % 10) {
+                  const responseData = {Error: `Error: NormalAmount invalid: must be a positive integer divisible by 10 and greater than LowAmount`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                const highAmount = (properties.HighAmount) ? Number(properties.HighAmount) : normalAmount * 1.2;
+                if (! Number.isInteger(highAmount) || highAmount < 0 || highAmount <= normalAmount || highAmount % 10) {
+                  const responseData = {Error: `Error: HighAmount invalid: must be a positive integer divisible by 10 and greater than NormalAmount`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                const normalAlarms = (properties.NormalAlarms) ? Number(properties.NormalAlarms) : 5;
+                if (! /^(5|10|20)$/.test(normalAlarms)) {
+                  const responseData = {Error: `Error: NormalAlarms invalid: must be 5, 10 or 20`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                const highAlarms = (properties.HighAlarms) ? Number(properties.HighAlarms) : 5;
+                if (! /^(5|10|20)$/.test(highAlarms)) {
+                  const responseData = {Error: `Error: HighAlarms invalid: must be 5, 10 or 20`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                if ((normalAmount - lowAmount) < normalAlarms) {
+                  const responseData = {Error: `Error: NormalAlarms invalid: NormalAmount - LowAmount must be greater than or equal to NormalAlarms`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                if ((highAmount - normalAmount) < highAlarms) {
+                  const responseData = {Error: `Error: HighAlarms invalid: HighAmount - NormalAmount must be greater than or equal to HighAlarms`};
+                  console.error(responseData.Error);
+                  response.send(event, context, response.FAILED, responseData);
+                  return;
+                }
+
+                console.info(`Calculating Alarm Threshholds...`);
+                let responseData = {};
+                for (let alarm = 1; alarm <= normalAlarms; alarm++) {
+                  console.info(`Normal${alarm.toString().padStart(2,'0')}: ${(lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm))}`);
+                  responseData[`Normal${alarm.toString().padStart(2,'0')}`] = lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm);
+                }
+
+                for (let alarm = 1; alarm <= highAlarms; alarm++) {
+                  console.info(`High${alarm.toString().padStart(2,'0')}: ${(normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm))}`);
+                  responseData[`High${alarm.toString().padStart(2,'0')}`] = normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm);
+                }
+
+                response.send(event, context, response.SUCCESS, responseData);
+                break;
+
+              case 'Delete':
+                response.send(event, context, response.SUCCESS);
             }
-
-            var responseData = {};
-
-            console.log('Validating: Parameters...');
-            var lowAmount = (event.ResourceProperties.LowAmount) ? Number(event.ResourceProperties.LowAmount) : 0;
-            if (! Number.isInteger(lowAmount) || lowAmount < 0 || lowAmount % 10) {
-              responseData = {Error: 'LowAmount invalid: must be a positive integer divisible by 10 or 0'};
-              console.error('Error: ' + responseData.Error);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            var normalAmount = (event.ResourceProperties.NormalAmount) ? Number(event.ResourceProperties.NormalAmount) : 'invalid';
-            if (! Number.isInteger(normalAmount) || normalAmount < 0 || normalAmount <= lowAmount || normalAmount % 10) {
-              responseData = {Error: 'NormalAmount invalid: must be a positive integer divisible by 10 and greater than LowAmount'};
-              console.error('Error: ' + responseData.Error);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            var highAmount = (event.ResourceProperties.HighAmount) ? Number(event.ResourceProperties.HighAmount) : normalAmount * 1.2;
-            if (! Number.isInteger(highAmount) || highAmount < 0 || highAmount <= normalAmount || highAmount % 10) {
-              responseData = {Error: 'HighAmount invalid: must be a positive integer divisible by 10 and greater than NormalAmount'};
-              console.error('Error: ' + responseData.Error);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            var normalAlarms = (event.ResourceProperties.NormalAlarms) ? Number(event.ResourceProperties.NormalAlarms) : 5;
-            if (! /^(5|10|20)$/.test(normalAlarms)) {
-              responseData = {Error: 'NormalAlarms invalid: must be 5, 10 or 20'};
-              console.error('Error: ' + responseData.Error);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            var highAlarms = (event.ResourceProperties.HighAlarms) ? Number(event.ResourceProperties.HighAlarms) : 5;
-            if (! /^(5|10|20)$/.test(highAlarms)) {
-              responseData = {Error: 'HighAlarms invalid: must be 5, 10 or 20'};
-              console.error('Error: ' + responseData.Error);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            if ((normalAmount - lowAmount) < normalAlarms) {
-              responseData = {Error: 'NormalAlarms invalid: NormalAmount - LowAmount must be greater than or equal to NormalAlarms'};
-              console.error('Error: ' + responseData.Error);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            if ((highAmount - normalAmount) < highAlarms) {
-              responseData = {Error: 'HighAlarms invalid: HighAmount - NormalAmount must be greater than or equal to HighAlarms'};
-              console.error('Error: ' + responseData.Error);
-              response.send(event, context, response.FAILED, responseData);
-              return;
-            }
-
-            console.log('Calculating Alarm Threshholds...');
-            for (var alarm = 1; alarm <= normalAlarms; alarm++) {
-              console.log('Normal' + alarm.toString().padStart(2,'0') + ': ' + (lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm)));
-              responseData['Normal' + alarm.toString().padStart(2,'0')] = lowAmount + Math.round(((normalAmount - lowAmount) / normalAlarms) * alarm);
-            }
-
-            for (var alarm = 1; alarm <= highAlarms; alarm++) {
-              console.log('High' + alarm.toString().padStart(2,'0') + ': ' + (normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm)));
-              responseData['High' + alarm.toString().padStart(2,'0')] = normalAmount + Math.round(((highAmount - normalAmount) / highAlarms) * alarm);
-            }
-
-            response.send(event, context, response.SUCCESS, responseData);
           };
   BilingAlarmThresholdCalculator:
     Type: Custom::BilingAlarmThresholdCalculator
@@ -663,12 +716,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High01}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High01}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High01}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -684,12 +737,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High02}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High02}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High02}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -705,12 +758,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High03}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High03}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High03}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -726,12 +779,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High04}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High04}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High04}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -747,12 +800,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High05}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High05}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High05}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -768,12 +821,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High06}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High06}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High06}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -789,12 +842,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High07}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High07}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High07}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -810,12 +863,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High08}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High08}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High08}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -831,12 +884,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High09}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High09}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High09}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -852,12 +905,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High10}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High10}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High10}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -873,12 +926,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High11}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High11}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High11}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -894,12 +947,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High12}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High12}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High12}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -915,12 +968,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High13}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High13}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High13}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -936,12 +989,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High14}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High14}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High14}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -957,12 +1010,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High15}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High15}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High15}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -978,12 +1031,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High16}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High16}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High16}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -999,12 +1052,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High17}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High17}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High17}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -1020,12 +1073,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High18}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High18}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High18}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -1041,12 +1094,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High19}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High19}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High19}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
@@ -1062,12 +1115,12 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub BillingEstimatedCharges-${BilingAlarmThresholdCalculator.High20}
-      AlarmDescription: !Sub Notify BillsTopic and BillsSMSTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High20}
+      AlarmDescription: !Sub Notify BillsTopic and UrgentBillsTopic when AWS EstimatedCharges exceed $${BilingAlarmThresholdCalculator.High20}
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${BillingTopicsStackName}-BillsTopic
         - !ImportValue
-          Fn::Sub: ${BillingTopicsStackName}-BillsSMSTopic
+          Fn::Sub: ${BillingTopicsStackName}-UrgentBillsTopic
       Namespace: AWS/Billing
       MetricName: EstimatedCharges
       Statistic: Maximum
