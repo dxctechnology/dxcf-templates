@@ -33,9 +33,10 @@ Metadata:
           default: Utility Configuration
         Parameters:
           - UtilityName
-          - UtilityAlias
-          - UtilityEdition
-          - UtilityAdministratorPassword
+          - DirectoryAlias
+          - DirectoryEdition
+          - DirectoryAdministratorPassword
+          - DirectorySeedDataEncryptionKey
           - UseSso
           - LogRetention
       - Label:
@@ -72,12 +73,14 @@ Metadata:
         default: Operating System Name
       UtilityName:
         default: Utility Name
-      UtilityAlias:
-        default: Utility Alias
-      UtilityEdition:
-        default: Utility Edition
-      UtilityAdministratorPassword:
-        default: Utility Administrator Password
+      DirectoryAlias:
+        default: Directory Alias
+      DirectoryEdition:
+        default: Directory Edition
+      DirectoryAdministratorPassword:
+        default: Directory Administrator Password
+      DirectorySeedDataEncryptionKey:
+        default: Directory Seed Data Encryption Key
       UseSso:
         default: Use SSO
       LogRetention:
@@ -136,7 +139,7 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   KeyName:
-    Description: Name of an existing KeyPair to enable SSH access to the Instances
+    Description: Name of an existing KeyPair to enable the Administrator Password
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
     Default: administrator
@@ -223,15 +226,15 @@ Parameters:
     Default: DirectoryService
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  UtilityAlias:
+  DirectoryAlias:
     Description: Alias of the Directory Service created by the Stack
     Type: String
     MinLength: 2
     MaxLength: 32
-    Default: dxcpp
+    Default: dxcapp
     AllowedPattern: ^[a-zA-Z0-9]*$
     ConstraintDescription: must contain alphanumeric characters.
-  UtilityEdition:
+  DirectoryEdition:
     Description: Type of Directory Service to build
     Type: String
     Default: Standard
@@ -239,14 +242,20 @@ Parameters:
       - Standard
       - Enterprise
     ConstraintDescription: must be Standard or Enterprise.
-  UtilityAdministratorPassword:
-    Description: Password for the Directory Service Admin user. Must be at least 8 characters containing letters, numbers and symbols
+  DirectoryAdministratorPassword:
+    Description: Optional password for the Directory Service Admin User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
-    MinLength: 8
-    MaxLength: 32
-    AllowedPattern: (?=^.{6,255}$)((?=.*\d)(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[^A-Za-z0-9])(?=.*[a-z])|(?=.*[^A-Za-z0-9])(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9]))^.*
-    ConstraintDescription: must be a valid password.
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+  DirectorySeedDataEncryptionKey:
+    Description: Encryption Key used to encrypt sensitive Directory Seed Data used to populate the Directory, mainly User initial passwords
+    Type: String
+    NoEcho: true
+    Default: NotAValidKey2Use
+    AllowedPattern: (?=^.{12,24}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*
+    ConstraintDescription: must be 12 to 24 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit.
   UseSso:
     Description: Configure Single Sign-on
     Type: String
@@ -346,13 +355,15 @@ Mappings:
       Code: se1
   InstanceTypeMap:
     Management:
-      small: t3.medium
-      medium: t3.large
+      small: t3.small
+      medium: t3.medium
       large: m5.large
       xlarge: m5.xlarge
 Conditions:
   ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+  GeneratePassword: !Equals [ !Ref DirectoryAdministratorPassword, '' ]
+  ConfigurePassword: !Not [ !Condition GeneratePassword ]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -375,6 +386,16 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
+        - PolicyName: GetPasswordSecretPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-EncryptionKey-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -427,16 +448,35 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref UtilityName
-      EnvironmentName: !If
-        - ConfigureSingleAccount
-        - !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
-        - !Ref 'AWS::NoValue'
+      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogRetention
+  PasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
+      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User
+      SecretString: !If [ ConfigurePassword, !Ref DirectoryAdministratorPassword, !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GeneratePassword
+        - PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
+  EncryptionKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
+      Description: !Sub EncryptionKey used to encrypt Seed Data for the ${EnvironmentName} Environment ${UtilityName} Utility
+      SecretString: !Ref DirectorySeedDataEncryptionKey
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
   MicrosoftAD:
     Type: AWS::DirectoryService::MicrosoftAD
     Properties:
@@ -445,9 +485,9 @@ Resources:
       ShortName: !ImportValue
         Fn::Sub: ${VPCStackName}-VPCDirectoryNetBIOSDomain
       CreateAlias: false
-      Edition: !Ref UtilityEdition
+      Edition: !Ref DirectoryEdition
       EnableSso: false
-      Password: !Ref UtilityAdministratorPassword
+      Password: !Sub '{{resolve:secretsmanager:${PasswordSecret}}}'
       VpcSettings:
         VpcId: !ImportValue
           Fn::Sub: ${VPCStackName}-VPC
@@ -456,15 +496,16 @@ Resources:
             Fn::Sub: ${VPCStackName}-IdentitySubnetA
           - !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetB
-  DirectoryAlias:
+    DependsOn: PasswordSecret
+  Alias:
     Type: Custom::DirectoryAlias
     Properties:
       ServiceToken: !ImportValue
         Fn::Sub: ${DirectoryFunctionsStackName}-DirectoryAliasFunctionArn
       DirectoryId: !Ref MicrosoftAD
-      DirectoryAlias: !Ref UtilityAlias
+      DirectoryAlias: !Ref DirectoryAlias
       EnableSso: !Ref UseSso
-  DirectoryConditionalForwarder:
+  ConditionalForwarder:
     Type: Custom::DirectoryConditionalForwarder
     Properties:
       ServiceToken: !ImportValue
@@ -475,7 +516,7 @@ Resources:
       VpcCidrBlock: !ImportValue
         Fn::Sub: ${VPCStackName}-VPCNetwork
 # This is not working, indicating it's not a function, could be version mismatch, as this works on node command line
-#  DirectoryLogSubscription:
+#  LogSubscription:
 #    Type: Custom::DirectoryLogSubscription
 #    Properties:
 #      ServiceToken: !ImportValue
@@ -492,10 +533,7 @@ Resources:
       - !Select [ 1, !GetAtt MicrosoftAD.DnsIpAddresses ]
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-DirectoryDHCPOptions
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-DirectoryDHCPOptions
     DependsOn: MicrosoftAD
   VPCDHCPOptionsAssociation:
     Type: AWS::EC2::VPCDHCPOptionsAssociation
@@ -506,25 +544,16 @@ Resources:
   AdministratorSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-AdministratorSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-AdministratorSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
   ManagementInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-ManagementInstanceSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-ManagementInstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -552,10 +581,7 @@ Resources:
           FromPort: 3389
           ToPort: 3389
           SourceSecurityGroupId: !Ref AdministratorSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-AdministratorSecurityGroup (RDP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup (RDP)
         - !If
           - ConfigureAdministratorNetwork0
           - IpProtocol: tcp
@@ -598,10 +624,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-ManagementInstanceSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-ManagementInstanceSecurityGroup
   HostName:
     Type: Custom::HostName
     Properties:
@@ -609,8 +632,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-HostNameFunctionArn
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
-      EnvironmentName: !ImportValue
-        Fn::Sub: ${VPCStackName}-VPCName
+      EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
       InstanceNumber: 01
   WindowsImage:
@@ -722,121 +744,118 @@ Resources:
         ConfigureCloudWatchAgent:
           files:
             C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json:
-              content: !Sub
-                - |
-                  {
-                    "agent" : {
-                      "metrics_collection_interval" : 60,
-                      "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                      "debug" : false
-                    },
-                    "metrics" : {
-                      "namespace" : "${SystemName}/${VPCName}-${UtilityName}",
-                      "metrics_collected" : {
-                        "Memory" : {
-                          "measurement" : [
-                            { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
-                            { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
-                          ]
-                        },
-                        "LogicalDisk" : {
-                          "resources" : [
-                            "C:",
-                            "D:"
-                          ],
-                          "measurement" : [
-                            { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
-                            { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
-                            { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
-                            { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
-                          ]
-                        }
+              content: !Sub |
+                {
+                  "agent" : {
+                    "metrics_collection_interval" : 60,
+                    "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                    "debug" : false
+                  },
+                  "metrics" : {
+                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "metrics_collected" : {
+                      "Memory" : {
+                        "measurement" : [
+                          { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
+                          { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
+                        ]
                       },
-                      "append_dimensions" : {
-                        "InstanceId" : "${!aws:InstanceId}",
-                        "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
-                      },
-                      "aggregation_dimensions" : [
-                        [ "InstanceId" ],
-                        [ "AutoScalingGroupName" ],
-                        []
-                      ]
+                      "LogicalDisk" : {
+                        "resources" : [
+                          "C:",
+                          "D:"
+                        ],
+                        "measurement" : [
+                          { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
+                          { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
+                          { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
+                          { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
+                        ]
+                      }
                     },
-                    "logs" : {
-                      "logs_collected" : {
-                        "windows_events" : {
-                          "collect_list" : [
-                            {
-                              "event_name" : "Application",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/ApplicationEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "System",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/SystemEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "Security",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/SecurityEventLog",
-                              "event_format" : "text"
-                            }
-                          ]
-                        },
-                        "files" : {
-                          "collect_list" : [
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/amazon-cloudwatch-agent.log",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/EC2ConfigLog.txt",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/cfn-init.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/cfn-init-cmd.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-hup.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/cfn-hup.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Management/{instance_id}/IISLogs",
-                              "timezone" : "UTC"
-                            }
-                          ]
-                        }
+                    "append_dimensions" : {
+                      "InstanceId" : "${!aws:InstanceId}",
+                      "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                    },
+                    "aggregation_dimensions" : [
+                      [ "InstanceId" ],
+                      [ "AutoScalingGroupName" ],
+                      []
+                    ]
+                  },
+                  "logs" : {
+                    "logs_collected" : {
+                      "windows_events" : {
+                        "collect_list" : [
+                          {
+                            "event_name" : "Application",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/ApplicationEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "System",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/SystemEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "Security",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/SecurityEventLog",
+                            "event_format" : "text"
+                          }
+                        ]
+                      },
+                      "files" : {
+                        "collect_list" : [
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/amazon-cloudwatch-agent.log",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/EC2ConfigLog.txt",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/cfn-init.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/cfn-init-cmd.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-hup.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/cfn-hup.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Management/{instance_id}/IISLogs",
+                            "timezone" : "UTC"
+                          }
+                        ]
                       }
                     }
                   }
-                - VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
+                }
           commands:
             01-start-cloudwatch-agent:
               command: powershell.exe -Command ".\amazon-cloudwatch-agent-ctl.ps1 -a fetch-config -m ec2 -c file:C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json -s"
@@ -867,9 +886,8 @@ Resources:
             01-join-domain:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
-                  -UserName Admin
-                  -Password '${UtilityAdministratorPassword}'
-                  -DomainName ${VPCDirectoryDomain}"
+                  -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               ignoreErrors: false
@@ -893,29 +911,24 @@ Resources:
               authentication: S3Credentials
             C:\cfn\conf\StandardGroups.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/${VPCName}-StandardGroups.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/StandardGroups.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
             C:\cfn\conf\CustomGroups.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/${VPCName}-CustomGroups.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/CustomGroups.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
           commands:
             01-configure-standard-adgroups:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
-                  -UserName Admin
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
                   -GroupsPath C:\cfn\conf\StandardGroups.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -924,9 +937,8 @@ Resources:
             02-configure-custom-adgroups:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
-                  -UserName Admin
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
                   -GroupsPath C:\cfn\conf\CustomGroups.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -943,29 +955,25 @@ Resources:
               authentication: S3Credentials
             C:\cfn\conf\StandardUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/${VPCName}-StandardUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/StandardUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
             C:\cfn\conf\CustomUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/${VPCName}-CustomUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/CustomUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
           commands:
             01-configure-standard-adusers:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
-                  -UserName Admin
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
                   -UsersPath C:\cfn\conf\StandardUsers.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -974,9 +982,9 @@ Resources:
             02-configure-custom-adusers:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
-                  -UserName Admin
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
                   -UsersPath C:\cfn\conf\CustomUsers.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -993,21 +1001,17 @@ Resources:
               authentication: S3Credentials
             C:\cfn\conf\StandardRemoteDesktopUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/${VPCName}-StandardRemoteDesktopUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/StandardRemoteDesktopUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
             C:\cfn\conf\CustomRemoteDesktopUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/${VPCName}-CustomRemoteDesktopUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/CustomRemoteDesktopUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
           commands:
             01-configure-standard-remotedesktopusers:
@@ -1060,10 +1064,7 @@ Resources:
       KeyName: !Ref KeyName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub
-            - ${VPCName}-${UtilityName}-NetworkInterface-eth0
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetA
@@ -1076,12 +1077,9 @@ Resources:
             VolumeSize: 32
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-ManagementInstance
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
-        - Key: HostName
-          Value: !Ref HostName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-ManagementInstance
+#        - Key: HostName
+#          Value: !Ref HostName
       UserData:
         Fn::Base64: !Sub |
           <script>
@@ -1091,6 +1089,8 @@ Resources:
       ResourceSignal:
         Timeout: PT20M
     DependsOn: VPCDHCPOptionsAssociation
+  # Do not use the HostName Tag on any Instances along with explicitly defined HostNameRecordSets as you see here
+  # If a HostName tag exists, the PrivateRecordSet Function will attempt to manage Private DNS Records, resulting in a conflict
   PrivateHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:

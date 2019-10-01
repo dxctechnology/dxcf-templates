@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Utility-ActiveDirectory Template.
-  This creates 2 Active Directory Domain Controllers to a VPC. The default Domain Administrator password will be the one retrieved from the instance. For adding
-  members to the domain, ensure that they are launched into the ActiveDirectory-DomainMemberSecurityGroup created by this template.
+  This creates 2 Active Directory Domain Controllers to a VPC. For adding members to the domain, ensure that they are
+  launched into the ActiveDirectory-DomainMemberSecurityGroup created by this template.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -36,9 +36,9 @@ Metadata:
           default: Utility Configuration
         Parameters:
           - UtilityName
-          - UtilityAdministratorUserName
-          - UtilityAdministratorPassword
-          - UtilityRestoreModePassword
+          - DirectoryAdministratorPassword
+          - DirectorySafeModePassword
+          - DirectorySeedDataEncryptionKey
           - UseStaticAddress
           - LogRetention
       - Label:
@@ -79,12 +79,12 @@ Metadata:
         default: Operating System Date
       UtilityName:
         default: Utility Name
-      UtilityAdministratorUserName:
-        default: Utility Administrator UserName
-      UtilityAdministratorPassword:
-        default: Utility Administrator Password
-      UtilityRestoreModePassword:
-        default: Utility Restore Mode Password
+      DirectoryAdministratorPassword:
+        default: Directory Administrator Password
+      DirectorySafeModePassword:
+        default: Directory Safe Mode Password
+      DirectorySeedDataEncryptionKey:
+        default: Directory Seed Data Encryption Key
       UseStaticAddress:
         default: Use Static Address
       LogRetention:
@@ -244,30 +244,27 @@ Parameters:
     Default: ActiveDirectory
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  UtilityAdministratorUserName:
-    Description: User name for the account that will be added as Enterprise Administrator. This is separate from the default "Administrator" account
-    Type: String
-    MinLength: 5
-    MaxLength: 25
-    Default: Admin
-    AllowedPattern: '[a-zA-Z0-9]*'
-    ConstraintDescription: must be alphanumeric.
-  UtilityAdministratorPassword:
-    Description: Password for the Enterprise Administrator account. Must be at least 8 characters containing letters, numbers and symbols
+  DirectoryAdministratorPassword:
+    Description: Optional password for the Enterprise Admin User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
-    MinLength: 8
-    MaxLength: 32
-    AllowedPattern: (?=^.{6,255}$)((?=.*\d)(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[^A-Za-z0-9])(?=.*[a-z])|(?=.*[^A-Za-z0-9])(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9]))^.*
-    ConstraintDescription: must be a valid password.
-  UtilityRestoreModePassword:
-    Description: Password for a separate Administrator account when the domain controller is restarted in Restore Mode. Must be at least 8 characters containing letters, numbers and symbols
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+  DirectorySafeModePassword:
+    Description: Optional password allowing recovery when the domain controller is restarted in Safe Mode (If unspecified, generate a random password)
     Type: String
     NoEcho: true
-    MinLength: 8
-    MaxLength: 32
-    AllowedPattern: (?=^.{6,255}$)((?=.*\d)(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[^A-Za-z0-9])(?=.*[a-z])|(?=.*[^A-Za-z0-9])(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9]))^.*
-    ConstraintDescription: must be a valid password.
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+  DirectorySeedDataEncryptionKey:
+    Description: Encryption Key used to encrypt sensitive Directory Seed Data used to populate the Directory, mainly User initial passwords
+    Type: String
+    NoEcho: true
+    Default: NotAValidKey2Use
+    AllowedPattern: (?=^.{12,24}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*
+    ConstraintDescription: must be 12 to 24 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit.
   UseStaticAddress:
     Description: Assign a consistent Static Address
     Type: String
@@ -450,6 +447,10 @@ Conditions:
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   GetImageID: !Equals [ !Ref OSDate, '' ]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
+  GenerateAdminPassword: !Equals [ !Ref DirectoryAdministratorPassword, '' ]
+  ConfigureAdminPassword: !Not [ !Condition GenerateAdminPassword ]
+  GenerateSafeModePassword: !Equals [ !Ref DirectorySafeModePassword, '' ]
+  ConfigureSafeModePassword: !Not [ !Condition GenerateSafeModePassword ]
   ConfigureStaticAddress: !Equals [ !Ref UseStaticAddress, true ]
   ConfigureStaticAddress&MultiZone: !And [ !Condition ConfigureStaticAddress, !Condition ConfigureMultiZone ]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -474,6 +475,17 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
+        - PolicyName: GetPasswordSecretPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-SafeModePassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-EncryptionKey-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -548,68 +560,80 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref UtilityName
-      EnvironmentName: !If
-        - ConfigureSingleAccount
-        - !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
-        - !Ref 'AWS::NoValue'
+      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogRetention
+  AdminPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
+      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User
+      SecretString: !If [ ConfigureAdminPassword, !Ref DirectoryAdministratorPassword, !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GenerateAdminPassword
+        - PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
+  SafeModePasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${UtilityName}-SafeModePassword
+      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Safe Mode
+      SecretString: !If [ ConfigureSafeModePassword, !Ref DirectorySafeModePassword, !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GenerateSafeModePassword
+        - PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${UtilityName}-SafeModePassword
+  EncryptionKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
+      Description: !Sub EncryptionKey used to encrypt Seed Data for the ${EnvironmentName} Environment ${UtilityName} Utility
+      SecretString: !Ref DirectorySeedDataEncryptionKey
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
   DomainMemberSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup
   AuthenticatorSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-AuthenticatorSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-AuthenticatorSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup
   AdministratorSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-AdministratorSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-AdministratorSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
   DomainControllerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -647,202 +671,127 @@ Resources:
           FromPort: 80
           ToPort: 80
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (HTTP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (HTTP)
         - IpProtocol: tcp
           FromPort: 88
           ToPort: 88
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos)
         - IpProtocol: udp
           FromPort: 88
           ToPort: 88
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos)
         - IpProtocol: udp
           FromPort: 123
           ToPort: 123
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (NTP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (NTP)
         - IpProtocol: tcp
           FromPort: 135
           ToPort: 135
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (RPC EPM)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (RPC EPM)
         - IpProtocol: udp
           FromPort: 138
           ToPort: 138
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (NetBIOS Datagram)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (NetBIOS Datagram)
         - IpProtocol: tcp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (LDAP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAP)
         - IpProtocol: udp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (LDAP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAP)
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (HTTPS)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (HTTPS)
         - IpProtocol: tcp
           FromPort: 445
           ToPort: 445
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (SMB)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (SMB)
         - IpProtocol: udp
           FromPort: 445
           ToPort: 445
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (SMB)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (SMB)
         - IpProtocol: udp
           FromPort: 464
           ToPort: 464
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos Password)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos Password)
         - IpProtocol: tcp
           FromPort: 464
           ToPort: 464
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos Password)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos Password)
         - IpProtocol: tcp
           FromPort: 636
           ToPort: 636
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (LDAPS)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAPS)
         - IpProtocol: tcp
           FromPort: 3268
           ToPort: 3268
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (LDAP Global Catalog)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAP Global Catalog)
         - IpProtocol: tcp
           FromPort: 3269
           ToPort: 3269
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (LDAPS Global Catalog)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAPS Global Catalog)
         - IpProtocol: tcp
           FromPort: 9389
           ToPort: 9389
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (ADWS)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (ADWS)
         - IpProtocol: tcp
           FromPort: 49152
           ToPort: 65535
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (Ephemeral)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Ephemeral)
         - IpProtocol: udp
           FromPort: 49152
           ToPort: 65535
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-DomainMemberSecurityGroup (Ephemeral)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Ephemeral)
         - IpProtocol: tcp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP)
         - IpProtocol: udp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP)
         - IpProtocol: tcp
           FromPort: 636
           ToPort: 636
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-AuthenticatorSecurityGroup (LDAPS)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAPS)
         - IpProtocol: tcp
           FromPort: 3268
           ToPort: 3268
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP Global Catalog)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP Global Catalog)
         - IpProtocol: tcp
           FromPort: 3269
           ToPort: 3269
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-AuthenticatorSecurityGroup (LDAPS Global Catalog)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAPS Global Catalog)
         - IpProtocol: tcp
           FromPort: 3389
           ToPort: 3389
           SourceSecurityGroupId: !Ref AdministratorSecurityGroup
-          Description: !Sub
-            - ${VPCName}-${UtilityName}-AdministratorSecurityGroup (RDP)
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Description: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup (RDP)
         - !If
           - ConfigureAdministratorNetwork0
           - IpProtocol: tcp
@@ -885,10 +834,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup
   DomainControllerSecurityGroupIngress88u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -897,10 +843,7 @@ Resources:
       FromPort: 88
       ToPort: 88
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos)
   DomainControllerSecurityGroupIngress88t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -909,10 +852,7 @@ Resources:
       FromPort: 88
       ToPort: 88
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos)
   DomainControllerSecurityGroupIngress123:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -921,10 +861,7 @@ Resources:
       FromPort: 123
       ToPort: 123
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (NTP)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NTP)
   DomainControllerSecurityGroupIngress135:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -933,10 +870,7 @@ Resources:
       FromPort: 135
       ToPort: 135
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (RPC EPM)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (RPC EPM)
   DomainControllerSecurityGroupIngress137:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -945,10 +879,7 @@ Resources:
       FromPort: 137
       ToPort: 137
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Name)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Name)
   DomainControllerSecurityGroupIngress138:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -957,10 +888,7 @@ Resources:
       FromPort: 138
       ToPort: 138
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Datagram)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Datagram)
   DomainControllerSecurityGroupIngress139:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -969,10 +897,7 @@ Resources:
       FromPort: 139
       ToPort: 139
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Session)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Session)
   DomainControllerSecurityGroupIngress389t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -981,10 +906,7 @@ Resources:
       FromPort: 389
       ToPort: 389
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (LDAP)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAP)
   DomainControllerSecurityGroupIngress389u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -993,10 +915,7 @@ Resources:
       FromPort: 389
       ToPort: 389
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (LDAP)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAP)
   DomainControllerSecurityGroupIngress445t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1005,10 +924,7 @@ Resources:
       FromPort: 445
       ToPort: 445
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (SMB)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (SMB)
   DomainControllerSecurityGroupIngress445u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1017,10 +933,7 @@ Resources:
       FromPort: 445
       ToPort: 445
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (SMB)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (SMB)
   DomainControllerSecurityGroupIngress464t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1029,10 +942,7 @@ Resources:
       FromPort: 464
       ToPort: 464
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos Password)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos Password)
   DomainControllerSecurityGroupIngress464u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1041,10 +951,7 @@ Resources:
       FromPort: 464
       ToPort: 464
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos Password)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos Password)
   DomainControllerSecurityGroupIngress636:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1053,10 +960,7 @@ Resources:
       FromPort: 636
       ToPort: 636
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (LDAPS)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAPS)
   DomainControllerSecurityGroupIngress3268:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1065,10 +969,7 @@ Resources:
       FromPort: 3268
       ToPort: 3268
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (LDAP Global Catalog)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAP Global Catalog)
   DomainControllerSecurityGroupIngress3269:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1077,10 +978,7 @@ Resources:
       FromPort: 3269
       ToPort: 3269
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (LDAPS Global Catalog)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAPS Global Catalog)
   DomainControllerSecurityGroupIngress5985:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1089,10 +987,7 @@ Resources:
       FromPort: 5985
       ToPort: 5985
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (WinRM)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (WinRM)
   DomainControllerSecurityGroupIngress5986:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1101,10 +996,7 @@ Resources:
       FromPort: 5986
       ToPort: 5986
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (WinRM)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (WinRM)
   DomainControllerSecurityGroupIngress9389:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1113,10 +1005,7 @@ Resources:
       FromPort: 9389
       ToPort: 9389
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (ADWS)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (ADWS)
   DomainControllerSecurityGroupIngress49152t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1125,10 +1014,7 @@ Resources:
       FromPort: 49152
       ToPort: 65535
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (Ephemeral)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Ephemeral)
   DomainControllerSecurityGroupIngress49152u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -1137,10 +1023,7 @@ Resources:
       FromPort: 49152
       ToPort: 65535
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub
-        - ${VPCName}-${UtilityName}-DomainControllerSecurityGroup (Ephemeral)
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Ephemeral)
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -1163,8 +1046,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-HostNameFunctionArn
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
-      EnvironmentName: !ImportValue
-        Fn::Sub: ${VPCStackName}-VPCName
+      EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
       ComponentName: DomainController
       InstanceNumber: 01
@@ -1210,7 +1092,6 @@ Resources:
             - ConfigureEnterpriseAdmin
             - ConfigureADGroups
             - ConfigureADUsers
-            - ConfigureADDomainAliases
             - InstallADCS
             - InstallWindowsBackup
             - ConfigureWindowsBackup
@@ -1282,121 +1163,118 @@ Resources:
         ConfigureCloudWatchAgent:
           files:
             C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json:
-              content: !Sub
-                - |
-                  {
-                    "agent" : {
-                      "metrics_collection_interval" : 60,
-                      "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                      "debug" : false
-                    },
-                    "metrics" : {
-                      "namespace" : "${SystemName}/${VPCName}-${UtilityName}",
-                      "metrics_collected" : {
-                        "Memory" : {
-                          "measurement" : [
-                            { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
-                            { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
-                          ]
-                        },
-                        "LogicalDisk" : {
-                          "resources" : [
-                            "C:",
-                            "D:"
-                          ],
-                          "measurement" : [
-                            { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
-                            { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
-                            { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
-                            { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
-                          ]
-                        }
+              content: !Sub |
+                {
+                  "agent" : {
+                    "metrics_collection_interval" : 60,
+                    "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                    "debug" : false
+                  },
+                  "metrics" : {
+                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "metrics_collected" : {
+                      "Memory" : {
+                        "measurement" : [
+                          { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
+                          { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
+                        ]
                       },
-                      "append_dimensions" : {
-                        "InstanceId" : "${!aws:InstanceId}",
-                        "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
-                      },
-                      "aggregation_dimensions" : [
-                        [ "InstanceId" ],
-                        [ "AutoScalingGroupName" ],
-                        []
-                      ]
+                      "LogicalDisk" : {
+                        "resources" : [
+                          "C:",
+                          "D:"
+                        ],
+                        "measurement" : [
+                          { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
+                          { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
+                          { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
+                          { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
+                        ]
+                      }
                     },
-                    "logs" : {
-                      "logs_collected" : {
-                        "windows_events" : {
-                          "collect_list" : [
-                            {
-                              "event_name" : "Application",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/ApplicationEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "System",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/SystemEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "Security",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/SecurityEventLog",
-                              "event_format" : "text"
-                            }
-                          ]
-                        },
-                        "files" : {
-                          "collect_list" : [
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/amazon-cloudwatch-agent.log",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/EC2ConfigLog.txt",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/cfn-init.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/cfn-init-cmd.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-hup.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/cfn-hup.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerA/{instance_id}/IISLogs",
-                              "timezone" : "UTC"
-                            }
-                          ]
-                        }
+                    "append_dimensions" : {
+                      "InstanceId" : "${!aws:InstanceId}",
+                      "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                    },
+                    "aggregation_dimensions" : [
+                      [ "InstanceId" ],
+                      [ "AutoScalingGroupName" ],
+                      []
+                    ]
+                  },
+                  "logs" : {
+                    "logs_collected" : {
+                      "windows_events" : {
+                        "collect_list" : [
+                          {
+                            "event_name" : "Application",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/ApplicationEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "System",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/SystemEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "Security",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/SecurityEventLog",
+                            "event_format" : "text"
+                          }
+                        ]
+                      },
+                      "files" : {
+                        "collect_list" : [
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/amazon-cloudwatch-agent.log",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/EC2ConfigLog.txt",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/cfn-init.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/cfn-init-cmd.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-hup.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/cfn-hup.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerA/{instance_id}/IISLogs",
+                            "timezone" : "UTC"
+                          }
+                        ]
                       }
                     }
                   }
-                - VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
+                }
           commands:
             01-start-cloudwatch-agent:
               command: powershell.exe -Command ".\amazon-cloudwatch-agent-ctl.ps1 -a fetch-config -m ec2 -c file:C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json -s"
@@ -1433,17 +1311,26 @@ Resources:
               command: powershell.exe -Command "Install-WindowsFeature AD-Domain-Services, rsat-adds -IncludeAllSubFeature"
               waitAfterCompletion: 0
         InstallADDSForest:
+          files:
+            C:\cfn\scripts\Install-ADDSForest.ps1:
+              source: !Sub
+                - https://${ScriptsBucket}.${s3}.amazonaws.com/ActiveDirectory/Install-ADDSForest.ps1
+                - ScriptsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ScriptsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+              authentication: S3Credentials
           commands:
             01-install-addsforest:
               command: !Sub
-                - powershell.exe -Command "Install-ADDSForest -ForestMode Win2012R2
-                  -DomainMode Win2012R2 -Confirm:$false -Force -DomainName ${VPCDirectoryDomain}
+                - powershell.exe -Command "C:\cfn\scripts\Install-ADDSForest.ps1
+                  -DomainName ${VPCDirectoryDomain}
                   -DomainNetbiosName ${VPCDirectoryNetBIOSDomain}
-                  -SafeModeAdministratorPassword (ConvertTo-SecureString '${UtilityRestoreModePassword}' -AsPlainText -Force)"
+                  -SafeModePasswordSecretId ${EnvironmentName}-${UtilityName}-SafeModePassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
                   VPCDirectoryNetBIOSDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryNetBIOSDomain
+              ignoreErrors: false
               waitAfterCompletion: forever
             02-restart-netlogon-service:
               command: powershell.exe -Command Restart-Service NetLogon -EA 0
@@ -1504,29 +1391,23 @@ Resources:
               waitAfterCompletion: 0
         ConfigureEnterpriseAdmin:
           files:
-            C:\cfn\scripts\ConvertTo-EnterpriseAdmin.ps1:
+            C:\cfn\scripts\New-EnterpriseAdmin.ps1:
               source: !Sub
-                - https://${ScriptsBucket}.${s3}.amazonaws.com/ActiveDirectory/ConvertTo-EnterpriseAdmin.ps1
+                - https://${ScriptsBucket}.${s3}.amazonaws.com/ActiveDirectory/New-EnterpriseAdmin.ps1
                 - ScriptsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            01-create-aduser:
+            01-create-enterpriseadmin:
               command: !Sub
-                - powershell.exe -Command "New-ADUser
-                  -Name ${UtilityAdministratorUserName}
-                  -UserPrincipalName ${UtilityAdministratorUserName}@${VPCDirectoryDomain}
-                  -Description 'Administrator created via CloudFormation to Administer Active Directory'
-                  -AccountPassword (ConvertTo-SecureString '${UtilityAdministratorPassword}' -AsPlainText -Force)
-                  -Enabled $true -PasswordNeverExpires $true"
+                - powershell.exe -Command "C:\cfn\scripts\New-EnterpriseAdmin.ps1
+                  -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-              waitAfterCompletion: 0
-            02-convert-aduser-to-enterpriseadmin:
-              command: !Sub powershell.exe -Command "C:\cfn\scripts\ConvertTo-EnterpriseAdmin.ps1
-                -Members ${UtilityAdministratorUserName}"
-              waitAfterCompletion: 0
+              ignoreErrors: false
+              waitAfterCompletion: 30
         ConfigureADGroups:
           files:
             C:\cfn\scripts\Configure-ADGroups.ps1:
@@ -1538,29 +1419,24 @@ Resources:
               authentication: S3Credentials
             C:\cfn\conf\StandardGroups.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/${VPCName}-StandardGroups.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/StandardGroups.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
             C:\cfn\conf\CustomGroups.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/${VPCName}-CustomGroups.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/CustomGroups.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
           commands:
             01-configure-standard-adgroups:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
                   -GroupsPath C:\cfn\conf\StandardGroups.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -1568,9 +1444,8 @@ Resources:
             02-configure-custom-adgroups:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
                   -GroupsPath C:\cfn\conf\CustomGroups.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -1586,29 +1461,25 @@ Resources:
               authentication: S3Credentials
             C:\cfn\conf\StandardUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/${VPCName}-StandardUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/StandardUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
             C:\cfn\conf\CustomUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/${VPCName}-CustomUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/CustomUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
           commands:
             01-configure-standard-adusers:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
                   -UsersPath C:\cfn\conf\StandardUsers.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -1616,58 +1487,10 @@ Resources:
             02-configure-custom-adusers:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
                   -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
                   -UsersPath C:\cfn\conf\CustomUsers.csv"
-                - VPCDirectoryDomain: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-              waitAfterCompletion: 0
-        ConfigureADDomainAliases:
-          files:
-            C:\cfn\scripts\Configure-ADDomainAliases.ps1:
-              source: !Sub
-                - https://${ScriptsBucket}.${s3}.amazonaws.com/ActiveDirectory/Configure-ADDomainAliases.ps1
-                - ScriptsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ScriptsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-              authentication: S3Credentials
-            C:\cfn\conf\StandardDomainAliases.csv:
-              source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/${VPCName}-StandardDomainAliases.csv
-                - ConfigurationsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
-              authentication: S3Credentials
-            C:\cfn\conf\CustomDomainAliases.csv:
-              source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/${VPCName}-CustomDomainAliases.csv
-                - ConfigurationsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
-              authentication: S3Credentials
-          commands:
-            01-configure-standard-addomainaliases:
-              command: !Sub
-                - powershell.exe -Command "C:\cfn\scripts\Configure-ADDomainAliases.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
-                  -DomainName ${VPCDirectoryDomain}
-                  -DomainAliasesPath C:\cfn\conf\StandardDomainAliases.csv"
-                - VPCDirectoryDomain: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-              waitAfterCompletion: 0
-            02-configure-custom-addomainaliases:
-              command: !Sub
-                - powershell.exe -Command "C:\cfn\scripts\Configure-ADDomainAliases.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
-                  -DomainName ${VPCDirectoryDomain}
-                  -DomainAliasesPath C:\cfn\conf\CustomDomainAliases.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -1702,10 +1525,9 @@ Resources:
               waitAfterCompletion: 0
             02-install-certificate-authority:
               command: !Sub
-                - powershell.exe -Command "C:\cfn\scripts\New-CertificateAuthority.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
-                  -DomainName ${VPCDirectoryDomain}"
+                - powershell.exe -Command C:\cfn\scripts\New-CertificateAuthority.ps1
+                  -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -1739,7 +1561,7 @@ Resources:
           commands:
             01-configure-userpowershellprofile:
               command: !Sub powershell.exe -Command "C:\cfn\scripts\Configure-UserPowerShellProfile.ps1
-                -UserName ${UtilityAdministratorUserName}"
+                -UserName Admin"
               waitAfterCompletion: 0
         ConfigureWindowsTaskBar:
           files:
@@ -1765,10 +1587,7 @@ Resources:
       KeyName: !Ref KeyName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub
-            - ${VPCName}-${UtilityName}-NetworkInterface-eth0
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetA
@@ -1787,12 +1606,9 @@ Resources:
             VolumeType: !FindInMap [ VolumeTypeMap, DomainControllerBackup, !Ref EnvironmentType ]
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-DomainControllerA
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
-        - Key: HostName
-          Value: !Ref HostNameA
+          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerA
+#        - Key: HostName
+#          Value: !Ref HostNameA
       UserData:
         Fn::Base64: !Sub |
           <script>
@@ -1801,6 +1617,8 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Timeout: PT60M
+  # Do not use the HostName Tag on any Instances along with explicitly defined HostNameRecordSets as you see here
+  # If a HostName tag exists, the PrivateRecordSet Function will attempt to manage Private DNS Records, resulting in a conflict
   DomainControllerAPrivateHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -1839,10 +1657,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: MemoryCommittedPercent
       Statistic: Average
       Period: 60
@@ -1861,10 +1676,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -1885,10 +1697,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -1909,8 +1718,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-HostNameFunctionArn
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
-      EnvironmentName: !ImportValue
-        Fn::Sub: ${VPCStackName}-VPCName
+      EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
       ComponentName: DomainController
       InstanceNumber: 01
@@ -2023,121 +1831,118 @@ Resources:
         ConfigureCloudWatchAgent:
           files:
             C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json:
-              content: !Sub
-                - |
-                  {
-                    "agent" : {
-                      "metrics_collection_interval" : 60,
-                      "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                      "debug" : false
-                    },
-                    "metrics" : {
-                      "namespace" : "${SystemName}/${VPCName}-${UtilityName}",
-                      "metrics_collected" : {
-                        "Memory" : {
-                          "measurement" : [
-                            { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
-                            { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
-                          ]
-                        },
-                        "LogicalDisk" : {
-                          "resources" : [
-                            "C:",
-                            "D:"
-                          ],
-                          "measurement" : [
-                            { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
-                            { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
-                            { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
-                            { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
-                          ]
-                        }
+              content: !Sub |
+                {
+                  "agent" : {
+                    "metrics_collection_interval" : 60,
+                    "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                    "debug" : false
+                  },
+                  "metrics" : {
+                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "metrics_collected" : {
+                      "Memory" : {
+                        "measurement" : [
+                          { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
+                          { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
+                        ]
                       },
-                      "append_dimensions" : {
-                        "InstanceId" : "${!aws:InstanceId}",
-                        "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
-                      },
-                      "aggregation_dimensions" : [
-                        [ "InstanceId" ],
-                        [ "AutoScalingGroupName" ],
-                        []
-                      ]
+                      "LogicalDisk" : {
+                        "resources" : [
+                          "C:",
+                          "D:"
+                        ],
+                        "measurement" : [
+                          { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
+                          { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
+                          { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
+                          { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
+                        ]
+                      }
                     },
-                    "logs" : {
-                      "logs_collected" : {
-                        "windows_events" : {
-                          "collect_list" : [
-                            {
-                              "event_name" : "Application",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/ApplicationEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "System",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/SystemEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "Security",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/SecurityEventLog",
-                              "event_format" : "text"
-                            }
-                          ]
-                        },
-                        "files" : {
-                          "collect_list" : [
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/amazon-cloudwatch-agent.log",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/EC2ConfigLog.txt",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/cfn-init.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/cfn-init-cmd.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-hup.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/cfn-hup.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "DomainControllerB/{instance_id}/IISLogs",
-                              "timezone" : "UTC"
-                            }
-                          ]
-                        }
+                    "append_dimensions" : {
+                      "InstanceId" : "${!aws:InstanceId}",
+                      "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                    },
+                    "aggregation_dimensions" : [
+                      [ "InstanceId" ],
+                      [ "AutoScalingGroupName" ],
+                      []
+                    ]
+                  },
+                  "logs" : {
+                    "logs_collected" : {
+                      "windows_events" : {
+                        "collect_list" : [
+                          {
+                            "event_name" : "Application",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/ApplicationEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "System",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/SystemEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "Security",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/SecurityEventLog",
+                            "event_format" : "text"
+                          }
+                        ]
+                      },
+                      "files" : {
+                        "collect_list" : [
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/amazon-cloudwatch-agent.log",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/EC2ConfigLog.txt",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/cfn-init.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/cfn-init-cmd.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-hup.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/cfn-hup.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "DomainControllerB/{instance_id}/IISLogs",
+                            "timezone" : "UTC"
+                          }
+                        ]
                       }
                     }
                   }
-                - VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
+                }
           commands:
             01-start-cloudwatch-agent:
               command: powershell.exe -Command ".\amazon-cloudwatch-agent-ctl.ps1
@@ -2170,17 +1975,28 @@ Resources:
               command: !Sub powershell.exe -Command "Rename-Computer -NewName ${HostNameB} -Restart"
               waitAfterCompletion: forever
         JoinDomain:
+          files:
+            C:\cfn\scripts\Join-Domain.ps1:
+              source: !Sub
+                - https://${ScriptsBucket}.${s3}.amazonaws.com/Windows/Join-Domain.ps1
+                - ScriptsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ScriptsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+              authentication: S3Credentials
           commands:
+            # ToDo: Recently changed this from in-line to running a script to use SecretsManager. The new script
+            #       method is nearly identical, but the original in-line logic used the older username format
+            #       when creating the credental, so documenting what did work in case it breaks.
+            #       - Old In-Line Method for Username = "${VPCDirectoryNetBIOSDomain}\Admin"
+            #       - New Script Method for Username = "Admin@${VPCDirectoryDomain}"
             01-join-domain:
               command: !Sub
-                - powershell.exe -Command "Add-Computer
+                - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -Credential (New-Object System.Management.Automation.PSCredential('${VPCDirectoryNetBIOSDomain}\${UtilityAdministratorUserName}',(ConvertTo-SecureString '${UtilityAdministratorPassword}' -AsPlainText -Force)))
-                  -Restart"
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-                  VPCDirectoryNetBIOSDomain: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCDirectoryNetBIOSDomain
+              ignoreErrors: false
               waitAfterCompletion: forever
         InstallADDS:
           commands:
@@ -2188,18 +2004,29 @@ Resources:
               command: powershell.exe -Command "Install-WindowsFeature AD-Domain-Services, rsat-adds -IncludeAllSubFeature"
               waitAfterCompletion: 0
         InstallADDSDomainController:
+          files:
+            C:\cfn\scripts\Install-ADDSDomainController.ps1:
+              source: !Sub
+                - https://${ScriptsBucket}.${s3}.amazonaws.com/ActiveDirectory/Install-ADDSDomainController.ps1
+                - ScriptsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ScriptsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+              authentication: S3Credentials
           commands:
+            # ToDo: Recently changed this from in-line to running a script to use SecretsManager. The new script
+            #       method is nearly identical, but the original in-line logic used the older username format
+            #       when creating the credental, so documenting what did work in case it breaks.
+            #       - Old In-Line Method for Username = "${VPCDirectoryNetBIOSDomain}\Admin"
+            #       - New Script Method for Username = "Admin@${VPCDirectoryDomain}"
             01-install-addsdomaincontroller:
               command: !Sub
-                - powershell.exe -Command "Install-ADDSDomainController
-                  -InstallDns
-                  -Confirm:$false -Force -DomainName ${VPCDirectoryDomain}
-                  -Credential (New-Object System.Management.Automation.PSCredential('${VPCDirectoryNetBIOSDomain}\${UtilityAdministratorUserName}',(ConvertTo-SecureString '${UtilityAdministratorPassword}' -AsPlainText -Force)))
-                  -SafeModeAdministratorPassword (ConvertTo-SecureString '${UtilityRestoreModePassword}' -AsPlainText -Force)"
+                - powershell.exe -Command "C:\cfn\scripts\Install-ADDSDomainController.ps1
+                  -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -SafeModePasswordSecretId ${EnvironmentName}-${UtilityName}-SafeModePassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-                  VPCDirectoryNetBIOSDomain: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCDirectoryNetBIOSDomain
+              ignoreErrors: false
               waitAfterCompletion: forever
         InstallADCS:
           files:
@@ -2233,9 +2060,8 @@ Resources:
             02-install-certificate-authority:
               command: !Sub
                 - powershell.exe -Command C:\cfn\scripts\New-CertificateAuthority.ps1
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
-                  -DomainName ${VPCDirectoryDomain}"
+                  -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -2254,9 +2080,8 @@ Resources:
                 - powershell.exe -Command "C:\cfn\scripts\Update-DNSServers.ps1
                   -DomainControllerAHostName ${HostNameA}
                   -DomainControllerAPrivateIp ${DomainControllerA.PrivateIp}
-                  -UserName ${UtilityAdministratorUserName}
-                  -Password '${UtilityAdministratorPassword}'
-                  -DomainName ${VPCDirectoryDomain}"
+                  -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -2271,7 +2096,7 @@ Resources:
               authentication: S3Credentials
           commands:
             01-configure-userpowershellprofile:
-              command: !Sub powershell.exe -Command "C:\cfn\scripts\Configure-UserPowerShellProfile.ps1 -UserName ${UtilityAdministratorUserName}'"
+              command: !Sub powershell.exe -Command "C:\cfn\scripts\Configure-UserPowerShellProfile.ps1 -UserName Admin'"
               waitAfterCompletion: 0
         ConfigureWindowsTaskBar:
           files:
@@ -2315,10 +2140,7 @@ Resources:
       KeyName: !Ref KeyName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub
-            - ${VPCName}-${UtilityName}-NetworkInterface-eth0
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetB
@@ -2337,12 +2159,9 @@ Resources:
             VolumeType: !FindInMap [ VolumeTypeMap, DomainControllerBackup, !Ref EnvironmentType ]
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-DomainControllerB
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
-        - Key: HostName
-          Value: !Ref HostNameB
+          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerB
+#        - Key: HostName
+#          Value: !Ref HostNameB
       UserData:
         Fn::Base64: !Sub |
           <script>
@@ -2353,6 +2172,8 @@ Resources:
         Timeout: PT30M
     Condition: ConfigureMultiZone
     DependsOn: DomainControllerA
+  # Do not use the HostName Tag on any Instances along with explicitly defined HostNameRecordSets as you see here
+  # If a HostName tag exists, the PrivateRecordSet Function will attempt to manage Private DNS Records, resulting in a conflict
   DomainControllerBPrivateHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -2391,10 +2212,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: MemoryCommittedPercent
       Statistic: Average
       Period: 60
@@ -2413,10 +2231,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -2437,10 +2252,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -2458,372 +2270,367 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${VPCName}-${UtilityName}-${RegionName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
-          RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
-      DashboardBody: !Sub
-        - |
+        - ${EnvironmentName}-${UtilityName}-${RegionName}
+        - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
+      DashboardBody: !Sub |
+        {
+          "widgets" : [ {
+            "type" : "text",
+            "x" : 0,
+            "y" : 0,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "# ${EnvironmentName}-${UtilityName}"
+            }
+          },
           {
-            "widgets" : [ {
-              "type" : "text",
-              "x" : 0,
-              "y" : 0,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "# ${VPCName}-${UtilityName}"
+            "type" : "text",
+            "x" : 0,
+            "y" : 1,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "## Domain Controller A"
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 2,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "### Graphs"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 0,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: CPU",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "AWS/EC2", "CPUUtilization", "InstanceId", "${DomainControllerA}", { "label" : "CPU Utilization" } ],
+                [ "AWS/EC2", "CPUSurplusCreditBalance", "InstanceId", "${DomainControllerA}", { "label" : "CPU Surplus Credit Balance", "yAxis" : "right" } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 1,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "## Domain Controller A"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 6,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Memory",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 2,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "### Graphs"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 12,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Disk",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
+                [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 0,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: CPU",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "AWS/EC2", "CPUUtilization", "InstanceId", "${DomainControllerA}", { "label" : "CPU Utilization" } ],
-                  [ "AWS/EC2", "CPUSurplusCreditBalance", "InstanceId", "${DomainControllerA}", { "label" : "CPU Surplus Credit Balance", "yAxis" : "right" } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 18,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Network",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "AWS/EC2", "NetworkOut", "InstanceId", "${DomainControllerA}", { "label" : "Network Out" } ],
+                [ "AWS/EC2", "NetworkIn", "InstanceId", "${DomainControllerA}", { "label" : "Network In" } ]
+              ]
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 12,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "### Alarms"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 0,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "CPU Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerACPUAlarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 6,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Memory",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 3,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Memory Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerAMemoryAlarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 12,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Disk",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
-                  [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 6,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Disk (C:) Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerADisk1Alarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 18,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Network",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "AWS/EC2", "NetworkOut", "InstanceId", "${DomainControllerA}", { "label" : "Network Out" } ],
-                  [ "AWS/EC2", "NetworkIn", "InstanceId", "${DomainControllerA}", { "label" : "Network In" } ]
-                ]
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 9,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Disk (D:) Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerADisk2Alarm.Arn}" ]
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 12,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "### Alarms"
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 19,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "## Domain Controller B"
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 20,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "### Graphs"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 0,
+            "y" : 21,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: CPU",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "AWS/EC2", "CPUUtilization", "InstanceId", "${DomainControllerB}", { "label" : "CPU Utilization" } ],
+                [ "AWS/EC2", "CPUSurplusCreditBalance", "InstanceId", "${DomainControllerB}", { "label" : "CPU Surplus Credit Balance", "yAxis" : "right" } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 0,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "CPU Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerACPUAlarm.Arn}" ]
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 6,
+            "y" : 21,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Memory",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 3,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Memory Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerAMemoryAlarm.Arn}" ]
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 12,
+            "y" : 21,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Disk",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
+                [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 6,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Disk (C:) Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerADisk1Alarm.Arn}" ]
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 18,
+            "y" : 21,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Network",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "AWS/EC2", "NetworkOut", "InstanceId", "${DomainControllerB}", { "label" : "Network Out" } ],
+                [ "AWS/EC2", "NetworkIn", "InstanceId", "${DomainControllerB}", { "label" : "Network In" } ]
+              ]
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 30,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "### Alarms"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 0,
+            "y" : 31,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "CPU Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerBCPUAlarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 9,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Disk (D:) Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerADisk2Alarm.Arn}" ]
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 3,
+            "y" : 31,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Memory Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerBMemoryAlarm.Arn}" ]
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 19,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "## Domain Controller B"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 6,
+            "y" : 31,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Disk (C:) Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerBDisk1Alarm.Arn}" ]
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 20,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "### Graphs"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 9,
+            "y" : 31,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Disk (D:) Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${DomainControllerBDisk2Alarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 0,
-              "y" : 21,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: CPU",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "AWS/EC2", "CPUUtilization", "InstanceId", "${DomainControllerB}", { "label" : "CPU Utilization" } ],
-                  [ "AWS/EC2", "CPUSurplusCreditBalance", "InstanceId", "${DomainControllerB}", { "label" : "CPU Surplus Credit Balance", "yAxis" : "right" } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 6,
-              "y" : 21,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Memory",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 12,
-              "y" : 21,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Disk",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
-                  [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 18,
-              "y" : 21,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Network",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "AWS/EC2", "NetworkOut", "InstanceId", "${DomainControllerB}", { "label" : "Network Out" } ],
-                  [ "AWS/EC2", "NetworkIn", "InstanceId", "${DomainControllerB}", { "label" : "Network In" } ]
-                ]
-              }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 30,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "### Alarms"
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 0,
-              "y" : 31,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "CPU Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerBCPUAlarm.Arn}" ]
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 3,
-              "y" : 31,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Memory Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerBMemoryAlarm.Arn}" ]
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 6,
-              "y" : 31,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Disk (C:) Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerBDisk1Alarm.Arn}" ]
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 9,
-              "y" : 31,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Disk (D:) Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${DomainControllerBDisk2Alarm.Arn}" ]
-                }
-              }
-            } ]
-          }
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+            }
+          } ]
+        }
   DHCPOptions:
     Type: AWS::EC2::DHCPOptions
     Properties:
@@ -2838,10 +2645,7 @@ Resources:
           - ''
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-DHCPOptions
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-DHCPOptions
     DependsOn: DomainControllerB
   VPCDHCPOptionsAssociation:
     Type: AWS::EC2::VPCDHCPOptionsAssociation
@@ -2873,7 +2677,7 @@ Outputs:
   AdministratorUserName:
     Description: The Administrator UserName
     Value: !Sub
-      - ${UtilityAdministratorUserName}@${VPCDirectoryDomain}
+      - Admin@${VPCDirectoryDomain}
       - VPCDirectoryDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
     Export:
