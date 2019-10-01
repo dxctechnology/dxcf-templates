@@ -201,7 +201,7 @@ Parameters:
   UsePrivateHostedZone:
     Description: Create PrivateHostedZone, and associate with VPC via DHCPOptions
     Type: String
-    Default: false
+    Default: true
     AllowedValues:
       - true
       - false

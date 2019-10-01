@@ -179,7 +179,7 @@ Parameters:
     Type: String
     MinLength: 7
     MaxLength: 64
-    Default: l.dxcp.technology
+    Default: l.us-west-2.dxcp.technology
     AllowedPattern: ^((?!-)[a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,10}$
     ConstraintDescription: must be a valid DNS domain name.
   DirectoryDomain:
@@ -201,7 +201,7 @@ Parameters:
   UsePrivateHostedZone:
     Description: Create PrivateHostedZone, and associate with VPC via DHCPOptions
     Type: String
-    Default: false
+    Default: true
     AllowedValues:
       - true
       - false

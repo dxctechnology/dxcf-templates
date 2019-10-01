@@ -82,7 +82,7 @@ Parameters:
     Description: Name of the CloudFormation Stack containing the Public HostedZone
     Type: String
     MaxLength: 64
-    Default: Identity-PublicHostedZone
+    Default: Management-PublicHostedZone
     AllowedPattern: (^$|^[A-Z][-a-zA-Z0-9]*$)
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   TagFunctionsStackName:
@@ -179,7 +179,7 @@ Parameters:
     Type: String
     MinLength: 7
     MaxLength: 64
-    Default: i.dxcp.technology
+    Default: m.dxcp.technology
     AllowedPattern: ^((?!-)[a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,10}$
     ConstraintDescription: must be a valid DNS domain name.
   DirectoryDomain:
@@ -201,7 +201,7 @@ Parameters:
   UsePrivateHostedZone:
     Description: Create PrivateHostedZone, and associate with VPC via DHCPOptions
     Type: String
-    Default: false
+    Default: true
     AllowedValues:
       - true
       - false
