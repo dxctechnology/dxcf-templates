@@ -1885,9 +1885,9 @@ Resources:
               mode: '000700'
               owner: root
               group: root
-            /root/conf/standard-groups.dat:
+            /root/conf/groups.dat:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/StandardGroups.dat
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/Groups.dat
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -1905,9 +1905,9 @@ Resources:
               mode: '000600'
               owner: root
               group: root
-            /root/conf/standard-users.dat:
+            /root/conf/users.dat:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/StandardUsers.dat
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/Users.dat
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
