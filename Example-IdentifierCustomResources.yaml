@@ -132,11 +132,10 @@ Parameters:
       - Core
       - Recovery
       - Log
-      - Identity
       - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment
     Type: String
@@ -203,7 +202,7 @@ Conditions:
   ConfigureComponentName: !Not [ !Equals [ !Ref ComponentName, '' ]]
   ConfigureInstanceNumber: !Not [ !Equals [ !Ref InstanceNumber, '' ]]
   ConfigureZoneCode: !Not [ !Equals [ !Ref ZoneCode, '' ]]
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureHostNameSystemCode: !And [ !Condition ConfigureSystemName, !Equals [ !Ref UseSystemCodeInHostName, true ]]
 Resources:
   AliasName:
@@ -215,7 +214,7 @@ Resources:
       SystemName: !If [ ConfigureSystemName, !Ref SystemName, !Ref 'AWS::NoValue' ]
       ServiceName: !Ref ServiceName
       ApplicationName: !Ref ApplicationName
-      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -224,7 +223,7 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !If [ ConfigureSystemName, !Ref SystemName, !Ref 'AWS::NoValue' ]
       ApplicationName: !Ref ApplicationName
-      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   HostName:
     Type: Custom::HostName
     Properties:
