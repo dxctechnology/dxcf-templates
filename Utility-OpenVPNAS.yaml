@@ -37,17 +37,11 @@ Metadata:
           - UtilityDomain
           - UtilityVersion
           - UtilityLicense
-          - UtilityAdministratorUserName
-          - UtilityAdministratorPassword
-          - UtilityLDAPBindCN
-          - UtilityLDAPBindPassword
+          - OpenVPNAdministratorPassword
+          - OpenVPNLDAPBindCN
+          - OpenVPNLDAPBindPassword
           - RestoreVersion
           - LogRetention
-      - Label:
-          default: Directory Configuration
-        Parameters:
-          - DirectoryAdministratorUserName
-          - DirectoryAdministratorPassword
       - Label:
           default: Security Configuration
         Parameters:
@@ -88,22 +82,16 @@ Metadata:
         default: Utility Version
       UtilityLicense:
         default: Utility License
-      UtilityAdministratorUserName:
-        default: Utility Administrator UserName
-      UtilityAdministratorPassword:
-        default: Utility Administrator Password
-      UtilityLDAPBindCN:
-        default: Utility LDAP Bind Common Name
-      UtilityLDAPBindPassword:
-        default: Utility LDAP Bind Password
+      OpenVPNAdministratorPassword:
+        default: OpenVPN Administrator Password
+      OpenVPNLDAPBindCN:
+        default: OpenVPN LDAP Bind Common Name
+      OpenVPNLDAPBindPassword:
+        default: OpenVPN LDAP Bind Password
       RestoreVersion:
         default: Restore Version
       LogRetention:
         default: Log Retention
-      DirectoryAdministratorUserName:
-        default: Directory Administrator User Name
-      DirectoryAdministratorPassword:
-        default: Directory Administrator Password
       UserNetworks:
         default: User Networks
       UserNetworkDescriptions:
@@ -198,11 +186,10 @@ Parameters:
       - Core
       - Recovery
       - Log
-      - Identity
       - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
@@ -266,25 +253,16 @@ Parameters:
       - OpenVPNAS50
       - OpenVPNAS100
     ConstraintDescription: must be OpenVPNAS2, OpenVPNAS5, OpenVPNAS10, OpenVPNAS25, OpenVPNAS50 or OpenVPNAS100.
-  UtilityAdministratorUserName:
-    Description: OpenVPN Administrator User Name
-    Type: String
-    Default: openvpn
-    MinLength: 6
-    MaxLength: 32
-    AllowedValues:
-      - openvpn
-    ConstraintDescription: must be openvpn.
-  UtilityAdministratorPassword:
-    Description: OpenVPN Administrator Password
+  OpenVPNAdministratorPassword:
+    Description: Optional password for the OpenVPN Administrator User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
-    MinLength: 16
-    MaxLength: 32
-    AllowedPattern: ^[-a-zA-Z0-9]*$
-    ConstraintDescription: must contain alphanumeric characters and dashes.
-  UtilityLDAPBindCN:
-    Description: LDAP Bind Common Name
+    Default: ''
+    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+  OpenVPNLDAPBindCN:
+    Description: Common Name for the OpenVPN LDAP Bind User
     Type: String
     Default: OpenVPN Server
     MinLength: 6
@@ -292,16 +270,16 @@ Parameters:
     AllowedValues:
       - OpenVPN Server
     ConstraintDescription:  must be OpenVPN Server.
-  UtilityLDAPBindPassword:
-    Description: LDAP Bind Common Name Password
+  OpenVPNLDAPBindPassword:
+    Description: Optional password for the OpenVPN LDAP Bind User (If unspecified, LDAPBindSecret is not created)
     Type: String
     NoEcho: true
-    MinLength: 16
-    MaxLength: 32
-    AllowedPattern: ^[-a-zA-Z0-9]*$
-    ConstraintDescription: must contain alphanumeric characters and dashes.
+    Default: ''
+    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   RestoreVersion:
-    Description: Version of OpenVPNAS Backup to restore (if non-blank)
+    Description: Optional version of OpenVPNAS Backup to restore (if blank, install new configuration)
     Type: String
     MaxLength: 32
     Default: ''
@@ -330,22 +308,6 @@ Parameters:
       - 1827
       - 3653
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
-  DirectoryAdministratorUserName:
-    Description: Directory Administrator User Name, must be able to join this computer to the Domain
-    Type: String
-    Default: Admin
-    MinLength: 4
-    MaxLength: 32
-    AllowedValues:
-      - Admin
-    ConstraintDescription: must be Admin.
-  DirectoryAdministratorPassword:
-    Description: Directory Administrator Password (Optional - if blank, do not attempt to join the domain)
-    Type: String
-    NoEcho: true
-    MaxLength: 32
-    AllowedPattern: (^$|^[-a-zA-Z0-9]{12,32}$)
-    ConstraintDescription: must contain alphanumeric characters and dashes.
   UserNetworks:
     Description: Networks that can use the Utility
     Type: String
@@ -359,13 +321,13 @@ Parameters:
   AdministratorNetworks:
     Description: Networks that can administer the Utility
     Type: String
-    Default: -,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 16 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   AdministratorNetworkDescriptions:
     Description: Descriptions of networks that can administer the Utility
     Type: String
-    Default: -,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 16 values, each a short text description or '-'.
 Mappings:
   RegionNameMap:
     us-east-1:
@@ -430,14 +392,16 @@ Mappings:
       large: c4.large
       xlarge: c4.xlarge
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
   ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureSSMAgent: !Not [ !Equals [ !Ref UtilityVersion, '2.6.1' ]]
   ConfigureRestore: !Not [ !Equals [ !Ref RestoreVersion, '' ]]
-  ConfigureDirectoryJoin: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
+  ConfigureAdminPassword: !Not [ !Equals [ !Ref OpenVPNAdministratorPassword, '' ]]
+  GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
+  ConfigureLDAPBindPassword: !Not [ !Equals [ !Ref OpenVPNLDAPBindPassword, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -454,6 +418,14 @@ Conditions:
   ConfigureAdministratorNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork8: !Not [ !Equals [ !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork9: !Not [ !Equals [ !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork10: !Not [ !Equals [ !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork11: !Not [ !Equals [ !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork12: !Not [ !Equals [ !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork13: !Not [ !Equals [ !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork14: !Not [ !Equals [ !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork15: !Not [ !Equals [ !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -472,6 +444,16 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
+        - PolicyName: GetPasswordSecretPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-LDAPBindPassword-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -534,23 +516,40 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref UtilityName
-      EnvironmentName: !If
-        - ConfigureSingleAccount
-        - !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
-        - !Ref 'AWS::NoValue'
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogRetention
+  AdminPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
+      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User (openvpn)
+      SecretString: !If [ ConfigureAdminPassword, !Ref OpenVPNAdministratorPassword, !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GenerateAdminPassword
+        - PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
+  LDAPBindPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${UtilityName}-LDAPBindPassword
+      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility LDAP Bind Common Name (${OpenVPNLDAPBindCN})
+      SecretString: !Ref OpenVPNLDAPBindPassword
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${UtilityName}-LDAPBindPassword
+    Condition: ConfigureLDAPBindPassword
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-InstanceSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1200,29 +1199,425 @@ Resources:
               - ${NetworkDescription} (VPN-UDP)
               - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork8
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork8
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork8
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork8
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork8
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork9
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork9
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork9
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork9
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork9
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork10
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork10
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork10
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork10
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork10
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork11
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork11
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork11
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork11
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork11
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork12
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork12
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork12
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork12
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork12
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork13
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork13
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork13
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork13
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork13
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork6
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork14
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork14
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork14
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork14
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork15
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork15
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork15
+          - IpProtocol: tcp
+            FromPort: 943
+            ToPort: 943
+            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Console)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork15
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-TCP)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork15
+          - IpProtocol: udp
+            FromPort: 1194
+            ToPort: 1194
+            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (VPN-UDP)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-InstanceSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
   HostName:
     Type: Custom::HostName
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${IdentifierFunctionsStackName}-HostNameFunctionArn
+        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
-      EnvironmentName: !ImportValue
-        Fn::Sub: ${VPCStackName}-VPCName
+      EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
       InstanceNumber: 01
+      ZoneCode: a
   OpenVPNASImage:
     Type: Custom::OpenVPNASImage
     Properties:
       ServiceToken: !ImportValue
         Fn::Sub: ${MarketplaceAMIFunctionsStackName}-OpenVPNASImageFunctionArn
-      Region: !Ref AWS::Region
       License: !Ref UtilityLicense
       Version: !Ref UtilityVersion
   InstanceProfile:
@@ -1272,6 +1667,16 @@ Resources:
               mode: '000644'
               owner: root
               group: root
+          commands:
+            01-remove-systemd-resolved-stub-resolver:
+              command: rm -f /etc/resolv.conf
+              ignoreErrors: false
+            02-link-systemd-resolved-normal-resolver:
+              command: ln -s ../run/systemd/resolve/resolv.conf /etc/resolv.conf
+              ignoreErrors: false
+            03-restart openvpnas:
+              command: systemctl restart openvpnas.service
+              ignoreErrors: false
         ConfigureCFN:
           files:
             /etc/cfn/cfn-hup.conf:
@@ -1326,124 +1731,121 @@ Resources:
         ConfigureCloudWatchAgent:
           files:
             /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json:
-              content: !Sub
-                - |
-                  {
-                    "agent" : {
-                      "metrics_collection_interval" : 60,
-                      "logfile" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
-                      "debug" : false
-                    },
-                    "metrics" : {
-                      "namespace" : "${SystemName}/${VPCName}-${UtilityName}",
-                      "metrics_collected" : {
-                        "mem" : {
-                          "measurement" : [
-                            { "name" : "mem_used_percent", "rename" : "MemoryUsedPercent" }
-                          ]
-                        },
-                        "swap" : {
-                          "measurement" : [
-                            { "name" : "swap_used_percent", "rename" : "SwapUsedPercent" }
-                          ]
-                        },
-                        "disk" : {
-                          "resources" : [
-                            "*"
-                          ],
-                          "measurement" : [
-                            { "name" : "used_percent", "rename" : "DiskUsedPercent" }
-                          ],
-                          "ignore_file_system_types": [
-                            "rootfs",
-                            "sysfs",
-                            "tmpfs",
-                            "devtmpfs"
-                          ]
-                        }
+              content: !Sub |
+                {
+                  "agent" : {
+                    "metrics_collection_interval" : 60,
+                    "logfile" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
+                    "debug" : false
+                  },
+                  "metrics" : {
+                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "metrics_collected" : {
+                      "mem" : {
+                        "measurement" : [
+                          { "name" : "mem_used_percent", "rename" : "MemoryUsedPercent" }
+                        ]
                       },
-                      "append_dimensions" : {
-                        "InstanceId" : "${!aws:InstanceId}",
-                        "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                      "swap" : {
+                        "measurement" : [
+                          { "name" : "swap_used_percent", "rename" : "SwapUsedPercent" }
+                        ]
                       },
-                      "aggregation_dimensions" : [
-                        [ "InstanceId" ],
-                        [ "InstanceId", "path" ],
-                        [ "AutoScalingGroupName" ]
-                      ]
+                      "disk" : {
+                        "resources" : [
+                          "*"
+                        ],
+                        "measurement" : [
+                          { "name" : "used_percent", "rename" : "DiskUsedPercent" }
+                        ],
+                        "ignore_file_system_types": [
+                          "rootfs",
+                          "sysfs",
+                          "tmpfs",
+                          "devtmpfs"
+                        ]
+                      }
                     },
-                    "logs" : {
-                      "logs_collected" : {
-                        "files" : {
-                          "collect_list" : [
-                            {
-                              "file_path" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log"
-                            },
-                            {
-                              "file_path" : "/var/log/cloud-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/cloud-init.log",
-                              "timestamp_format" : "%b %d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/cloud-init-output.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/cloud-init-output.log"
-                            },
-                            {
-                              "file_path" : "/var/log/cfn-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/cfn-init.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/cfn-init-cmd.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/cfn-init-cmd.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/cfn-hup.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/cfn-hup.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/syslog",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/syslog",
-                              "timestamp_format" : "%b %d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/auth.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/auth.log",
-                              "timestamp_format" : "%b %d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/dpkg.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/dpkg.log"
-                            },
-                            {
-                              "file_path" : "/var/log/apt/term.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/apt/term.log"
-                            },
-                            {
-                              "file_path" : "/var/log/openvpnas.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "VPN/{instance_id}/var/log/openvpnas.log"
-                            }
-                          ]
-                        }
+                    "append_dimensions" : {
+                      "InstanceId" : "${!aws:InstanceId}",
+                      "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                    },
+                    "aggregation_dimensions" : [
+                      [ "InstanceId" ],
+                      [ "InstanceId", "path" ],
+                      [ "AutoScalingGroupName" ]
+                    ]
+                  },
+                  "logs" : {
+                    "logs_collected" : {
+                      "files" : {
+                        "collect_list" : [
+                          {
+                            "file_path" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log"
+                          },
+                          {
+                            "file_path" : "/var/log/cloud-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/cloud-init.log",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cloud-init-output.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/cloud-init-output.log"
+                          },
+                          {
+                            "file_path" : "/var/log/cfn-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/cfn-init.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cfn-init-cmd.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/cfn-init-cmd.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cfn-hup.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/cfn-hup.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/syslog",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/syslog",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/auth.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/auth.log",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/dpkg.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/dpkg.log"
+                          },
+                          {
+                            "file_path" : "/var/log/apt/term.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/apt/term.log"
+                          },
+                          {
+                            "file_path" : "/var/log/openvpnas.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "VPN/{instance_id}/var/log/openvpnas.log"
+                          }
+                        ]
                       }
                     }
                   }
-                - VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
+                }
               mode: '000644'
               owner: root
               group: root
@@ -1485,61 +1887,65 @@ Resources:
               group: root
             /root/conf/standard-groups.dat:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/${VPCName}-StandardGroups.dat
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/StandardGroups.dat
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
               mode: '000600'
               owner: root
               group: root
             /root/conf/custom-groups.dat:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/${VPCName}-CustomGroups.dat
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/CustomGroups.dat
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
               mode: '000600'
               owner: root
               group: root
             /root/conf/standard-users.dat:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/${VPCName}-StandardUsers.dat
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/StandardUsers.dat
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
               mode: '000600'
               owner: root
               group: root
             /root/conf/custom-users.dat:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/${VPCName}-CustomUsers.dat
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/OpenVPNAS/CustomUsers.dat
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
               mode: '000600'
               owner: root
               group: root
           commands:
+            # Note: There is some UNTESTED support for using LDAP with OpenVPN. This was originaly planned for at least
+            #       support, perhaps as the primary method. However, there are drawbacks to that approach compared to
+            #       using the local user database - LDAP does not contain User information beyond the password, and such
+            #       additional information is required, so we must add it here via automation. Trying to keep what's
+            #       added here in sync with a separate DirectoryService is not possible. So, until all OpenVPN additional
+            #       attributes can be stored directly inside ActiveDirectory or LDAP with schema modifications, local
+            #       authentication is both more comprehensive and much simpler. The one drawback is separate sets of
+            #       users, with separate passwords. This is a WARNING to anyone who might wonder why LDAP integration is
+            #       not in use, and who might come here planning to add it. Not as simple as you might think!
             01-configure-openvpnas:
               command: !Sub
-                - /root/bin/configure-openvpnas -n -a local
+                - /root/bin/configure-openvpnas -n -l -a local
                   -h ${UtilityDomain} -d ${VPCPublicDomain}
-                  -u ${UtilityAdministratorUserName} -p ${UtilityAdministratorPassword}
-                  -B ${UtilityLDAPBindCN} -P ${UtilityLDAPBindPassword}
+                  ${AdminUserOptions}
                 - VPCPublicDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCPublicDomain
+                  AdminUserOptions: !If
+                    - ConfigureAdminPassword
+                    - !Sub '-p ${OpenVPNAdministratorPassword}'
+                    - !Sub '-s ${EnvironmentName}-${UtilityName}-AdminPassword'
               ignoreErrors: false
         RestoreOpenVPNAS:
           files:
@@ -1588,10 +1994,7 @@ Resources:
       KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub
-            - ${VPCName}-${UtilityName}-NetworkInterface-eth0
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-Public1SubnetA
@@ -1621,12 +2024,9 @@ Resources:
             DeleteOnTermination: true
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-Instance
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
-        - Key: HostName
-          Value: !Ref HostName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-Instance
+#        - Key: HostName
+#          Value: !Ref HostName
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
@@ -1634,7 +2034,7 @@ Resources:
 
           # Install missing AWS tools and make them run from a consistent location
           apt-get update
-          apt-get install -y python-pip
+          DEBIAN_FRONTEND=noninteractive apt-get install -y python-pip
           pip install awscli
           pip install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
           mkdir -p /opt/aws/bin
@@ -1651,11 +2051,8 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Timeout: PT10M
-  EIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-      InstanceId: !Ref Instance
+  # Do not use the HostName Tag on any Instances along with explicitly defined HostNameRecordSet Resource as you see here
+  # If a HostName tag exists, the PrivateRecordSet Function will attempt to manage Private DNS Records, resulting in a conflict
   PrivateHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -1687,6 +2084,15 @@ Resources:
           - ${HostName}.${VPCPrivateDomain}
           - VPCPrivateDomain: !ImportValue
               Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  EIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      InstanceId: !Ref Instance
   PublicHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -1742,10 +2148,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: MemoryUsedPercent
       Statistic: Average
       Period: 60
@@ -1762,10 +2165,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
@@ -1784,10 +2184,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
@@ -1803,197 +2200,192 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${VPCName}-${UtilityName}-${RegionName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
-          RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
-      DashboardBody: !Sub
-        - |
+        - ${EnvironmentName}-${UtilityName}-${RegionName}
+        - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
+      DashboardBody: !Sub |
+        {
+          "widgets" : [ {
+            "type" : "text",
+            "x" : 0,
+            "y" : 0,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "# ${EnvironmentName}-${UtilityName}"
+            }
+          },
           {
-            "widgets" : [ {
-              "type" : "text",
-              "x" : 0,
-              "y" : 0,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "# ${VPCName}-${UtilityName}"
+            "type" : "text",
+            "x" : 0,
+            "y" : 1,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "## Instance"
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 2,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "### Graphs"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 0,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: CPU",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "AWS/EC2", "CPUUtilization", "InstanceId", "${Instance}", { "label" : "CPU Utilization" } ],
+                [ "AWS/EC2", "CPUSurplusCreditBalance", "InstanceId", "${Instance}", { "label" : "CPU Surplus Credit Balance", "yAxis" : "right" } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 1,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "## Instance"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 6,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Memory",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryUsedPercent", "InstanceId", "${Instance}", { "label" : "Memory Used %" } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "SwapUsedPercent", "InstanceId", "${Instance}", { "label" : "Swap Used %" } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 2,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "### Graphs"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 12,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Disk",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/", { "label" : "Disk Used % (/)" } ],
+                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/var/www", { "label" : "Disk Used % (/var/www)" } ]
+              ],
+              "yAxis" : {
+                "left" : { "min" : 0, "max" : 100 }
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 0,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: CPU",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "AWS/EC2", "CPUUtilization", "InstanceId", "${Instance}", { "label" : "CPU Utilization" } ],
-                  [ "AWS/EC2", "CPUSurplusCreditBalance", "InstanceId", "${Instance}", { "label" : "CPU Surplus Credit Balance", "yAxis" : "right" } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 18,
+            "y" : 3,
+            "width" : 6,
+            "height" : 9,
+            "properties" : {
+              "title" : "Instance: Network",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "period" : 60,
+              "region" : "${AWS::Region}",
+              "metrics" : [
+                [ "AWS/EC2", "NetworkOut", "InstanceId", "${Instance}", { "label" : "Network Out" } ],
+                [ "AWS/EC2", "NetworkIn", "InstanceId", "${Instance}", { "label" : "Network In" } ]
+              ]
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 12,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "### Alarms"
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 0,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "CPU Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${CPUAlarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 6,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Memory",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "MemoryUsedPercent", "InstanceId", "${Instance}", { "label" : "Memory Used %" } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "SwapUsedPercent", "InstanceId", "${Instance}", { "label" : "Swap Used %" } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 3,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Memory Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${MemoryAlarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 12,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Disk",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/", { "label" : "Disk Used % (/)" } ],
-                  [ "${SystemName}/${VPCName}-${UtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/var/www", { "label" : "Disk Used % (/var/www)" } ]
-                ],
-                "yAxis" : {
-                  "left" : { "min" : 0, "max" : 100 }
-                }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 6,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Disk (/) Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${Disk1Alarm.Arn}" ]
               }
-            },
-            {
-              "type" : "metric",
-              "x" : 18,
-              "y" : 3,
-              "width" : 6,
-              "height" : 9,
-              "properties" : {
-                "title" : "Instance: Network",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "period" : 60,
-                "region" : "${AWS::Region}",
-                "metrics" : [
-                  [ "AWS/EC2", "NetworkOut", "InstanceId", "${Instance}", { "label" : "Network Out" } ],
-                  [ "AWS/EC2", "NetworkIn", "InstanceId", "${Instance}", { "label" : "Network In" } ]
-                ]
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 9,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "Disk (/usr/local/openvpn_as/etc) Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${Disk2Alarm.Arn}" ]
               }
-            },
-            {
-              "type" : "text",
-              "x" : 0,
-              "y" : 12,
-              "width" : 24,
-              "height" : 1,
-              "properties" : {
-                "markdown" : "### Alarms"
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 0,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "CPU Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${CPUAlarm.Arn}" ]
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 3,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Memory Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${MemoryAlarm.Arn}" ]
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 6,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Disk (/) Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${Disk1Alarm.Arn}" ]
-                }
-              }
-            },
-            {
-              "type" : "metric",
-              "x" : 9,
-              "y" : 13,
-              "width" : 3,
-              "height" : 6,
-              "properties" : {
-                "title" : "Disk (/usr/local/openvpn_as/etc) Alarm",
-                "view" : "timeSeries",
-                "stacked" : false,
-                "annotations" : {
-                  "alarms" : [ "${Disk2Alarm.Arn}" ]
-                }
-              }
-            } ]
-          }
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+            }
+          } ]
+        }
 Outputs:
   InstanceSecurityGroup:
     Description: The Instance SecurityGroup

@@ -44,11 +44,6 @@ Metadata:
           - OnSchedule
           - OffSchedule
       - Label:
-          default: Directory Configuration
-        Parameters:
-          - DirectoryAdministratorUserName
-          - DirectoryAdministratorPassword
-      - Label:
           default: Security Configuration
         Parameters:
           - UserNetworks
@@ -96,10 +91,6 @@ Metadata:
         default: On Schedule
       OffSchedule:
         default: Off Schedule
-      DirectoryAdministratorUserName:
-        default: Directory Administrator User Name
-      DirectoryAdministratorPassword:
-        default: Directory Administrator Password
       UserNetworks:
         default: User Networks
       UserNetworkDescriptions:
@@ -190,11 +181,10 @@ Parameters:
       - Core
       - Recovery
       - Log
-      - Identity
       - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
@@ -255,7 +245,7 @@ Parameters:
     Description: DNS Name of the Utility associated with the Stack
     Type: String
     MaxLength: 16
-    Default: ''
+    Default: lbastion
     AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   UseStaticPublicAddress:
@@ -309,32 +299,16 @@ Parameters:
     Default: 0 4 * * *
     AllowedPattern: (^$|^0 [0-7] \* \* \*$)
     ConstraintDescription: 'must follow constrained cron syntax: "0 H * * *", where H = 0-7.'
-  DirectoryAdministratorUserName:
-    Description: Directory Administrator User Name, must be able to join this computer to the Domain
-    Type: String
-    Default: Admin
-    MinLength: 4
-    MaxLength: 32
-    AllowedValues:
-      - Admin
-    ConstraintDescription: must be Admin.
-  DirectoryAdministratorPassword:
-    Description: Directory Administrator Password (Optional - if blank, do not attempt to join the domain)
-    Type: String
-    NoEcho: true
-    MaxLength: 32
-    AllowedPattern: (^$|^[-a-zA-Z0-9]{12,32}$)
-    ConstraintDescription: must contain alphanumeric characters and dashes.
   UserNetworks:
     Description: Networks that can use the Utility
     Type: String
-    Default: -,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 16 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   UserNetworkDescriptions:
     Description: Descriptions of networks that can use the Utility
     Type: String
-    Default: -,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 16 values, each a short text description or '-'.
 Mappings:
   RegionNameMap:
     us-east-1:
@@ -401,7 +375,7 @@ Mappings:
       large: c5.large
       xlarge: c5.xlarge
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
   ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
@@ -415,7 +389,6 @@ Conditions:
   ConfigureUsers: !Equals [ !Ref UseLocalUsers, true ]
   ConfigureOnSchedule: !And [ !Not [ !Equals [ !Ref OnSchedule, '' ]], !Not [ !Condition ConfigureStandby ]]
   ConfigureOffSchedule: !And [ !Not [ !Equals [ !Ref OffSchedule , '' ]], !Not [ !Condition ConfigureStandby ]]
-  ConfigureDirectoryJoin: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -424,6 +397,14 @@ Conditions:
   ConfigureUserNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork8: !Not [ !Equals [ !Select [ 8, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork9: !Not [ !Equals [ !Select [ 9, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork10: !Not [ !Equals [ !Select [ 10, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork11: !Not [ !Equals [ !Select [ 11, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork12: !Not [ !Equals [ !Select [ 12, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork13: !Not [ !Equals [ !Select [ 13, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork14: !Not [ !Equals [ !Select [ 14, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork15: !Not [ !Equals [ !Select [ 15, !Split [ ',', !Ref UserNetworks ]], '-' ]]
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -522,11 +503,7 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref UtilityName
-      EnvironmentName: !If
-        - ConfigureSingleAccount
-        - !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
-        - !Ref 'AWS::NoValue'
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -535,10 +512,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-InstanceSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -708,12 +682,169 @@ Resources:
               - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 7, !Split [ ',', !Ref UserNetworkDescriptions ]]
           - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork8
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 8, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork8
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 8, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork9
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 9, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork9
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 9, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork10
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 10, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork10
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 10, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork11
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 11, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork11
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 11, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork12
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 12, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork12
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 12, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork13
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 13, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork13
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 13, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork14
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 14, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork14
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 14, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork15
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 15, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork15
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Select [ 15, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (SSH)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-InstanceSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
   EIPA:
     Type: AWS::EC2::EIP
     Properties:
@@ -728,13 +859,15 @@ Resources:
     Type: Custom::HostName
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${IdentifierFunctionsStackName}-HostNameFunctionArn
+        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
-      EnvironmentName: !ImportValue
-        Fn::Sub: ${VPCStackName}-VPCName
+      EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
       InstanceNumber: 01
+      # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
+      #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
+      #       HostName without Zone Code created here.
   AmazonLinux2Image:
     Type: Custom::AmazonLinux2Image
     Properties:
@@ -850,135 +983,132 @@ Resources:
         ConfigureCloudWatchAgent:
           files:
             /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json:
-              content: !Sub
-                - |
-                  {
-                    "agent" : {
-                      "metrics_collection_interval" : 60,
-                      "logfile" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
-                      "debug" : false
-                    },
-                    "metrics" : {
-                      "namespace" : "${SystemName}/${VPCName}-${UtilityName}",
-                      "metrics_collected" : {
-                        "mem" : {
-                          "measurement" : [
-                            { "name" : "mem_used_percent", "rename" : "MemoryUsedPercent" }
-                          ]
-                        },
-                        "swap" : {
-                          "measurement" : [
-                            { "name" : "swap_used_percent", "rename" : "SwapUsedPercent" }
-                          ]
-                        },
-                        "disk" : {
-                          "resources" : [
-                            "*"
-                          ],
-                          "measurement" : [
-                            { "name" : "used_percent", "rename" : "DiskUsedPercent" }
-                          ],
-                          "ignore_file_system_types": [
-                            "rootfs",
-                            "sysfs",
-                            "tmpfs",
-                            "devtmpfs"
-                          ]
-                        }
+              content: !Sub |
+                {
+                  "agent" : {
+                    "metrics_collection_interval" : 60,
+                    "logfile" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
+                    "debug" : false
+                  },
+                  "metrics" : {
+                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "metrics_collected" : {
+                      "mem" : {
+                        "measurement" : [
+                          { "name" : "mem_used_percent", "rename" : "MemoryUsedPercent" }
+                        ]
                       },
-                      "append_dimensions" : {
-                        "InstanceId" : "${!aws:InstanceId}",
-                        "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                      "swap" : {
+                        "measurement" : [
+                          { "name" : "swap_used_percent", "rename" : "SwapUsedPercent" }
+                        ]
                       },
-                      "aggregation_dimensions" : [
-                        [ "InstanceId" ],
-                        [ "InstanceId", "path" ],
-                        [ "AutoScalingGroupName" ]
-                      ]
+                      "disk" : {
+                        "resources" : [
+                          "*"
+                        ],
+                        "measurement" : [
+                          { "name" : "used_percent", "rename" : "DiskUsedPercent" }
+                        ],
+                        "ignore_file_system_types": [
+                          "rootfs",
+                          "sysfs",
+                          "tmpfs",
+                          "devtmpfs"
+                        ]
+                      }
                     },
-                    "logs" : {
-                      "logs_collected" : {
-                        "files" : {
-                          "collect_list" : [
-                            {
-                              "file_path" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log"
-                            },
-                            {
-                              "file_path" : "/var/log/cloud-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cloud-init.log",
-                              "timestamp_format" : "%b %d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/cloud-init-output.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cloud-init-output.log"
-                            },
-                            {
-                              "file_path" : "/var/log/cfn-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cfn-init.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/cfn-init-cmd.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cfn-init-cmd.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/cfn-hup.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cfn-hup.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/messages",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/messages",
-                              "timestamp_format" : "%b %d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/secure",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/secure",
-                              "timestamp_format" : "%b %d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/cron",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cron",
-                              "timestamp_format" : "%b %d %H:%M:%S"
-                            },
-                            {
-                              "file_path" : "/var/log/dmesg",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/dmesg"
-                            },
-                            {
-                              "file_path" : "/var/log/yum.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/yum.log"
-                            },
-                            {
-                              "file_path" : "/var/log/httpd/access_log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/httpd/access_log"
-                            },
-                            {
-                              "file_path" : "/var/log/httpd/error_log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "LinuxBastion/{instance_id}/var/log/httpd/error_log"
-                            }
-                          ]
-                        }
+                    "append_dimensions" : {
+                      "InstanceId" : "${!aws:InstanceId}",
+                      "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                    },
+                    "aggregation_dimensions" : [
+                      [ "InstanceId" ],
+                      [ "InstanceId", "path" ],
+                      [ "AutoScalingGroupName" ]
+                    ]
+                  },
+                  "logs" : {
+                    "logs_collected" : {
+                      "files" : {
+                        "collect_list" : [
+                          {
+                            "file_path" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log"
+                          },
+                          {
+                            "file_path" : "/var/log/cloud-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cloud-init.log",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cloud-init-output.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cloud-init-output.log"
+                          },
+                          {
+                            "file_path" : "/var/log/cfn-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cfn-init.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cfn-init-cmd.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cfn-init-cmd.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cfn-hup.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cfn-hup.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/messages",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/messages",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/secure",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/secure",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cron",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/cron",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/dmesg",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/dmesg"
+                          },
+                          {
+                            "file_path" : "/var/log/yum.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/yum.log"
+                          },
+                          {
+                            "file_path" : "/var/log/httpd/access_log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/httpd/access_log"
+                          },
+                          {
+                            "file_path" : "/var/log/httpd/error_log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "LinuxBastion/{instance_id}/var/log/httpd/error_log"
+                          }
+                        ]
                       }
                     }
                   }
-                - VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
+                }
               mode: '000644'
               owner: root
               group: root
@@ -1089,10 +1219,7 @@ Resources:
       Cooldown: 300
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-Instance
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-Instance
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
@@ -1128,10 +1255,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[month, day, time, host, program=sshd*, message=Accepted publickey, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub
-            - ${SystemName}/${VPCName}-${UtilityName}
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
           MetricName: ValidUsersCount
           MetricValue: 1
   InvalidUserMetricFilter:
@@ -1140,10 +1264,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[month, day, time, host, program=sshd*, message=Invalid user, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub
-            - ${SystemName}/${VPCName}-${UtilityName}
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
           MetricName: InvalidUsersCount
           MetricValue: 1
   InvalidUsersAlarm:
@@ -1153,10 +1274,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub
-        - ${SystemName}/${VPCName}-${UtilityName}
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
       MetricName: InvalidUsersCount
       Statistic: Sum
       Period: 60

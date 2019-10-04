@@ -180,11 +180,10 @@ Parameters:
       - Core
       - Recovery
       - Log
-      - Identity
       - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
@@ -249,22 +248,25 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 20 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(^[a-z]{4,32}(-[a-z]{4,32}){2,7}$|(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*))
+    ConstraintDescription: must be 20 to 64 alphanumeric characters, in either hyphenated multiword format,
+      or random string format with at least one uppercase, lowercase and digit, if specified.
   DirectorySafeModePassword:
     Description: Optional password allowing recovery when the domain controller is restarted in Safe Mode (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 20 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   DirectorySeedDataEncryptionKey:
     Description: Encryption Key used to encrypt sensitive Directory Seed Data used to populate the Directory, mainly User initial passwords
     Type: String
     NoEcho: true
-    Default: NotAValidKey2Use
-    AllowedPattern: (?=^.{12,24}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*
-    ConstraintDescription: must be 12 to 24 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit.
+    Default: this-is-not-a-valid-key
+    AllowedPattern: ((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit.
   UseStaticAddress:
     Description: Assign a consistent Static Address
     Type: String
@@ -443,14 +445,14 @@ Mappings:
       large: standard
       xlarge: gp2
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   GetImageID: !Equals [ !Ref OSDate, '' ]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
-  GenerateAdminPassword: !Equals [ !Ref DirectoryAdministratorPassword, '' ]
-  ConfigureAdminPassword: !Not [ !Condition GenerateAdminPassword ]
-  GenerateSafeModePassword: !Equals [ !Ref DirectorySafeModePassword, '' ]
-  ConfigureSafeModePassword: !Not [ !Condition GenerateSafeModePassword ]
+  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
+  GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
+  ConfigureSafeModePassword: !Not [ !Equals [ !Ref DirectorySafeModePassword, '' ]]
+  GenerateSafeModePassword: !Not [ !Condition ConfigureSafeModePassword ]
   ConfigureStaticAddress: !Equals [ !Ref UseStaticAddress, true ]
   ConfigureStaticAddress&MultiZone: !And [ !Condition ConfigureStaticAddress, !Condition ConfigureMultiZone ]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -560,7 +562,7 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref UtilityName
-      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -1417,9 +1419,9 @@ Resources:
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
-            C:\cfn\conf\StandardGroups.csv:
+            C:\cfn\conf\Groups.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/StandardGroups.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/Groups.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -1432,12 +1434,12 @@ Resources:
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            01-configure-standard-adgroups:
+            01-configure-adgroups:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
                   -DomainName ${VPCDirectoryDomain}
                   -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
-                  -GroupsPath C:\cfn\conf\StandardGroups.csv"
+                  -GroupsPath C:\cfn\conf\Groups.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -1459,9 +1461,9 @@ Resources:
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
-            C:\cfn\conf\StandardUsers.csv:
+            C:\cfn\conf\Users.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/StandardUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/ActiveDirectory/Users.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -1474,13 +1476,13 @@ Resources:
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            01-configure-standard-adusers:
+            01-configure-adusers:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
                   -DomainName ${VPCDirectoryDomain}
                   -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
                   -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
-                  -UsersPath C:\cfn\conf\StandardUsers.csv"
+                  -UsersPath C:\cfn\conf\Users.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -1984,11 +1986,6 @@ Resources:
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            # ToDo: Recently changed this from in-line to running a script to use SecretsManager. The new script
-            #       method is nearly identical, but the original in-line logic used the older username format
-            #       when creating the credental, so documenting what did work in case it breaks.
-            #       - Old In-Line Method for Username = "${VPCDirectoryNetBIOSDomain}\Admin"
-            #       - New Script Method for Username = "Admin@${VPCDirectoryDomain}"
             01-join-domain:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
@@ -2013,11 +2010,6 @@ Resources:
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            # ToDo: Recently changed this from in-line to running a script to use SecretsManager. The new script
-            #       method is nearly identical, but the original in-line logic used the older username format
-            #       when creating the credental, so documenting what did work in case it breaks.
-            #       - Old In-Line Method for Username = "${VPCDirectoryNetBIOSDomain}\Admin"
-            #       - New Script Method for Username = "Admin@${VPCDirectoryDomain}"
             01-install-addsdomaincontroller:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Install-ADDSDomainController.ps1

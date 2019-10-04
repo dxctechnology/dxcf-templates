@@ -35,6 +35,8 @@ Metadata:
       - Label:
           default: Utility Dependencies Configuration
         Parameters:
+          - AwsCliProductObject
+          - ChromeProductObject
           - RoyalTSProductObject
           - PuTTYProductObject
       - Label:
@@ -43,13 +45,13 @@ Metadata:
           - UtilityName
           - UtilityDomain
           - UseStaticPublicAddress
+          - UseFedRAMP
           - LogRetention
           - OnSchedule
           - OffSchedule
       - Label:
           default: Directory Configuration
         Parameters:
-          - DirectoryAdministratorUserName
           - DirectoryAdministratorPassword
       - Label:
           default: Security Configuration
@@ -85,6 +87,10 @@ Metadata:
         default: Environment Zones
       OSName:
         default: Operating System Name
+      AwsCliProductObject:
+        default: AWS CLI Product Object
+      ChromeProductObject:
+        default: Chrome Product Object
       RoyalTSProductObject:
         default: RoyalTS Product Object
       PuTTYProductObject:
@@ -95,14 +101,14 @@ Metadata:
         default: Utility Domain
       UseStaticPublicAddress:
         default: Use Static Public Address
+      UseFedRAMP:
+        default: Harden for FedRAMP Security Standards
       LogRetention:
         default: Log Retention
       OnSchedule:
         default: On Schedule
       OffSchedule:
         default: Off Schedule
-      DirectoryAdministratorUserName:
-        default: Directory Administrator User Name
       DirectoryAdministratorPassword:
         default: Directory Administrator Password
       UserNetworks:
@@ -195,11 +201,10 @@ Parameters:
       - Core
       - Recovery
       - Log
-      - Identity
       - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
@@ -247,6 +252,20 @@ Parameters:
       - Windows Server 2012 R2
       - Windows Server 2016
     ConstraintDescription: must be "Windows Server 2012 R2" or "Windows Server 2016".
+  AwsCliProductObject:
+    Description: Object within the S3 bucket and folder containing the AWS CLI installer
+    Type: String
+    MaxLength: 64
+    Default: ''
+    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
+    ConstraintDescription: must be a valid filename, not containing slashes.
+  ChromeProductObject:
+    Description: Object within the S3 bucket and folder containing the Chrome installer
+    Type: String
+    MaxLength: 64
+    Default: ''
+    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
+    ConstraintDescription: must be a valid filename, not containing slashes.
   RoyalTSProductObject:
     Description: Object within the S3 bucket and folder containing the RoyalTS installer
     Type: String
@@ -273,13 +292,21 @@ Parameters:
     Description: DNS Name of the Utility associated with the Stack
     Type: String
     MaxLength: 16
-    Default: ''
+    Default: wbastion
     AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   UseStaticPublicAddress:
     Description: Create and associate a separate Static Public Address
     Type: String
     Default: true
+    AllowedValues:
+      - true
+      - false
+    ConstraintDescription: must be either true or false.
+  UseFedRAMP:
+    Description: Harden Bastions for FedRAMP Security Standards
+    Type: String
+    Default: false
     AllowedValues:
       - true
       - false
@@ -319,33 +346,24 @@ Parameters:
     Default: 0 4 * * *
     AllowedPattern: (^$|^0 [0-7] \* \* \*$)
     ConstraintDescription: 'must follow constrained cron syntax: "0 H * * *", where H = 0-7.'
-  DirectoryAdministratorUserName:
-    Description: Directory Administrator User Name, must be able to join this computer to the Domain
-    Type: String
-    Default: Admin
-    MinLength: 4
-    MaxLength: 32
-    AllowedValues:
-      - Admin
-    ConstraintDescription: must be Admin.
   DirectoryAdministratorPassword:
-    Description: Directory Administrator Password
+    Description: Optional password for the Enterprise Admin User (If unspecified, value obtained via Secret)
     Type: String
     NoEcho: true
-    MinLength: 12
-    MaxLength: 32
-    AllowedPattern: ^[-a-zA-Z0-9]{12,32}$
-    ConstraintDescription: must contain alphanumeric characters and dashes.
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,64}$)(^[a-z]{4,32}(-[a-z]{4,32}){2,7}$|(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*))
+    ConstraintDescription: must be 20 to 64 alphanumeric characters, in either hyphenated multiword format,
+      or random string format with at least one uppercase, lowercase and digit, if specified.
   UserNetworks:
     Description: Networks that can use the Utility
     Type: String
-    Default: -,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 16 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   UserNetworkDescriptions:
     Description: Descriptions of networks that can use the Utility
     Type: String
-    Default: -,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 16 values, each a short text description or '-'.
 Mappings:
   RegionNameMap:
     us-east-1:
@@ -411,21 +429,25 @@ Mappings:
       xlarge: m5.xlarge
       2xlarge: m5.2xlarge
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
   ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureStandby: !Equals [ !Ref EnvironmentType, standby ]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
+  InstallAwsCliProduct: !Not [ !Equals [ !Ref AwsCliProductObject, '' ]]
+  InstallChromeProduct: !Not [ !Equals [ !Ref ChromeProductObject, '' ]]
   InstallRoyalTSProduct: !Not [ !Equals [ !Ref RoyalTSProductObject, '' ]]
   InstallPuTTYProduct: !Not [ !Equals [ !Ref PuTTYProductObject, '' ]]
   ConfigureStaticPublicAddress: !Equals [ !Ref UseStaticPublicAddress, true ]
   ConfigureStaticPublicAddress&MultiZone: !And [ !Condition ConfigureStaticPublicAddress, !Condition ConfigureMultiZone ]
+  ConfigureFedRAMP: !Equals [ !Ref UseFedRAMP, true ]
   ConfigureDomainName: !And [ !Not [ !Equals [ !Ref UtilityDomain, '' ]], !Condition ConfigureStaticPublicAddress ]
   ConfigureDomainName&MultiZone: !And [ !Condition ConfigureDomainName, !Condition ConfigureMultiZone ]
   ConfigureOnSchedule: !And [ !Not [ !Equals [ !Ref OnSchedule, '' ]], !Not [ !Condition ConfigureStandby ]]
   ConfigureOffSchedule: !And [ !Not [ !Equals [ !Ref OffSchedule , '' ]], !Not [ !Condition ConfigureStandby ]]
+  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -434,6 +456,14 @@ Conditions:
   ConfigureUserNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork8: !Not [ !Equals [ !Select [ 8, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork9: !Not [ !Equals [ !Select [ 9, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork10: !Not [ !Equals [ !Select [ 10, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork11: !Not [ !Equals [ !Select [ 11, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork12: !Not [ !Equals [ !Select [ 12, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork13: !Not [ !Equals [ !Select [ 13, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork14: !Not [ !Equals [ !Select [ 14, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork15: !Not [ !Equals [ !Select [ 15, !Split [ ',', !Ref UserNetworks ]], '-' ]]
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -452,6 +482,16 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
+        - PolicyName: GetPasswordSecretPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-AdminPassword-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -521,11 +561,7 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref UtilityName
-      EnvironmentName: !If
-        - ConfigureSingleAccount
-        - !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
-        - !Ref 'AWS::NoValue'
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName , !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -534,10 +570,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub
-        - ${VPCName}-${UtilityName}-InstanceSecurityGroup
-        - VPCName: !ImportValue
-            Fn::Sub: ${VPCStackName}-VPCName
+      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -787,12 +820,249 @@ Resources:
               - ${NetworkDescription} (RDP)
               - NetworkDescription: !Select [ 7, !Split [ ',', !Ref UserNetworkDescriptions ]]
           - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork8
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 8, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork8
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 8, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork8
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 8, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork9
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 9, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork9
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 9, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork9
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 9, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork10
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 10, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork10
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 10, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork10
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 10, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork11
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 11, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork11
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 11, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork11
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 11, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork12
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 12, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork12
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 12, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork12
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 12, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork13
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 13, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork13
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 13, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork13
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 13, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork14
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 14, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork14
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 14, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork14
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 14, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork15
+          - IpProtocol: icmp
+            FromPort: -1
+            ToPort: -1
+            CidrIp: !Select [ 15, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (ICMP)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork15
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 15, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork15
+          - IpProtocol: tcp
+            FromPort: 3389
+            ToPort: 3389
+            CidrIp: !Select [ 15, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (RDP)
+              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-InstanceSecurityGroup
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
   EIPA:
     Type: AWS::EC2::EIP
     Properties:
@@ -810,10 +1080,12 @@ Resources:
         Fn::Sub: ${CodesStackName}-HostNameFunctionArn
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
-      EnvironmentName: !ImportValue
-        Fn::Sub: ${VPCStackName}-VPCName
+      EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
       InstanceNumber: 01
+      # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
+      #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
+      #       HostName without Zone Code created here.
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -857,6 +1129,8 @@ Resources:
             - ConfigureRDSGateway
             - ConfigureRemoteDesktopUsers
             - !If [ ConfigureStaticPublicAddress, ConfigureStaticPublicAddress, !Ref 'AWS::NoValue' ]
+            - !If [ InstallAwsCliProduct, InstallAwsCliProduct, !Ref 'AWS::NoValue' ]
+            - !If [ InstallChromeProduct, InstallChromeProduct, !Ref 'AWS::NoValue' ]
             - !If [ InstallRoyalTSProduct, InstallRoyalTSProduct, !Ref 'AWS::NoValue' ]
             - !If [ InstallPuTTYProduct, InstallPuTTYProduct, !Ref 'AWS::NoValue' ]
             - SignalCloudFormation
@@ -922,121 +1196,118 @@ Resources:
         ConfigureCloudWatchAgent:
           files:
             C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json:
-              content: !Sub
-                - |
-                  {
-                    "agent" : {
-                      "metrics_collection_interval" : 60,
-                      "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                      "debug" : false
-                    },
-                    "metrics" : {
-                      "namespace" : "${SystemName}/${VPCName}-${UtilityName}",
-                      "metrics_collected" : {
-                        "Memory" : {
-                          "measurement" : [
-                            { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
-                            { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
-                          ]
-                        },
-                        "LogicalDisk" : {
-                          "resources" : [
-                            "C:",
-                            "D:"
-                          ],
-                          "measurement" : [
-                            { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
-                            { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
-                            { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
-                            { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
-                          ]
-                        }
+              content: !Sub |
+                {
+                  "agent" : {
+                    "metrics_collection_interval" : 60,
+                    "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                    "debug" : false
+                  },
+                  "metrics" : {
+                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "metrics_collected" : {
+                      "Memory" : {
+                        "measurement" : [
+                          { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
+                          { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
+                        ]
                       },
-                      "append_dimensions" : {
-                        "InstanceId" : "${!aws:InstanceId}",
-                        "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
-                      },
-                      "aggregation_dimensions" : [
-                        [ "InstanceId" ],
-                        [ "AutoScalingGroupName" ],
-                        []
-                      ]
+                      "LogicalDisk" : {
+                        "resources" : [
+                          "C:",
+                          "D:"
+                        ],
+                        "measurement" : [
+                          { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
+                          { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
+                          { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
+                          { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
+                        ]
+                      }
                     },
-                    "logs" : {
-                      "logs_collected" : {
-                        "windows_events" : {
-                          "collect_list" : [
-                            {
-                              "event_name" : "Application",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/ApplicationEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "System",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/SystemEventLog",
-                              "event_format" : "text"
-                            },
-                            {
-                              "event_name" : "Security",
-                              "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/SecurityEventLog",
-                              "event_format" : "text"
-                            }
-                          ]
-                        },
-                        "files" : {
-                          "collect_list" : [
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/amazon-cloudwatch-agent.log",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/EC2ConfigLog.txt",
-                              "timezone" : "UTC"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/cfn-init.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/cfn-init-cmd.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\cfn\\log\\cfn-hup.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/cfn-hup.log",
-                              "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                              "timezone" : "Local"
-                            },
-                            {
-                              "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
-                              "log_group_name" : "${LogGroup}",
-                              "log_stream_name" : "Bastion/{instance_id}/IISLogs",
-                              "timezone" : "UTC"
-                            }
-                          ]
-                        }
+                    "append_dimensions" : {
+                      "InstanceId" : "${!aws:InstanceId}",
+                      "AutoScalingGroupName" : "${!aws:AutoScalingGroupName}"
+                    },
+                    "aggregation_dimensions" : [
+                      [ "InstanceId" ],
+                      [ "AutoScalingGroupName" ],
+                      []
+                    ]
+                  },
+                  "logs" : {
+                    "logs_collected" : {
+                      "windows_events" : {
+                        "collect_list" : [
+                          {
+                            "event_name" : "Application",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/ApplicationEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "System",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/SystemEventLog",
+                            "event_format" : "text"
+                          },
+                          {
+                            "event_name" : "Security",
+                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/SecurityEventLog",
+                            "event_format" : "text"
+                          }
+                        ]
+                      },
+                      "files" : {
+                        "collect_list" : [
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/amazon-cloudwatch-agent.log",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/EC2ConfigLog.txt",
+                            "timezone" : "UTC"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/cfn-init.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/cfn-init-cmd.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\cfn\\log\\cfn-hup.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/cfn-hup.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
+                            "timezone" : "Local"
+                          },
+                          {
+                            "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "Bastion/{instance_id}/IISLogs",
+                            "timezone" : "UTC"
+                          }
+                        ]
                       }
                     }
                   }
-                - VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
+                }
           commands:
             01-start-cloudwatch-agent:
               command: powershell.exe -Command ".\amazon-cloudwatch-agent-ctl.ps1 -a fetch-config -m ec2 -c file:C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json -s"
@@ -1078,11 +1349,15 @@ Resources:
             01-join-domain:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
-                  -UserName ${DirectoryAdministratorUserName}
-                  -Password '${DirectoryAdministratorPassword}'
-                  -DomainName ${VPCDirectoryDomain}"
+                  -DomainName ${VPCDirectoryDomain}
+                  -PasswordSecretId ${PasswordSecretId}
+                  -Password '${DirectoryAdministratorPassword}'"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
+                  PasswordSecretId: !If
+                    - ConfigureActiveDirectoryIntegration
+                    - !Sub ${EnvironmentName}-ActiveDirectory-AdminPassword
+                    - !Sub ${EnvironmentName}-DirectoryService-AdminPassword
               ignoreErrors: false
               waitAfterCompletion: forever
         InstallRDSGateway:
@@ -1122,28 +1397,24 @@ Resources:
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
-            C:\cfn\conf\StandardRemoteDesktopUsers.csv:
+            C:\cfn\conf\RemoteDesktopUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/WindowsBastions/${VPCName}-StandardRemoteDesktopUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/WindowsBastions/RemoteDesktopUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
             C:\cfn\conf\CustomRemoteDesktopUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/WindowsBastions/${VPCName}-CustomRemoteDesktopUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/WindowsBastions/CustomRemoteDesktopUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-                  VPCName: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCName
               authentication: S3Credentials
           commands:
-            01-configure-standard-remotedesktopusers:
+            01-configure-remotedesktopusers:
               command: !Sub powershell.exe -Command "C:\cfn\scripts\Configure-RemoteDesktopUsers.ps1
-                -RemoteDesktopUsers C:\cfn\conf\StandardRemoteDesktopUsers.csv"
+                -RemoteDesktopUsers C:\cfn\conf\RemoteDesktopUsers.csv"
               ignoreErrors: false
               waitAfterCompletion: 0
             02-configure-custom-remotedesktopusers:
@@ -1169,11 +1440,27 @@ Resources:
                 - EIPAAllocationId: !If [ ConfigureStaticPublicAddress, !GetAtt EIPA.AllocationId, NONE ]
                   EIPBAllocationId: !If [ ConfigureStaticPublicAddress&MultiZone, !GetAtt EIPB.AllocationId, NONE ]
               ignoreErrors: false
-              waitAfterCompletion: 0
+              waitAfterCompletion: 15
+        InstallAwsCliProduct:
+          packages:
+            msi:
+              AwsCli: !Sub
+                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${AwsCliProductObject}
+                - ProductsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ProductsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+        InstallChromeProduct:
+          packages:
+            msi:
+              Chrome: !Sub
+                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${ChromeProductObject}
+                - ProductsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ProductsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
         InstallRoyalTSProduct:
           packages:
             msi:
-              PuTTY: !Sub
+              RoyalTS: !Sub
                 - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${RoyalTSProductObject}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
@@ -1236,10 +1523,7 @@ Resources:
       Cooldown: 300
       Tags:
         - Key: Name
-          Value: !Sub
-            - ${VPCName}-${UtilityName}-Instance
-            - VPCName: !ImportValue
-                Fn::Sub: ${VPCStackName}-VPCName
+          Value: !Sub ${EnvironmentName}-${UtilityName}-Instance
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:

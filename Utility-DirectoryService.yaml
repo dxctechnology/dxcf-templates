@@ -176,11 +176,10 @@ Parameters:
       - Core
       - Recovery
       - Log
-      - Identity
       - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
@@ -247,15 +246,17 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 20 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   DirectorySeedDataEncryptionKey:
     Description: Encryption Key used to encrypt sensitive Directory Seed Data used to populate the Directory, mainly User initial passwords
     Type: String
     NoEcho: true
-    Default: NotAValidKey2Use
-    AllowedPattern: (?=^.{12,24}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*
-    ConstraintDescription: must be 12 to 24 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit.
+    Default: this-is-not-a-valid-key
+    AllowedPattern: ((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit.
   UseSso:
     Description: Configure Single Sign-on
     Type: String
@@ -360,10 +361,10 @@ Mappings:
       large: m5.large
       xlarge: m5.xlarge
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
-  GeneratePassword: !Equals [ !Ref DirectoryAdministratorPassword, '' ]
-  ConfigurePassword: !Not [ !Condition GeneratePassword ]
+  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
+  GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -448,20 +449,20 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref UtilityName
-      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogRetention
-  PasswordSecret:
+  AdminPasswordSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
       Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User
-      SecretString: !If [ ConfigurePassword, !Ref DirectoryAdministratorPassword, !Ref 'AWS::NoValue' ]
+      SecretString: !If [ ConfigureAdminPassword, !Ref DirectoryAdministratorPassword, !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
-        - GeneratePassword
+        - GenerateAdminPassword
         - PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
@@ -487,7 +488,7 @@ Resources:
       CreateAlias: false
       Edition: !Ref DirectoryEdition
       EnableSso: false
-      Password: !Sub '{{resolve:secretsmanager:${PasswordSecret}}}'
+      Password: !Sub '{{resolve:secretsmanager:${AdminPasswordSecret}}}'
       VpcSettings:
         VpcId: !ImportValue
           Fn::Sub: ${VPCStackName}-VPC
@@ -496,7 +497,7 @@ Resources:
             Fn::Sub: ${VPCStackName}-IdentitySubnetA
           - !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetB
-    DependsOn: PasswordSecret
+    DependsOn: AdminPasswordSecret
   Alias:
     Type: Custom::DirectoryAlias
     Properties:
@@ -635,6 +636,7 @@ Resources:
       EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
       InstanceNumber: 01
+      ZoneCode: a
   WindowsImage:
     Type: Custom::WindowsImageId
     Properties:
@@ -909,9 +911,9 @@ Resources:
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
-            C:\cfn\conf\StandardGroups.csv:
+            C:\cfn\conf\Groups.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/StandardGroups.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/Groups.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -924,12 +926,12 @@ Resources:
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            01-configure-standard-adgroups:
+            01-configure-adgroups:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
                   -DomainName ${VPCDirectoryDomain}
                   -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
-                  -GroupsPath C:\cfn\conf\StandardGroups.csv
+                  -GroupsPath C:\cfn\conf\Groups.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -953,9 +955,9 @@ Resources:
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
-            C:\cfn\conf\StandardUsers.csv:
+            C:\cfn\conf\Users.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/StandardUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/Users.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -968,13 +970,13 @@ Resources:
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            01-configure-standard-adusers:
+            01-configure-adusers:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
                   -DomainName ${VPCDirectoryDomain}
                   -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
                   -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
-                  -UsersPath C:\cfn\conf\StandardUsers.csv
+                  -UsersPath C:\cfn\conf\Users.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -999,9 +1001,9 @@ Resources:
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
-            C:\cfn\conf\StandardRemoteDesktopUsers.csv:
+            C:\cfn\conf\RemoteDesktopUsers.csv:
               source: !Sub
-                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/StandardRemoteDesktopUsers.csv
+                - https://${ConfigurationsBucket}.${s3}.amazonaws.com/DirectoryService/RemoteDesktopUsers.csv
                 - ConfigurationsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -1014,9 +1016,9 @@ Resources:
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
           commands:
-            01-configure-standard-remotedesktopusers:
+            01-configure-remotedesktopusers:
               command: powershell.exe -Command "C:\cfn\scripts\Configure-RemoteDesktopUsers.ps1
-                -RemoteDesktopUsers C:\cfn\conf\StandardRemoteDesktopUsers.csv"
+                -RemoteDesktopUsers C:\cfn\conf\RemoteDesktopUsers.csv"
               ignoreErrors: false
               waitAfterCompletion: 0
             02-configure-custom-remotedesktopusers:
@@ -1067,7 +1069,7 @@ Resources:
         - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
-            Fn::Sub: ${VPCStackName}-IdentitySubnetA
+            Fn::Sub: ${VPCStackName}-IdentitySubnetA # Adding ZoneCode: a to HostName, so don't change this!
           GroupSet:
             - !Ref ManagementInstanceSecurityGroup
           DeleteOnTermination: true
@@ -1080,6 +1082,10 @@ Resources:
           Value: !Sub ${EnvironmentName}-${UtilityName}-ManagementInstance
 #        - Key: HostName
 #          Value: !Ref HostName
+        - Key: Schedule
+          Value: '-22:00'
+        - Key: ScheduleDescription
+          Value: This Instance only needs to run while managing the Directory, so stop every night at 10pm
       UserData:
         Fn::Base64: !Sub |
           <script>
