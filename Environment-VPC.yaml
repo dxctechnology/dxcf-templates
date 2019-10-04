@@ -267,7 +267,7 @@ Mappings:
       xlarge: c5.xlarge
       2xlarge: c5.2xlarge
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigurePublicHostedZone: !Not [ !Equals [ !Ref PublicHostedZoneStackName, '' ]]
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
@@ -315,7 +315,7 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: FlowLog
-      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:

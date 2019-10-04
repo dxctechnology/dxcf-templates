@@ -108,11 +108,10 @@ Parameters:
       - Core
       - Recovery
       - Log
-      - Identity
       - Management
       - Jumpstart
       - Organization
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management, Jumpstart or Organization.
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
   EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
@@ -229,9 +228,9 @@ Parameters:
       - false
     ConstraintDescription: must be either true or false.
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureAliasNameSystemCode: !Equals [ !Ref UseSystemCodeInAliasName, true ]
-  ConfigureAliasNameEnvironmentName: !Or [ !Condition ConfigureSingleAccount, !Equals [ !Ref UseEnvironmentNameInAliasName, true ]]
+  ConfigureAliasNameEnvironmentName: !Or [ !Condition ConfigureAccountEnvironment, !Equals [ !Ref UseEnvironmentNameInAliasName, true ]]
   ConfigureDynamoDBKey: !Equals [ !Ref UseDynamoDBKey, true ]
   ConfigureEBSKey: !Equals [ !Ref UseEBSKey, true ]
   ConfigureElasticFilesystemKey: !Equals [ !Ref UseElasticFilesystemKey, true ]
