@@ -212,6 +212,7 @@ Resources:
                 response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: MetadataDownloaderLogGroup
   SamlProviderRole:
     Type: AWS::IAM::Role
     Properties:
@@ -346,6 +347,7 @@ Resources:
                 });
             }
           };
+    DependsOn: SamlProviderLogGroup
   OktaSingleAccountUser:
     Type: AWS::IAM::User
     Properties:

@@ -322,6 +322,7 @@ Resources:
                 response.send(event, context, response.SUCCESS);
             }
           };
+    DependsOn: BillingAlarmThresholdCalculatorLogGroup
   BilingAlarmThresholdCalculator:
     Type: Custom::BilingAlarmThresholdCalculator
     Properties:
