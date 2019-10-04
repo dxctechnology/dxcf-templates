@@ -14,7 +14,6 @@ Metadata:
           - OrganizationAccount
           - JumpstartAccount
           - ManagementAccount
-          - IdentityAccount
           - LogAccount
           - RecoveryAccount
           - BuildAccount
@@ -34,8 +33,6 @@ Metadata:
         default: Jumpstart Account
       ManagementAccount:
         default: Management Account
-      IdentityAccount:
-        default: Identity Account
       LogAccount:
         default: Log Account
       RecoveryAccount:
@@ -79,12 +76,6 @@ Parameters:
     ConstraintDescription: must be a valid AWS Account ID, or blank.
   ManagementAccount:
     Description: AWS Account ID of the Management Account
-    Type: String
-    Default: ''
-    AllowedPattern: (^$|^[0-9]{12}$)
-    ConstraintDescription: must be a valid AWS Account ID, or blank.
-  IdentityAccount:
-    Description: AWS Account ID of the Identity Account
     Type: String
     Default: ''
     AllowedPattern: (^$|^[0-9]{12}$)
@@ -162,8 +153,6 @@ Conditions:
   ConfigureManagementRoles: !Equals [ !Ref ManagementAccount, !Ref 'AWS::AccountId' ]
   ConfigureManagementAccount: !Not [ !Equals [ !Ref ManagementAccount, '' ]]
   ConfigureManagementDomainRoles: !And [ !Condition ConfigureManagementRoles, !Not [ !Condition ConfigureOrganizationAccount ]]
-  ConfigureIdentityRoles: !Equals [ !Ref IdentityAccount, !Ref 'AWS::AccountId' ]
-  ConfigureIdentityAccount: !Not [ !Equals [ !Ref IdentityAccount, '' ]]
   ConfigureLogRoles: !Equals [ !Ref LogAccount, !Ref 'AWS::AccountId' ]
   ConfigureLogAccount: !Not [ !Equals [ !Ref LogAccount, '' ]]
   ConfigureRecoveryRoles: !Equals [ !Ref RecoveryAccount, !Ref 'AWS::AccountId' ]
@@ -205,10 +194,6 @@ Resources:
                     - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureProductionAccount
                     - !Sub arn:aws:iam::${ProductionAccount}:root
                     - !Ref AWS::NoValue
@@ -237,10 +222,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureProductionAccount
@@ -343,10 +324,6 @@ Resources:
                     - !Sub arn:aws:iam::${JumpstartAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureProductionAccount
                     - !Sub arn:aws:iam::${ProductionAccount}:root
                     - !Ref AWS::NoValue
@@ -379,72 +356,6 @@ Resources:
         - !ImportValue
           Fn::Sub: ${MultiAccountManagedPoliciesStackName}-DomainNameServersProxyAccess
     Condition: ConfigureManagementDomainRoles
-  IdentityAccountReferenceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: ReferenceRole
-      Path: /
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS:
-                - !If
-                    - ConfigureOrganizationAccount
-                    - !Sub arn:aws:iam::${OrganizationAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureManagementAccount
-                    - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureLogAccount
-                    - !Sub arn:aws:iam::${LogAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureRecoveryAccount
-                    - !Sub arn:aws:iam::${RecoveryAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureBuildAccount
-                    - !Sub arn:aws:iam::${BuildAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureCoreAccount
-                    - !Sub arn:aws:iam::${CoreAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureProductionAccount
-                    - !Sub arn:aws:iam::${ProductionAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureStagingAccount
-                    - !Sub arn:aws:iam::${StagingAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureUATAccount
-                    - !Sub arn:aws:iam::${UATAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureQAAccount
-                    - !Sub arn:aws:iam::${QAAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureTestingAccount
-                    - !Sub arn:aws:iam::${TestingAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureDevelopmentAccount
-                    - !Sub arn:aws:iam::${DevelopmentAccount}:root
-                    - !Ref AWS::NoValue
-            Action:
-              - sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-        - !ImportValue
-          Fn::Sub: ${MultiAccountManagedPoliciesStackName}-ReferenceAccess
-    Condition: ConfigureIdentityRoles
   LogAccountReferenceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -463,10 +374,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureRecoveryAccount
@@ -531,10 +438,6 @@ Resources:
                     - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureLogAccount
                     - !Sub arn:aws:iam::${LogAccount}:root
                     - !Ref AWS::NoValue
@@ -595,10 +498,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureLogAccount
@@ -663,10 +562,6 @@ Resources:
                     - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureLogAccount
                     - !Sub arn:aws:iam::${LogAccount}:root
                     - !Ref AWS::NoValue
@@ -727,10 +622,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureLogAccount
@@ -794,10 +685,6 @@ Resources:
                     - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureLogAccount
                     - !Sub arn:aws:iam::${LogAccount}:root
                     - !Ref AWS::NoValue
@@ -838,10 +725,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureLogAccount
@@ -906,10 +789,6 @@ Resources:
                     - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureLogAccount
                     - !Sub arn:aws:iam::${LogAccount}:root
                     - !Ref AWS::NoValue
@@ -950,10 +829,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureLogAccount
@@ -998,10 +873,6 @@ Resources:
                     - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureLogAccount
                     - !Sub arn:aws:iam::${LogAccount}:root
                     - !Ref AWS::NoValue
@@ -1044,10 +915,6 @@ Resources:
                     - !Sub arn:aws:iam::${ManagementAccount}:root
                     - !Ref AWS::NoValue
                 - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
                     - ConfigureLogAccount
                     - !Sub arn:aws:iam::${LogAccount}:root
                     - !Ref AWS::NoValue
@@ -1088,10 +955,6 @@ Resources:
                 - !If
                     - ConfigureManagementAccount
                     - !Sub arn:aws:iam::${ManagementAccount}:root
-                    - !Ref AWS::NoValue
-                - !If
-                    - ConfigureIdentityAccount
-                    - !Sub arn:aws:iam::${IdentityAccount}:root
                     - !Ref AWS::NoValue
                 - !If
                     - ConfigureLogAccount
@@ -1159,12 +1022,6 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ManagementAccountDomainNameServersRole
     Condition: ConfigureManagementDomainRoles
-  IdentityAccountReferenceRole:
-    Description: The IdentityAccountReferenceRole Name
-    Value: !Ref IdentityAccountReferenceRole
-    Export:
-      Name: !Sub ${AWS::StackName}-IdentityAccountReferenceRole
-    Condition: ConfigureIdentityRoles
   LogAccountReferenceRole:
     Description: The LogAccountReferenceRole Name
     Value: !Ref LogAccountReferenceRole
