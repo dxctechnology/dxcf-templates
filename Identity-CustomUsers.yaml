@@ -126,85 +126,85 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   TableauAdministratorPassword:
     Description: Optional password for the tableauadministrator User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   MCrawfordPassword:
     Description: Optional password for the mcrawford User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   VMatukumalliPassword:
     Description: Optional password for the vmatukumalli User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   SRamalingamPassword:
     Description: Optional password for the sramalingam User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   RRoslonPassword:
     Description: Optional password for the rroslon User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   ASchickPassword:
     Description: Optional password for the aschick User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   CMeadePassword:
     Description: Optional password for the cmeade User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   SBachhuPassword:
     Description: Optional password for the sbachhu User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   RKalakotlaPassword:
     Description: Optional password for the rkalakotla User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   AMohammedPassword:
     Description: Optional password for the amohammed User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   DLondonPassword:
     Description: Optional password for the dlondon User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   SaveGeneratedPasswords:
     Description: Seve generated initial passwords in the Systems Manager Parameter Store as Secure Strings
     Type: String
