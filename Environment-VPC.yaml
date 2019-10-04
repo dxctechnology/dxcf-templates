@@ -138,26 +138,27 @@ Parameters:
     Default: Production
     AllowedValues:
       - Production
+      - Recovery
       - Staging
       - UAT
       - QA
       - Testing
       - Development
-      - Recovery
       - Jumpstart
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Recovery or Jumpstart.
+    ConstraintDescription: must be Production, Recovery, Staging, UAT, QA, Testing, Development or Jumpstart.
   EnvironmentName:
     Description: Name of the Environment associated with the Stack
     Type: String
     Default: Production
     AllowedValues:
       - Production
+      - Recovery
       - Staging
       - UAT
       - QA
       - Testing
       - Development
-    ConstraintDescription: must be Production, Staging, UAT, QA, Testing or Development.
+    ConstraintDescription: must be Production, Recovery, Staging, UAT, QA, Testing or Development.
   EnvironmentType:
     Description: Type of the Environment to build. Used to select size-related options in Mappings
     Type: String
