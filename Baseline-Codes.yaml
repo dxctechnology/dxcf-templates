@@ -559,6 +559,12 @@ Resources:
         - Type: Application
           Name: WindowsWebServerNested
           Code: wwsn
+        - Type: Application
+          Name: UbuntuWebServer
+          Code: uws
+        - Type: Application
+          Name: UbuntuWebServers
+          Code: uwsm
         - Type: Component
           Name: Ambari
           Code: a
