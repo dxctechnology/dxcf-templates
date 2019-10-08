@@ -1602,17 +1602,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
-  HostName:
-    Type: Custom::HostName
-    Properties:
-      ServiceToken: !ImportValue
-        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
-      CompanyName: !Ref CompanyName
-      LocationName: !Ref AWS::Region
-      EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
-      InstanceNumber: 01
-      ZoneCode: a
   OpenVPNASImage:
     Type: Custom::OpenVPNASImage
     Properties:
@@ -1626,6 +1615,17 @@ Resources:
       Path: /
       Roles:
         - !Ref Role
+  HostName:
+    Type: Custom::HostName
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
+      CompanyName: !Ref CompanyName
+      LocationName: !Ref AWS::Region
+      EnvironmentName: !Ref EnvironmentName
+      ApplicationName: !Ref UtilityName
+      InstanceNumber: 01
+      ZoneCode: a
   Instance:
     Type: AWS::EC2::Instance
     Metadata:
