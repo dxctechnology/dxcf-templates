@@ -29,7 +29,6 @@ Metadata:
           - AccountName
           - EnvironmentName
           - EnvironmentType
-          - EnvironmentZones
           - OSName
           - OSDate
       - Label:
@@ -39,7 +38,6 @@ Metadata:
           - DirectoryAdministratorPassword
           - DirectorySafeModePassword
           - DirectorySeedDataEncryptionKey
-          - UseStaticAddress
           - LogRetention
       - Label:
           default: Security Configuration
@@ -71,8 +69,6 @@ Metadata:
         default: Environment Name
       EnvironmentType:
         default: Environment Type
-      EnvironmentZones:
-        default: Environment Zones
       OSName:
         default: Operating System Name
       OSDate:
@@ -85,8 +81,6 @@ Metadata:
         default: Directory Safe Mode Password
       DirectorySeedDataEncryptionKey:
         default: Directory Seed Data Encryption Key
-      UseStaticAddress:
-        default: Use Static Address
       LogRetention:
         default: Log Retention
       AdministratorNetworks:
@@ -213,14 +207,6 @@ Parameters:
       - large
       - xlarge
     ConstraintDescription: must be small, medium, large or xlarge.
-  EnvironmentZones:
-    Description: Number of Availability Zones to build
-    Type: String
-    Default: 2
-    AllowedValues:
-      - 1
-      - 2
-    ConstraintDescription: must be 1 or 2.
   OSName:
     Description: The Operating System to use for Instances
     Type: String
@@ -267,14 +253,6 @@ Parameters:
     AllowedPattern: ((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
     ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
       or 12 to 32 character random string format with at least one uppercase, lowercase and digit.
-  UseStaticAddress:
-    Description: Assign a consistent Static Address
-    Type: String
-    Default: true
-    AllowedValues:
-      - true
-      - false
-    ConstraintDescription: must be either true or false.
   LogRetention:
     Description: Number of days to retain CloudWatch Log Events
     Type: Number
@@ -448,13 +426,10 @@ Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   GetImageID: !Equals [ !Ref OSDate, '' ]
-  ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
   ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
   GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
   ConfigureSafeModePassword: !Not [ !Equals [ !Ref DirectorySafeModePassword, '' ]]
   GenerateSafeModePassword: !Not [ !Condition ConfigureSafeModePassword ]
-  ConfigureStaticAddress: !Equals [ !Ref UseStaticAddress, true ]
-  ConfigureStaticAddress&MultiZone: !And [ !Condition ConfigureStaticAddress, !Condition ConfigureMultiZone ]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -1031,7 +1006,6 @@ Resources:
     Properties:
       ServiceToken: !ImportValue
         Fn::Sub: ${AMIFunctionsStackName}-WindowsImageFunctionArn
-      Region: !Ref AWS::Region
       OSName: !Ref OSName
       OSDate: !Ref OSDate
     Condition: GetImageID
@@ -1061,7 +1035,6 @@ Resources:
       SubnetId: !ImportValue
         Fn::Sub: ${VPCStackName}-IdentitySubnetA
       Offset: 4
-    Condition: ConfigureStaticAddress
   DomainControllerA:
     Type: AWS::EC2::Instance
     Metadata:
@@ -1369,10 +1342,9 @@ Resources:
           commands:
             01-configure-adsites:
               command: !Sub
-                - powershell.exe -Command "C:\cfn\scripts\Configure-ADSites.ps1 -VpcId ${VpcId}${MultiZoneOption}"
+                - powershell.exe -Command "C:\cfn\scripts\Configure-ADSites.ps1 -VpcId ${VpcId} -MultiZone"
                 - VpcId: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPC
-                  MultiZoneOption: !If [ ConfigureMultiZone, ' -MultiZone', '' ]
               waitAfterCompletion: 0
         ConfigureADSubnets:
           files:
@@ -1386,10 +1358,9 @@ Resources:
           commands:
             01-configure-adsubnets:
               command: !Sub
-                - powershell.exe -Command "C:\cfn\scripts\Configure-ADSubnets.ps1 -VpcId ${VpcId}${MultiZoneOption}"
+                - powershell.exe -Command "C:\cfn\scripts\Configure-ADSubnets.ps1 -VpcId ${VpcId} -MultiZone"
                 - VpcId: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPC
-                  MultiZoneOption: !If [ ConfigureMultiZone, ' -MultiZone', '' ]
               waitAfterCompletion: 0
         ConfigureEnterpriseAdmin:
           files:
@@ -1593,7 +1564,7 @@ Resources:
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetA
-          PrivateIpAddress: !If [ ConfigureStaticAddress, !Ref PrivateIpAddressA, !Ref 'AWS::NoValue' ]
+          PrivateIpAddress: !Ref PrivateIpAddressA
           GroupSet:
             - !Ref DomainControllerSecurityGroup
           DeleteOnTermination: true
@@ -1733,7 +1704,6 @@ Resources:
       SubnetId: !ImportValue
         Fn::Sub: ${VPCStackName}-IdentitySubnetB
       Offset: 4
-    Condition: ConfigureStaticAddress&MultiZone
   DomainControllerB:
     Type: AWS::EC2::Instance
     Metadata:
@@ -2136,7 +2106,7 @@ Resources:
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetB
-          PrivateIpAddress: !If [ ConfigureStaticAddress&MultiZone, !Ref PrivateIpAddressB, !Ref 'AWS::NoValue' ]
+          PrivateIpAddress: !Ref PrivateIpAddressB
           GroupSet:
             - !Ref DomainControllerSecurityGroup
           DeleteOnTermination: true
@@ -2162,7 +2132,6 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Timeout: PT30M
-    Condition: ConfigureMultiZone
     DependsOn: DomainControllerA
   # Do not use the HostName Tag on any Instances along with explicitly defined HostNameRecordSets as you see here
   # If a HostName tag exists, the PrivateRecordSet Function will attempt to manage Private DNS Records, resulting in a conflict
@@ -2629,12 +2598,7 @@ Resources:
       DomainName: !ImportValue
         Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       DomainNameServers:
-      - !Sub
-        - ${DomainControllerA.PrivateIp}${DomainControllerBPrivateIp}
-        - DomainControllerBPrivateIp: !If
-          - ConfigureMultiZone
-          - !Sub ', ${DomainControllerB.PrivateIp}'
-          - ''
+      - !Sub ${DomainControllerA.PrivateIp}, ${DomainControllerB.PrivateIp}
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${UtilityName}-DHCPOptions
