@@ -429,15 +429,15 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${ScriptsBucket}/Modules/*
-                    - ScriptsBucket: !ImportValue
-                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
-                  - !Sub
                     - arn:aws:s3:::${ScriptsBucket}/Windows/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   - !Sub
                     - arn:aws:s3:::${ScriptsBucket}/WindowsWebServer/*
+                    - ScriptsBucket: !ImportValue
+                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
+                  - !Sub
+                    - arn:aws:s3:::${ScriptsBucket}/Modules/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
         - PolicyName: DownloadConfigurationFromS3Policy
@@ -1616,17 +1616,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
-  HostName:
-    Type: Custom::HostName
-    Properties:
-      ServiceToken: !ImportValue
-        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
-      CompanyName: !Ref CompanyName
-      LocationName: !Ref AWS::Region
-      EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
-      InstanceNumber: 01
-      ZoneCode: a
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -1639,6 +1628,17 @@ Resources:
       Path: /
       Roles:
         - !Ref Role
+  HostName:
+    Type: Custom::HostName
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
+      CompanyName: !Ref CompanyName
+      LocationName: !Ref AWS::Region
+      EnvironmentName: !Ref EnvironmentName
+      ApplicationName: !Ref ApplicationName
+      InstanceNumber: 01
+      ZoneCode: a
   Instance:
     Type: AWS::EC2::Instance
     Metadata:
