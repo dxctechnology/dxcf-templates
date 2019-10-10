@@ -249,10 +249,8 @@ Parameters:
     Description: Encryption Key used to encrypt sensitive Directory Seed Data used to populate the Directory, mainly User initial passwords
     Type: String
     NoEcho: true
-    Default: this-is-not-a-valid-key
-    AllowedPattern: ((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit.
+    AllowedPattern: (?=^.{12,24}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$
+    ConstraintDescription: must be 12 to 24 character random string format with at least one uppercase, lowercase and digit.
   LogRetention:
     Description: Number of days to retain CloudWatch Log Events
     Type: Number
