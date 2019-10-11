@@ -238,7 +238,7 @@ Resources:
     Properties:
       Name: SchedulerRule
       Description: Rule to start and stop Instances based on a schedule expression in a Schedule tag.
-      ScheduleExpression: '0/15 * * * ? *'
+      ScheduleExpression: 'cron(0/15 * * * ? *)'
       State: ENABLED
       Targets:
         - Id: SchedulerFunction
