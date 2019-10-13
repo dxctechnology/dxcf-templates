@@ -78,7 +78,7 @@ Parameters:
   SchedulerLogRetention:
     Description: Number of days to retain CloudWatch Log Events for the Scheduler Lambda Function
     Type: Number
-    Default: 30
+    Default: 3
     AllowedValues:
       - 1
       - 3
