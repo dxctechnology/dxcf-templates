@@ -1655,8 +1655,8 @@ Resources:
             01-apt-update:
               command: apt-get update -y
               ignoreErrors: false
-            02-apt-upgrade:
-              command: apt-get upgrade -y
+            02-apt-upgrade: # Prevent interactive prompts, keep any configuration files modified by OpenVPN
+              command: DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
               ignoreErrors: false
         ConfigureOS:
           files:
