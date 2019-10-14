@@ -9,6 +9,7 @@ Metadata:
         Parameters:
           - VPCStackName
           - AMIFunctionsStackName
+          - BuildBucketsStackName
           - BucketsStackName
           - TopicsStackName
           - CodesStackName
@@ -49,6 +50,8 @@ Metadata:
         default: VPC Stack Name
       AMIFunctionsStackName:
         default: AMIFunctions Stack Name
+      BuildBucketsStackName:
+        default: Build Buckets Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -104,6 +107,14 @@ Parameters:
     MinLength: 2
     MaxLength: 64
     Default: AMIFunctions
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  BuildBucketsStackName:
+    Description: Name of the CloudFormation Stack containing Build Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: BuildBuckets
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
@@ -456,7 +467,7 @@ Resources:
                     - arn:aws:s3:::${ConfigurationsBucket}/WindowsWebServer/*
                     - ConfigurationsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
-        - PolicyName: DownloadApplicationFromS3Policy
+        - PolicyName: DownloadExampleFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -465,13 +476,13 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${ApplicationsBucket}/Windows/*
-                    - ApplicationsBucket: !ImportValue
-                        Fn::Sub: ${BucketsStackName}-ApplicationsBucket
+                    - arn:aws:s3:::${ExamplesBucket}/Windows/*
+                    - ExamplesBucket: !ImportValue
+                        Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                   - !Sub
-                    - arn:aws:s3:::${ApplicationsBucket}/WindowsWebServer/*
-                    - ApplicationsBucket: !ImportValue
-                        Fn::Sub: ${BucketsStackName}-ApplicationsBucket
+                    - arn:aws:s3:::${ExamplesBucket}/WindowsWebServer/*
+                    - ExamplesBucket: !ImportValue
+                        Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -1652,7 +1663,7 @@ Resources:
             - !ImportValue
               Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
             - !ImportValue
-              Fn::Sub: ${BucketsStackName}-ExamplesBucket
+              Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
       AWS::CloudFormation::Init:
         configSets:
           All:
@@ -1881,7 +1892,7 @@ Resources:
             C:\Inetpub\wwwroot: !Sub
               - https://${ExamplesBucket}.${s3}.amazonaws.com/WindowsWebServer/${ApplicationObject}
               - ExamplesBucket: !ImportValue
-                  Fn::Sub: ${BucketsStackName}-ExamplesBucket
+                  Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
         ConfigureApplication:
           files:
