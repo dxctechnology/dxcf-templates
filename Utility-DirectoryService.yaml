@@ -228,11 +228,9 @@ Parameters:
   DirectoryAlias:
     Description: Alias of the Directory Service created by the Stack
     Type: String
-    MinLength: 2
-    MaxLength: 32
-    Default: dxcapp
-    AllowedPattern: ^[a-zA-Z0-9]*$
-    ConstraintDescription: must contain alphanumeric characters.
+    Default: dxcapp-us-west-2
+    AllowedPattern: ^(?!d-)(?=^.{6,62}$)[a-zA-Z0-9]+(-[a-zA-Z0-9]*)*$
+    ConstraintDescription: must be 6 to 62 character alphanumeric hyphenated multiword format.
   DirectoryEdition:
     Description: Type of Directory Service to build
     Type: String
