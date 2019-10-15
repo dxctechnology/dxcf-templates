@@ -1,0 +1,27 @@
+# Autodetect text files
+* text=auto
+
+# Explicitly identify text files
+*.txt text
+*.md text
+
+# Explicitly identify template files that need consistent eol=LF due to S3 sync from multiple platforms
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Explicitly identify binary files
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+*.vsd binary
+*.vsdx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.zip binary
+*.tgz binary
+*.gz binary
