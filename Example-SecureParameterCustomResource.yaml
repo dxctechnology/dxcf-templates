@@ -30,26 +30,27 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   OperatorPassword:
-    Description: Password for the operator User (optional)
+    Description: Optional password for the operator User
     Type: String
     NoEcho: true
     Default: 'Password1234Password'
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: if specified, must be 16 to 64 alphanumeric characters, with at least one uppercase, lowercase and digit. Symbols not allowed.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
     # Below are some alternate variants of the password formats we may want, with a corresponding ConstraintDescription
-    #AllowedPattern: (?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*
-    #ConstraintDescription: must be 16 to 64 alphanumeric characters, with at least one uppercase, lowercase and digit. Symbols not allowed.
+    #AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    #ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+    #  or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
     #AllowedPattern: (^$|(?=^.{16,64}$)((?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])|(?=.*[A-Z])(?=.*[a-z])(?=.*[^A-Za-z0-9])|(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])|(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]))^.*)
-    #ConstraintDescription: if specified, must be 16 to 64 characters, and contain three out of four character classes uppercase, lowercase, digts or symbols.
+    #ConstraintDescription: must be 16 to 64 characters, and contain three out of four character classes uppercase, lowercase, digts or symbols, if specified.
     #AllowedPattern: (?=^.{16,64}$)((?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])|(?=.*[A-Z])(?=.*[a-z])(?=.*[^A-Za-z0-9])|(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])|(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]))^.*
     #ConstraintDescription: must be 16 to 64 characters, and contain three out of four character classes uppercase, lowercase, digts or symbols.
   AuditorPassword:
-    Description: Password for the auditor User (optional)
+    Description: Optional password for the auditor User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: if specified, must be 16 to 64 alphanumeric characters, with at least one uppercase, lowercase and digit. Symbols not allowed.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
 Conditions:
   GenerateOperatorPassword: !Equals [ !Ref OperatorPassword, '' ]
   GenerateAuditorPassword: !Equals [ !Ref AuditorPassword, '' ]

@@ -533,6 +533,18 @@ Resources:
           Name: TikiWiki
           Code: tw
         - Type: Application
+          Name: UbuntuWebServer
+          Code: uws
+        - Type: Application
+          Name: UbuntuWebServers
+          Code: uwsm
+        - Type: Application
+          Name: UbuntuWebServersNested
+          Code: uwsmn
+        - Type: Application
+          Name: UbuntuWebServerNested
+          Code: uwsn
+        - Type: Application
           Name: Vertica
           Code: v
         - Type: Application
@@ -559,6 +571,12 @@ Resources:
         - Type: Application
           Name: WindowsWebServerNested
           Code: wwsn
+        - Type: Application
+          Name: UbuntuWebServer
+          Code: uws
+        - Type: Application
+          Name: UbuntuWebServers
+          Code: uwsm
         - Type: Component
           Name: Ambari
           Code: a

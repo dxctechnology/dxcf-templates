@@ -179,7 +179,7 @@ Parameters:
     Type: String
     MinLength: 7
     MaxLength: 64
-    Default: l.dxcp.technology
+    Default: l.us-west-2.dxcp.technology
     AllowedPattern: ^((?!-)[a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,10}$
     ConstraintDescription: must be a valid DNS domain name.
   DirectoryDomain:
@@ -201,7 +201,7 @@ Parameters:
   UsePrivateHostedZone:
     Description: Create PrivateHostedZone, and associate with VPC via DHCPOptions
     Type: String
-    Default: false
+    Default: true
     AllowedValues:
       - true
       - false
@@ -256,7 +256,7 @@ Mappings:
       xlarge: c5.xlarge
       2xlarge: c5.2xlarge
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigurePublicHostedZone: !Not [ !Equals [ !Ref PublicHostedZoneStackName, '' ]]
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
@@ -304,7 +304,7 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: FlowLog
-      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:

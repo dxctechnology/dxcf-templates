@@ -82,7 +82,7 @@ Parameters:
     Description: Name of the CloudFormation Stack containing the Public HostedZone
     Type: String
     MaxLength: 64
-    Default: Identity-PublicHostedZone
+    Default: Management-PublicHostedZone
     AllowedPattern: (^$|^[A-Z][-a-zA-Z0-9]*$)
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   TagFunctionsStackName:
@@ -179,7 +179,7 @@ Parameters:
     Type: String
     MinLength: 7
     MaxLength: 64
-    Default: i.dxcp.technology
+    Default: m.dxcp.technology
     AllowedPattern: ^((?!-)[a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,10}$
     ConstraintDescription: must be a valid DNS domain name.
   DirectoryDomain:
@@ -201,7 +201,7 @@ Parameters:
   UsePrivateHostedZone:
     Description: Create PrivateHostedZone, and associate with VPC via DHCPOptions
     Type: String
-    Default: false
+    Default: true
     AllowedValues:
       - true
       - false
@@ -256,7 +256,7 @@ Mappings:
       xlarge: c5.xlarge
       2xlarge: c5.2xlarge
 Conditions:
-  ConfigureSingleAccount: !Equals [ !Ref AccountName, Jumpstart ]
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigurePublicHostedZone: !Not [ !Equals [ !Ref PublicHostedZoneStackName, '' ]]
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
@@ -304,7 +304,7 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: FlowLog
-      EnvironmentName: !If [ ConfigureSingleAccount, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
+      EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -466,6 +466,66 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-WebSubnetB
+  ApplicationSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 3, !Cidr [ !GetAtt VPC.CidrBlock, 16, 4 ]]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ApplicationSubnetA
+  ApplicationSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 11, !Cidr [ !GetAtt VPC.CidrBlock, 16, 4 ]]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ApplicationSubnetB
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 4, !Cidr [ !GetAtt VPC.CidrBlock, 16, 4 ]]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-DatabaseSubnetA
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 12, !Cidr [ !GetAtt VPC.CidrBlock, 16, 4 ]]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-DatabaseSubnetB
+  LogSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 6, !Cidr [ !GetAtt VPC.CidrBlock, 16, 4 ]]
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-LogSubnetA
+  LogSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [ 14, !Cidr [ !GetAtt VPC.CidrBlock, 16, 4 ]]
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-LogSubnetB
   IdentitySubnetA:
     Type: AWS::EC2::Subnet
     Properties:
@@ -631,6 +691,21 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !If [ ConfigureNatGateway, !Ref NatGatewayA, !Ref 'AWS::NoValue' ]
       InstanceId: !If [ ConfigureNatInstance, !Ref NatInstanceA, !Ref 'AWS::NoValue' ]
+  ApplicationSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      SubnetId: !Ref ApplicationSubnetA
+  DatabaseSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      SubnetId: !Ref DatabaseSubnetA
+  LogSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      SubnetId: !Ref LogSubnetA
   IdentitySubnetARouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -650,6 +725,21 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !If [ ConfigureNatGateway, !If [ ConfigureMultiZone, !Ref NatGatewayB, !Ref NatGatewayA ], !Ref 'AWS::NoValue' ]
       InstanceId: !If [ ConfigureNatInstance, !If [ ConfigureMultiZone, !Ref NatInstanceB, !Ref NatInstanceA ], !Ref 'AWS::NoValue' ]
+  ApplicationSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      SubnetId: !Ref ApplicationSubnetB
+  DatabaseSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      SubnetId: !Ref DatabaseSubnetB
+  LogSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      SubnetId: !Ref LogSubnetB
   IdentitySubnetBRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -745,6 +835,36 @@ Outputs:
     Value: !Ref WebSubnetB
     Export:
       Name: !Sub ${AWS::StackName}-WebSubnetB
+  ApplicationSubnetA:
+    Description: The Application Subnet in Availability Zone A
+    Value: !Ref ApplicationSubnetA
+    Export:
+      Name: !Sub ${AWS::StackName}-ApplicationSubnetA
+  ApplicationSubnetB:
+    Description: The Application Subnet in Availability Zone B
+    Value: !Ref ApplicationSubnetB
+    Export:
+      Name: !Sub ${AWS::StackName}-ApplicationSubnetB
+  DatabaseSubnetA:
+    Description: The Database Subnet in Availability Zone A
+    Value: !Ref DatabaseSubnetA
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseSubnetA
+  DatabaseSubnetB:
+    Description: The Database Subnet in Availability Zone B
+    Value: !Ref DatabaseSubnetB
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseSubnetB
+  LogSubnetA:
+    Description: The Log Subnet in Availability Zone A
+    Value: !Ref LogSubnetA
+    Export:
+      Name: !Sub ${AWS::StackName}-LogSubnetA
+  LogSubnetB:
+    Description: The Log Subnet in Availability Zone B
+    Value: !Ref LogSubnetB
+    Export:
+      Name: !Sub ${AWS::StackName}-LogSubnetB
   IdentitySubnetA:
     Description: The Identity Subnet in Availability Zone A
     Value: !Ref IdentitySubnetA

@@ -80,29 +80,29 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   DeveloperPassword:
     Description: Optional password for the developer User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   ManagerPassword:
     Description: Optional password for the manager User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   UserPassword:
     Description: Optional password for the user User
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{16,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
-    ConstraintDescription: must be 16 to 64 alphanumeric characters, with no symbols and at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   SaveGeneratedPasswords:
     Description: Seve generated initial passwords in the Systems Manager Parameter Store as Secure Strings
     Type: String

@@ -1,6 +1,10 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Identity-SamlIdentityProvider Template.
-  This creates an IAM SAML Identity Provider.
+Description: Identity-SamlIdentityProvider-Remove Template.
+  This template removes an existing IAM SAML Identity Provider without deleting the SamlIdentityProvider Stack.
+  It is meant as an intermediate change to replace an existing IdentityProvider with a new one. Update the
+  SamlIdentityProvider Stack with this Template first, to remove the SAML Provider, then Update the Stack a second
+  time with the original Template, specifying the correct Identity Provider Name and MetaData. Then, remember to also
+  perform an Update of the Roles, CustomRoles, etc Stacks with the new IdentityProviderName to update Trusts.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -212,7 +216,6 @@ Resources:
                 response.send(event, context, response.SUCCESS);
             }
           };
-    DependsOn: MetadataDownloaderLogGroup
   SamlProviderRole:
     Type: AWS::IAM::Role
     Properties:
@@ -347,7 +350,6 @@ Resources:
                 });
             }
           };
-    DependsOn: SamlProviderLogGroup
   OktaSingleAccountUser:
     Type: AWS::IAM::User
     Properties:
@@ -407,27 +409,27 @@ Resources:
                   - iam:ListAccountAliases
                 Resource: '*'
     Condition: ConfigureOktaMultipleAccountChild
-  MetadataDownloader:
-    Type: Custom::MetadataDownloader
-    Properties:
-      ServiceToken: !GetAtt MetadataDownloaderFunction.Arn
-      MetadataUrl: !Ref SamlProviderMetadataUrl
-    Condition: ConfigureMetadataUrl
-  SamlProvider:
-    Type: Custom::SamlProvider
-    Properties:
-      ServiceToken: !GetAtt SamlProviderFunction.Arn
-      ProviderName: !Ref SamlProviderName
-      ProviderMetadata: !If
-        - ConfigureMetadata
-        - !Ref SamlProviderMetadata
-        - !If
-            - ConfigureMetadataUrl
-            - !GetAtt MetadataDownloader.Metadata
-            - !Ref AWS::NoValue
-Outputs:
-  SamlProviderArn:
-    Description: The SAML Provider ARN
-    Value: !GetAtt SamlProvider.Arn
-    Export:
-      Name: !Sub ${AWS::StackName}-SamlProviderArn
+#  MetadataDownloader:
+#    Type: Custom::MetadataDownloader
+#    Properties:
+#      ServiceToken: !GetAtt MetadataDownloaderFunction.Arn
+#      MetadataUrl: !Ref SamlProviderMetadataUrl
+#    Condition: ConfigureMetadataUrl
+#  SamlProvider:
+#    Type: Custom::SamlProvider
+#    Properties:
+#      ServiceToken: !GetAtt SamlProviderFunction.Arn
+#      ProviderName: !Ref SamlProviderName
+#      ProviderMetadata: !If
+#        - ConfigureMetadata
+#        - !Ref SamlProviderMetadata
+#        - !If
+#            - ConfigureMetadataUrl
+#            - !GetAtt MetadataDownloader.Metadata
+#            - !Ref AWS::NoValue
+#Outputs:
+#  SamlProviderArn:
+#    Description: The SAML Provider ARN
+#    Value: !GetAtt SamlProvider.Arn
+#    Export:
+#      Name: !Sub ${AWS::StackName}-SamlProviderArn
