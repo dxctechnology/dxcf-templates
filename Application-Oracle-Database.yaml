@@ -1,0 +1,849 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Application-AutoSys-Database Template.
+  This template implements the AutoSys Oracle RDS Database and related resources.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Stack Dependencies
+        Parameters:
+          - WindowsBastionsStackName
+          - VPNStackName
+          - VPCStackName
+          - BucketsStackName
+          - TopicsStackName
+          - KeysStackName
+          - CodesStackName
+      - Label:
+          default: System Configuration
+        Parameters:
+          - CompanyName
+          - SystemName
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - AccountName
+          - EnvironmentName
+          - EnvironmentType
+          - EnvironmentZones
+      - Label:
+          default: Application Configuration
+        Parameters:
+          - ApplicationName
+          - ComponentName
+      - Label:
+          default: Engine Configuration
+        Parameters:
+          - EngineType
+          - EngineVersion
+          - MasterUsername
+          - MasterPassword
+          - BackupRetention
+          - LogRetention
+      - Label:
+          default: Database Configuration
+        Parameters:
+          - DatabaseName
+      - Label:
+          default: Security Configuration
+        Parameters:
+          - AdministratorNetworks
+          - AdministratorNetworkDescriptions
+    ParameterLabels:
+      WindowsBastionsStackName:
+        default: WindowsBastions Stack Name
+      VPNStackName:
+        default: VPN Stack Name
+      VPCStackName:
+        default: VPC Stack Name
+      BucketsStackName:
+        default: Buckets Stack Name
+      TopicsStackName:
+        default: Topics Stack Name
+      KeysStackName:
+        default: Keys Stack Name
+      CodesStackName:
+        default: Codes Stack Name
+      CompanyName:
+        default: Company Name
+      SystemName:
+        default: System Name
+      AccountName:
+        default: Account Name
+      EnvironmentName:
+        default: Environment Name
+      EnvironmentType:
+        default: Environment Type
+      EnvironmentZones:
+        default: Environment Zones
+      ApplicationName:
+        default: Application Name
+      ComponentName:
+        default: Component Name
+      EngineType:
+        default: Engine Type
+      EngineVersion:
+        default: Engine Version
+      MasterUsername:
+        default: Master Username
+      MasterPassword:
+        default: Master Password
+      BackupRetention:
+        default: Backup Retention
+      LogRetention:
+        default: Log Retention
+      DatabaseName:
+        default: Database Name
+      AdministratorNetworks:
+        default: Administrator Networks
+      AdministratorNetworkDescriptions:
+        default: Administrator Network Descriptions
+Parameters:
+  WindowsBastionsStackName:
+    Description: Name of the CloudFormation Stack containing the Windows Bastions
+    Type: String
+    MaxLength: 64
+    Default: ''
+    AllowedPattern: (^$|^[A-Z][-a-zA-Z0-9]*$)
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  VPNStackName:
+    Description: Name of the CloudFormation Stack containing the VPN Instances
+    Type: String
+    MaxLength: 64
+    Default: ''
+    AllowedPattern: (^$|^[A-Z][-a-zA-Z0-9]*$)
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  VPCStackName:
+    Description: Name of the CloudFormation Stack containing the VPC
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Production-VPC
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  BucketsStackName:
+    Description: Name of the CloudFormation Stack containing Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  TopicsStackName:
+    Description: Name of the CloudFormation Stack containing Keys
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Topics
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  KeysStackName:
+    Description: Name of the CloudFormation Stack containing Topics
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Keys
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  CodesStackName:
+    Description: Name of the CloudFormation Stack containing the Codes Resources
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Codes
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  CompanyName:
+    Description: Name of the Company associated with the Stack
+    Type: String
+    MinLength: 2
+    MaxLength: 32
+    Default: DXC
+    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  SystemName:
+    Description: Name of the System associated with the Stack
+    Type: String
+    MinLength: 2
+    MaxLength: 32
+    Default: Prototype
+    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  AccountName:
+    Description: Name of the Account associated with the Stack
+    Type: String
+    Default: Production
+    AllowedValues:
+      - Production
+      - Staging
+      - UAT
+      - QA
+      - Testing
+      - Development
+      - Build
+      - Core
+      - Recovery
+      - Log
+      - Management
+      - Jumpstart
+      - Organization
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Management, Jumpstart or Organization.
+  EnvironmentName:
+    Description: Name of the Environment associated with the Stack
+    Type: String
+    Default: Production
+    AllowedValues:
+      - Production
+      - Staging
+      - UAT
+      - QA
+      - Testing
+      - Development
+      - Build
+      - Core
+      - Recovery
+      - Log
+      - Identity
+      - Management
+      - Organization
+    ConstraintDescription: must be Production, Staging, UAT, QA, Testing, Development, Build, Core, Recovery, Log, Identity, Management or Organization.
+  EnvironmentType:
+    Description: Type of the Environment to build. Used to select size-related options in Mappings
+    Type: String
+    Default: small
+    AllowedValues:
+      - small
+      - medium
+      - large
+      - xlarge
+      - 2xlarge
+      - 4xlarge
+      - 8xlarge
+    ConstraintDescription: must be micro, small, medium, large, xlarge, 2xlarge, 4xlarge or 8xlarge.
+  EnvironmentZones:
+    Description: Number of Availability Zones to build
+    Type: String
+    Default: 2
+    AllowedValues:
+      - 1
+      - 2
+    ConstraintDescription: must be 1 or 2.
+  ApplicationName:
+    Description: Name of the Application associated with the Stack
+    Type: String
+    MinLength: 2
+    MaxLength: 32
+    Default: Oracle
+    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  ComponentName:
+    Description: Name of the Application Component associated with the Stack
+    Type: String
+    MinLength: 2
+    MaxLength: 32
+    Default: Database
+    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  EngineType:
+    Description: Type of Database Engine
+    Type: String
+    Default: oracle-se2
+    AllowedValues:
+      - oracle-se2
+    ConstraintDescription: must be oracle-se2.
+  EngineVersion:
+    Description: Version of the Database Engine
+    Type: String
+    Default: 12.1.0.2.v13
+    AllowedValues:
+      - 12.1.0.2.v13
+    ConstraintDescription: must be 12.1.0.2.v13.
+  MasterUsername:
+    Description: Name of the Master User
+    Type: String
+    MinLength: 2
+    MaxLength: 63
+    Default: oracle
+    AllowedPattern: ^[a-z][a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
+  MasterPassword:
+    Description: Optional password of the Master User (If unspecified, generate a random password)
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+  BackupRetention:
+    Description: Number of days to retain automated database backups
+    Type: Number
+    Default: 14
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 35
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30 or 35.
+  LogRetention:
+    Description: Number of days to retain CloudWatch Log Events
+    Type: Number
+    Default: 14
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+    ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
+  DatabaseName:
+    Description: Name of the Database
+    Type: String
+    MaxLength: 32
+    Default: autosys
+    AllowedPattern: (^$|^[-a-zA-Z0-9]*$)
+    ConstraintDescription: must contain alphanumeric characters and dashes.
+  AdministratorNetworks:
+    Description: Networks that can administer the Application
+    Type: String
+    Default: -,-,-,-
+    ConstraintDescription: must be a comma-separated list of 4 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+  AdministratorNetworkDescriptions:
+    Description: Descriptions of networks that can administer the Application
+    Type: String
+    Default: -,-,-,-
+    ConstraintDescription: must be a comma-separated list of 4 values, each a short text description or '-'.
+Mappings:
+  RegionNameMap:
+    us-east-1:
+      Name: Virginia
+      Code: ue1
+    us-east-2:
+      Name: Ohio
+      Code: ue2
+    us-west-1:
+      Name: California
+      Code: uw1
+    us-west-2:
+      Name: Oregon
+      Code: uw2
+    ap-east-1:
+      Name: HongKong
+      Code: ae1
+    ap-south-1:
+      Name: Mumbai
+      Code: ad1
+    ap-northeast-2:
+      Name: Seoul
+      Code: an2
+    ap-southeast-1:
+      Name: Singapore
+      Code: as1
+    ap-southeast-2:
+      Name: Sydney
+      Code: as2
+    ap-northeast-1:
+      Name: Tokyo
+      Code: an1
+    ca-central-1:
+      Name: Canada
+      Code: cc1
+    eu-central-1:
+      Name: Frankfurt
+      Code: ec1
+    eu-west-1:
+      Name: Ireland
+      Code: ew1
+    eu-west-2:
+      Name: London
+      Code: ew2
+    eu-west-3:
+      Name: Paris
+      Code: ew3
+    eu-north-1:
+      Name: Stockholm
+      Code: en1
+    me-south-1:
+      Name: Bahrain
+      Code: ms1
+    sa-east-1:
+      Name: SaoPaulo
+      Code: se1
+  DBInstanceClassMap:
+    Database:
+      small: db.t2.small
+      medium: db.t2.medium
+      large: db.r4.large
+      xlarge: db.r4.xlarge
+      2xlarge: db.r4.2xlarge
+      4xlarge: db.r4.4xlarge
+      8xlarge: db.r4.8xlarge
+  AllocatedStorageMap:
+    Database:
+      small: 64
+      medium: 128
+      large: 256
+      xlarge: 512
+      2xlarge: 1024
+      4xlarge: 2048
+      8xlarge: 4096
+  StorageTypeMap:
+    Database:
+      small: gp2
+      medium: gp2
+      large: gp2
+      xlarge: gp2
+      2xlarge: gp2
+      4xlarge: gp2
+      8xlarge: gp2
+Conditions:
+  ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
+  ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+  ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
+  ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
+  ConfigureEncryption: !Not [ !Equals [ !Ref KeysStackName, '' ]] # ToDo: Fix how we configure Encryption, custom vs user keys
+  #ConfigureEncryptionKey: !Not [ !Equals [ !Ref KmsKey, 'aws/rds' ]]
+  ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
+  ConfigureMasterPassword: !Not [ !Equals [ !Ref MasterPassword, '' ]]
+  GenerateMasterPassword: !Not [ !Condition ConfigureMasterPassword ]
+  ConfigureDatabase: !Not [ !Equals [ !Ref DatabaseName, '' ]]
+  ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork3: !Not [ !Equals [ !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - monitoring.rds.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+  MasterPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
+      Description: !Sub Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User (${MasterUsername})
+      SecretString: !If [ ConfigureMasterPassword, !Ref MasterPassword, !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GenerateMasterPassword
+        - PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
+  ClientSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup
+      VpcId: !ImportValue
+        Fn::Sub: ${VPCStackName}-VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DatabaseSecurityGroup
+      VpcId: !ImportValue
+        Fn::Sub: ${VPCStackName}-VPC
+      SecurityGroupIngress:
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCNetwork
+          Description: VPC (ICMP)
+        - IpProtocol: tcp
+          FromPort: 1521
+          ToPort: 1521
+          SourceSecurityGroupId: !Ref ClientSecurityGroup
+          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle)
+        - IpProtocol: tcp
+          FromPort: 2483
+          ToPort: 2483
+          SourceSecurityGroupId: !Ref ClientSecurityGroup
+          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle)
+        - IpProtocol: tcp
+          FromPort: 2484
+          ToPort: 2484
+          SourceSecurityGroupId: !Ref ClientSecurityGroup
+          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle-SSL)
+        - !If
+          - ConfigureWindowsBastionsIntegration
+          - IpProtocol: tcp
+            FromPort: 1521
+            ToPort: 1521
+            SourceSecurityGroupId: !ImportValue
+              Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
+            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (Oracle)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureWindowsBastionsIntegration
+          - IpProtocol: tcp
+            FromPort: 2483
+            ToPort: 2483
+            SourceSecurityGroupId: !ImportValue
+              Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
+            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (Oracle)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureWindowsBastionsIntegration
+          - IpProtocol: tcp
+            FromPort: 2484
+            ToPort: 2484
+            SourceSecurityGroupId: !ImportValue
+              Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
+            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (Oracle-SSL)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureVPNIntegration
+          - IpProtocol: tcp
+            FromPort: 1521
+            ToPort: 1521
+            SourceSecurityGroupId: !ImportValue
+              Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
+            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (Oracle)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureVPNIntegration
+          - IpProtocol: tcp
+            FromPort: 2483
+            ToPort: 2483
+            SourceSecurityGroupId: !ImportValue
+              Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
+            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (Oracle)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureVPNIntegration
+          - IpProtocol: tcp
+            FromPort: 2484
+            ToPort: 2484
+            SourceSecurityGroupId: !ImportValue
+              Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
+            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (Oracle-SSL)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork0
+          - IpProtocol: tcp
+            FromPort: 1521
+            ToPort: 1521
+            CidrIp: !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork0
+          - IpProtocol: tcp
+            FromPort: 2483
+            ToPort: 2483
+            CidrIp: !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork0
+          - IpProtocol: tcp
+            FromPort: 2484
+            ToPort: 2484
+            CidrIp: !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle-SSL)
+              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork1
+          - IpProtocol: tcp
+            FromPort: 1521
+            ToPort: 1521
+            CidrIp: !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork1
+          - IpProtocol: tcp
+            FromPort: 2483
+            ToPort: 2483
+            CidrIp: !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork1
+          - IpProtocol: tcp
+            FromPort: 2484
+            ToPort: 2484
+            CidrIp: !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle-SSL)
+              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork2
+          - IpProtocol: tcp
+            FromPort: 1521
+            ToPort: 1521
+            CidrIp: !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork2
+          - IpProtocol: tcp
+            FromPort: 2483
+            ToPort: 2483
+            CidrIp: !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork2
+          - IpProtocol: tcp
+            FromPort: 2484
+            ToPort: 2484
+            CidrIp: !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle-SSL)
+              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork3
+          - IpProtocol: tcp
+            FromPort: 1521
+            ToPort: 1521
+            CidrIp: !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork3
+          - IpProtocol: tcp
+            FromPort: 2483
+            ToPort: 2483
+            CidrIp: !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle)
+              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork3
+          - IpProtocol: tcp
+            FromPort: 2484
+            ToPort: 2484
+            CidrIp: !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (Oracle-SSL)
+              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Global (All)
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DatabaseSecurityGroup
+  HostName:
+    Type: Custom::HostName
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
+      CompanyName: !Ref CompanyName
+      LocationName: !Ref AWS::Region
+      EnvironmentName: !Ref EnvironmentName
+      ApplicationName: !Ref ApplicationName
+      ComponentName: Database
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/cluster/${HostName}/slowquery
+      RetentionInDays: !Ref LogRetention
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBSubnetGroup
+      SubnetIds:
+        - !ImportValue
+          Fn::Sub: ${VPCStackName}-DatabaseSubnetA
+        - !ImportValue
+          Fn::Sub: ${VPCStackName}-DatabaseSubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBSubnetGroup
+  DBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
+      Family: oracle-se2-12.1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
+  OptionGroup:
+    Type: AWS::RDS::OptionGroup
+    Properties:
+      EngineName: oracle-se2
+      MajorEngineVersion: '12.1'
+      OptionGroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-OptionGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-OptionGroup
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub ${GetHostName.HostName}
+      Engine: !Ref EngineType
+      EngineVersion: !Ref EngineVersion
+      LicenseModel: license-included
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterPasswordSecret}}}'
+      MultiAZ: !If [ ConfigureMultiZone, true, false ]
+      AvailabilityZone: !If [ ConfigureMultiZone, !Ref 'AWS::NoValue', !Select [ 0, !GetAZs '' ]]
+      DBInstanceClass: !FindInMap [ DBInstanceClassMap, Database, !Ref EnvironmentType ]
+      StorageType: !FindInMap [ StorageTypeMap, Database, !Ref EnvironmentType ]
+      AllocatedStorage: !FindInMap [ AllocatedStorageMap, Database, !Ref EnvironmentType ]
+      StorageEncrypted: false
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      DBParameterGroupName: !Ref DBParameterGroup
+      OptionGroupName: !Ref OptionGroup
+      PubliclyAccessible: false
+      DBName: !Ref DatabaseName
+      PreferredBackupWindow: '06:00-06:30'
+      BackupRetentionPeriod: !Ref BackupRetention
+      MonitoringInterval: 60
+      MonitoringRoleArn: !GetAtt Role.Arn
+      PreferredMaintenanceWindow: 'sat:07:00-sat:07:30'
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBInstance
+  CPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The average CPU Utilization is greater than 80% over 3 consecutive minutes
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${TopicsStackName}-AlarmsTopic
+      InsufficientDataActions:
+        - !ImportValue
+          Fn::Sub: ${TopicsStackName}-AlarmsTopic
+      Namespace: AWS/RDS
+      MetricName: CPUUtilization
+      Unit: Percent
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DBInstance
+  MemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The freeable memory is less than 700MB over 3 consecutive minutes
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${TopicsStackName}-AlarmsTopic
+      InsufficientDataActions:
+        - !ImportValue
+          Fn::Sub: ${TopicsStackName}-AlarmsTopic
+      Namespace: AWS/RDS
+      MetricName: FreeableMemory
+      Unit: Bytes
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 700000000
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DBInstance
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub
+        - ${EnvironmentName}-${ApplicationName}-${ComponentName}-${RegionName}
+        - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
+      DashboardBody: !Sub |
+        {
+          "widgets" : [ {
+            "type" : "text",
+            "x" : 0,
+            "y" : 0,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "# ${EnvironmentName}-${ApplicationName}-${ComponentName}"
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 1,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "## Graphs"
+            }
+          },
+          {
+            "type" : "text",
+            "x" : 0,
+            "y" : 11,
+            "width" : 24,
+            "height" : 1,
+            "properties" : {
+              "markdown" : "## Alarms"
+            }
+          } ]
+        }
+Outputs:
+  ClientSecurityGroup:
+    Description: The Client SecurityGroup
+    Value: !Ref ClientSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-ClientSecurityGroup
+  DatabaseSecurityGroup:
+    Description: The Database SecurityGroup
+    Value: !Ref DatabaseSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseSecurityGroup
+  DatabaseEndpoint:
+    Description: The Database Endpoint
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseEndpoint
