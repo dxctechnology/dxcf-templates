@@ -196,7 +196,7 @@ Resources:
 
             switch (event.RequestType) {
               case 'Create':
-              case 'Update':
+              case 'Update': // Note this logic can be run to create or modify records, but currently does not delete
                 try {
                   const codes = event.ResourceProperties.Codes;
                   if (! codes) {
@@ -243,7 +243,7 @@ Resources:
     Properties:
       ServiceToken: !GetAtt CodesLoaderFunction.Arn
       TableName: !Ref TableName
-      Codes:
+      Codes: # Please keep Application and Component records in alphabetical order by Code
         - Type: Company
           Name: Demo
           Code: demo
@@ -440,6 +440,9 @@ Resources:
           Name: AutoSys
           Code: as
         - Type: Application
+          Name: Aurora
+          Code: aur
+        - Type: Application
           Name: LinuxBastion
           Code: bl
         - Type: Application
@@ -506,6 +509,9 @@ Resources:
           Name: Octopus
           Code: oct
         - Type: Application
+          Name: Oracle
+          Code: ora
+        - Type: Application
           Name: PAX
           Code: pax
         - Type: Application
@@ -571,12 +577,6 @@ Resources:
         - Type: Application
           Name: WindowsWebServerNested
           Code: wwsn
-        - Type: Application
-          Name: UbuntuWebServer
-          Code: uws
-        - Type: Application
-          Name: UbuntuWebServers
-          Code: uwsm
         - Type: Component
           Name: Ambari
           Code: a
