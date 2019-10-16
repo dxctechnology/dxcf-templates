@@ -271,9 +271,9 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|((?=^.{20,30}$)^[a-z]{1,24}(-[a-z]{1,24}){2,7}$|(?=^.{12,30}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    ConstraintDescription: must be 20 to 30 character lowercase hyphenated multiword format,
+      or 12 to 30 character random string format with at least one uppercase, lowercase and digit, if specified.
   BackupRetention:
     Description: Number of days to retain automated database backups
     Type: Number
@@ -314,7 +314,7 @@ Parameters:
     Description: Name of the Database
     Type: String
     MaxLength: 32
-    Default: autosys
+    Default: prototype
     AllowedPattern: (^$|^[-a-zA-Z0-9]*$)
     ConstraintDescription: must contain alphanumeric characters and dashes.
   AdministratorNetworks:
@@ -385,13 +385,13 @@ Mappings:
       Code: se1
   DBInstanceClassMap:
     Database:
-      small: db.t2.small
-      medium: db.t2.medium
-      large: db.r4.large
-      xlarge: db.r4.xlarge
-      2xlarge: db.r4.2xlarge
-      4xlarge: db.r4.4xlarge
-      8xlarge: db.r4.8xlarge
+      small: db.t3.small
+      medium: db.t3.medium
+      large: db.r5.large
+      xlarge: db.r5.xlarge
+      2xlarge: db.r5.2xlarge
+      4xlarge: db.r5.4xlarge
+      8xlarge: db.r5.8xlarge
   AllocatedStorageMap:
     Database:
       small: 64
@@ -449,7 +449,7 @@ Resources:
       SecretString: !If [ ConfigureMasterPassword, !Ref MasterPassword, !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateMasterPassword
-        - PasswordLength: 32
+        - PasswordLength: 30
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
@@ -720,7 +720,7 @@ Resources:
   DBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub ${GetHostName.HostName}
+      DBInstanceIdentifier: !Ref HostName
       Engine: !Ref EngineType
       EngineVersion: !Ref EngineVersion
       LicenseModel: license-included

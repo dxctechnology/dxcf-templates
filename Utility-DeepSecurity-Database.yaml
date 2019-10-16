@@ -424,8 +424,8 @@ Resources:
   MasterPasswordSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User (${MasterUsername})
+      Name: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-MasterPassword
+      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} ${ComponentName} Master User (${MasterUsername})
       SecretString: !If [ ConfigureMasterPassword, !Ref MasterPassword, !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateMasterPassword
@@ -434,7 +434,7 @@ Resources:
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
+          Value: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-MasterPassword
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -563,7 +563,7 @@ Resources:
   DBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub ${GetHostName.HostName}
+      DBInstanceIdentifier: !Ref HostName
       Engine: !Ref EngineType
       EngineVersion: !Ref EngineVersion
       LicenseModel: postgresql-license
@@ -649,7 +649,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${VPCName}-${UtilityName}-${ComponentName}"
+              "markdown" : "# ${EnvironmentName}-${UtilityName}-${ComponentName}"
             }
           },
           {
