@@ -35,10 +35,11 @@ Metadata:
       - Label:
           default: Utility Dependencies Configuration
         Parameters:
-          - AwsCliProductObject
-          - ChromeProductObject
-          - RoyalTSProductObject
-          - PuTTYProductObject
+          - AwsCliProductKey
+          - AwsPowerShellToolsProductKey
+          - ChromeProductKey
+          - RoyalTSProductKey
+          - PuTTYProductKey
       - Label:
           default: Utility Configuration
         Parameters:
@@ -50,17 +51,13 @@ Metadata:
           - OnSchedule
           - OffSchedule
       - Label:
-          default: Directory Configuration
-        Parameters:
-          - DirectoryAdministratorPassword
-      - Label:
           default: Security Configuration
         Parameters:
           - UserNetworks
           - UserNetworkDescriptions
     ParameterLabels:
-      ActiveDirectoryStackName:
-        default: Active Directory Stack Name
+      DirectoryStackName:
+        default: Directory Stack Name
       VPCStackName:
         default: VPC Stack Name
       AMIFunctionsStackName:
@@ -87,14 +84,16 @@ Metadata:
         default: Environment Zones
       OSName:
         default: Operating System Name
-      AwsCliProductObject:
-        default: AWS CLI Product Object
-      ChromeProductObject:
-        default: Chrome Product Object
-      RoyalTSProductObject:
-        default: RoyalTS Product Object
-      PuTTYProductObject:
-        default: PuTTY Product Object
+      AwsCliProductKey:
+        default: AWS CLI Product S3 Key
+      AwsPowerShellToolsProductKey:
+        default: AWS PowerShell Tools Product S3 Key
+      ChromeProductKey:
+        default: Chrome Product S3 Key
+      RoyalTSProductKey:
+        default: RoyalTS Product S3 Key
+      PuTTYProductKey:
+        default: PuTTY Product S3 Key
       UtilityName:
         default: Utility Name
       UtilityDomain:
@@ -109,8 +108,6 @@ Metadata:
         default: On Schedule
       OffSchedule:
         default: Off Schedule
-      DirectoryAdministratorPassword:
-        default: Directory Administrator Password
       UserNetworks:
         default: User Networks
       UserNetworkDescriptions:
@@ -252,34 +249,36 @@ Parameters:
       - Windows Server 2012 R2
       - Windows Server 2016
     ConstraintDescription: must be "Windows Server 2012 R2" or "Windows Server 2016".
-  AwsCliProductObject:
-    Description: Object within the S3 bucket and folder containing the AWS CLI installer
+  AwsCliProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the AWS CLI installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  ChromeProductObject:
-    Description: Object within the S3 bucket and folder containing the Chrome installer
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, in the Windows folder, if specified.
+  AwsPowerShellToolsProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the AWS PowerShell Tools installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  RoyalTSProductObject:
-    Description: Object within the S3 bucket and folder containing the RoyalTS installer
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
+  ChromeProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the Chrome installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  PuTTYProductObject:
-    Description: Object within the S3 bucket and folder containing the PuTTY installer
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
+  RoyalTSProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the RoyalTS installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
+  PuTTYProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the PuTTY installer
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
   UtilityName:
     Description: Name of the Utility associated with the Stack
     Type: String
@@ -346,14 +345,6 @@ Parameters:
     Default: 0 4 * * *
     AllowedPattern: (^$|^0 [0-7] \* \* \*$)
     ConstraintDescription: 'must follow constrained cron syntax: "0 H * * *", where H = 0-7.'
-  DirectoryAdministratorPassword:
-    Description: Optional password for the Enterprise Admin User (If unspecified, value obtained via Secret)
-    Type: String
-    NoEcho: true
-    Default: ''
-    AllowedPattern: (^$|(?=^.{20,64}$)(^[a-z]{4,32}(-[a-z]{4,32}){2,7}$|(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*))
-    ConstraintDescription: must be 20 to 64 alphanumeric characters, in either hyphenated multiword format,
-      or random string format with at least one uppercase, lowercase and digit, if specified.
   UserNetworks:
     Description: Networks that can use the Utility
     Type: String
@@ -436,10 +427,11 @@ Conditions:
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureStandby: !Equals [ !Ref EnvironmentType, standby ]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
-  InstallAwsCliProduct: !Not [ !Equals [ !Ref AwsCliProductObject, '' ]]
-  InstallChromeProduct: !Not [ !Equals [ !Ref ChromeProductObject, '' ]]
-  InstallRoyalTSProduct: !Not [ !Equals [ !Ref RoyalTSProductObject, '' ]]
-  InstallPuTTYProduct: !Not [ !Equals [ !Ref PuTTYProductObject, '' ]]
+  InstallAwsCli: !Not [ !Equals [ !Ref AwsCliProductKey, '' ]]
+  InstallAwsPowerShellTools: !Not [ !Equals [ !Ref AwsPowerShellToolsProductKey, '' ]]
+  InstallChrome: !Not [ !Equals [ !Ref ChromeProductKey, '' ]]
+  InstallRoyalTS: !Not [ !Equals [ !Ref RoyalTSProductKey, '' ]]
+  InstallPuTTY: !Not [ !Equals [ !Ref PuTTYProductKey, '' ]]
   ConfigureStaticPublicAddress: !Equals [ !Ref UseStaticPublicAddress, true ]
   ConfigureStaticPublicAddress&MultiZone: !And [ !Condition ConfigureStaticPublicAddress, !Condition ConfigureMultiZone ]
   ConfigureFedRAMP: !Equals [ !Ref UseFedRAMP, true ]
@@ -447,7 +439,6 @@ Conditions:
   ConfigureDomainName&MultiZone: !And [ !Condition ConfigureDomainName, !Condition ConfigureMultiZone ]
   ConfigureOnSchedule: !And [ !Not [ !Equals [ !Ref OnSchedule, '' ]], !Not [ !Condition ConfigureStandby ]]
   ConfigureOffSchedule: !And [ !Not [ !Equals [ !Ref OffSchedule , '' ]], !Not [ !Condition ConfigureStandby ]]
-  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -501,15 +492,15 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${ScriptsBucket}/Modules/*
-                    - ScriptsBucket: !ImportValue
-                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
-                  - !Sub
                     - arn:aws:s3:::${ScriptsBucket}/Windows/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   - !Sub
                     - arn:aws:s3:::${ScriptsBucket}/WindowsBastions/*
+                    - ScriptsBucket: !ImportValue
+                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
+                  - !Sub
+                    - arn:aws:s3:::${ScriptsBucket}/Modules/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
         - PolicyName: DownloadConfigurationFromS3Policy
@@ -1073,19 +1064,6 @@ Resources:
     Properties:
       Domain: vpc
     Condition: ConfigureStaticPublicAddress&MultiZone
-  HostName:
-    Type: Custom::HostName
-    Properties:
-      ServiceToken: !ImportValue
-        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
-      CompanyName: !Ref CompanyName
-      LocationName: !Ref AWS::Region
-      EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
-      InstanceNumber: 01
-      # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
-      #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
-      #       HostName without Zone Code created here.
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -1099,6 +1077,19 @@ Resources:
       Path: /
       Roles:
         - !Ref Role
+  HostName:
+    Type: Custom::HostName
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
+      CompanyName: !Ref CompanyName
+      LocationName: !Ref AWS::Region
+      EnvironmentName: !Ref EnvironmentName
+      ApplicationName: !Ref UtilityName
+      InstanceNumber: 01
+      # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
+      #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
+      #       HostName without Zone Code created here.
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Metadata:
@@ -1129,10 +1120,11 @@ Resources:
             - ConfigureRDSGateway
             - ConfigureRemoteDesktopUsers
             - !If [ ConfigureStaticPublicAddress, ConfigureStaticPublicAddress, !Ref 'AWS::NoValue' ]
-            - !If [ InstallAwsCliProduct, InstallAwsCliProduct, !Ref 'AWS::NoValue' ]
-            - !If [ InstallChromeProduct, InstallChromeProduct, !Ref 'AWS::NoValue' ]
-            - !If [ InstallRoyalTSProduct, InstallRoyalTSProduct, !Ref 'AWS::NoValue' ]
-            - !If [ InstallPuTTYProduct, InstallPuTTYProduct, !Ref 'AWS::NoValue' ]
+            - !If [ InstallAwsCli, InstallAwsCli, !Ref 'AWS::NoValue' ]
+            - !If [ InstallAwsPowerShellTools, InstallAwsPowerShellTools, !Ref 'AWS::NoValue' ]
+            - !If [ InstallChrome, InstallChrome, !Ref 'AWS::NoValue' ]
+            - !If [ InstallRoyalTS, InstallRoyalTS, !Ref 'AWS::NoValue' ]
+            - !If [ InstallPuTTY, InstallPuTTY, !Ref 'AWS::NoValue' ]
             - SignalCloudFormation
         InstallCloudFormationModule:
           files:
@@ -1350,8 +1342,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${PasswordSecretId}
-                  -Password '${DirectoryAdministratorPassword}'"
+                  -PasswordSecretId ${PasswordSecretId}"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
                   PasswordSecretId: !If
@@ -1441,35 +1432,43 @@ Resources:
                   EIPBAllocationId: !If [ ConfigureStaticPublicAddress&MultiZone, !GetAtt EIPB.AllocationId, NONE ]
               ignoreErrors: false
               waitAfterCompletion: 15
-        InstallAwsCliProduct:
+        InstallAwsCli:
           packages:
             msi:
               AwsCli: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${AwsCliProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${AwsCliProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallChromeProduct:
+        InstallAwsPowerShellTools:
+          packages:
+            msi:
+              AwsCli: !Sub
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${AwsPowerShellToolsProductKey}
+                - ProductsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ProductsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+        InstallChrome:
           packages:
             msi:
               Chrome: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${ChromeProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${ChromeProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallRoyalTSProduct:
+        InstallRoyalTS:
           packages:
             msi:
               RoyalTS: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${RoyalTSProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${RoyalTSProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallPuTTYProduct:
+        InstallPuTTY:
           packages:
             msi:
               PuTTY: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${PuTTYProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${PuTTYProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
