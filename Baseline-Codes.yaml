@@ -467,8 +467,14 @@ Resources:
           Name: Duo
           Code: duo
         - Type: Application
+          Name: EMR
+          Code: emr
+        - Type: Application
           Name: Engine
           Code: eng
+        - Type: Application
+          Name: ETL
+          Code: etl
         - Type: Application
           Name: FederatedSecurity
           Code: fs
@@ -478,6 +484,9 @@ Resources:
         - Type: Application
           Name: GitHubEnterprise
           Code: git
+        - Type: Application
+          Name: Glue
+          Code: glue
         - Type: Application
           Name: Hadoop
           Code: had
@@ -509,6 +518,9 @@ Resources:
           Name: Octopus
           Code: oct
         - Type: Application
+          Name: Okta
+          Code: okta
+        - Type: Application
           Name: Oracle
           Code: ora
         - Type: Application
@@ -520,6 +532,9 @@ Resources:
         - Type: Application
           Name: RabbitMQ
           Code: rmq
+        - Type: Application
+          Name: RedShift
+          Code: red
         - Type: Application
           Name: RStudio
           Code: rs
@@ -577,6 +592,15 @@ Resources:
         - Type: Application
           Name: WindowsWebServerNested
           Code: wwsn
+        - Type: Application
+          Name: WordPress
+          Code: wp
+        - Type: Application
+          Name: Zeppelin
+          Code: zep
+        - Type: Component
+          Name: Agent
+          Code: a
         - Type: Component
           Name: Ambari
           Code: a
@@ -588,6 +612,9 @@ Resources:
           Code: as
         - Type: Component
           Name: Calculation
+          Code: c
+        - Type: Component
+          Name: Cache
           Code: c
         - Type: Component
           Name: Data
@@ -629,14 +656,26 @@ Resources:
           Name: Executor
           Code: e
         - Type: Component
+          Name: ElastiCache
+          Code: ec
+        - Type: Component
           Name: SFTP
           Code: ft
+        - Type: Component
+          Name: FileSystem
+          Code: fs
+        - Type: Component
+          Name: Glue
+          Code: g
         - Type: Component
           Name: Logging
           Code: l
         - Type: Component
           Name: LoadBalancer
           Code: lb
+        - Type: Component
+          Name: Management
+          Code: m
         - Type: Component
           Name: Manager
           Code: m
@@ -651,7 +690,7 @@ Resources:
           Code: mc
         - Type: Component
           Name: ManagementWorkstation
-          Code: mc
+          Code: mw
         - Type: Component
           Name: Professional
           Code: p
@@ -857,10 +896,13 @@ Resources:
                   const applicationName = event.ResourceProperties.ApplicationName;
                   const applicationSegment = (applicationName) ? `/${applicationName}` : '';
 
+                  const componentName = event.ResourceProperties.ComponentName;
+                  const componentSegment = (componentName) ? `-${componentName}` : '';
+
                   const environmentName = event.ResourceProperties.EnvironmentName;
                   const environmentSegment = (environmentName) ? `/${environmentName}` : '';
 
-                  const loggroupname = `${companySegment}${systemSegment}${applicationSegment}${environmentSegment}`;
+                  const loggroupname = `${companySegment}${systemSegment}${applicationSegment}${componentSegment}${environmentSegment}`;
                   console.info('LogGroupName: ' + loggroupname);
                   await response.send(event, context, response.SUCCESS, null, loggroupname);
                 }
