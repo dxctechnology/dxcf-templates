@@ -32,7 +32,7 @@ Metadata:
       - Label:
           default: Application Configuration
         Parameters:
-          - ApplicationObject
+          - ApplicationKey
           - ApplicationName
           - ApplicationDomain
           - ApplicationVersion
@@ -72,8 +72,8 @@ Metadata:
         default: Environment Type
       OSName:
         default: Operating System Name
-      ApplicationObject:
-        default: Application Object
+      ApplicationKey:
+        default: Application S3 Key
       ApplicationName:
         default: Application Name
       ApplicationDomain:
@@ -227,13 +227,12 @@ Parameters:
       - Windows Server 2012 R2
       - Windows Server 2016
     ConstraintDescription: must be "Windows Server 2012 R2" or "Windows Server 2016".
-  ApplicationObject:
-    Description: Object within the S3 bucket and folder containing the Application
+  ApplicationKey:
+    Description: Optional key of Object within the S3 Bucket containing the Application
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
+    AllowedPattern: (^$|^(?:Windows|WindowsWebServer)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
+    ConstraintDescription: must be a valid filename, within the Windows or WindowsWebServer folders, if specified.
   ApplicationName:
     Description: Name of the Application associated with the Stack
     Type: String
@@ -378,7 +377,7 @@ Mappings:
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
-  InstallApplication: !Not [ !Equals [ !Ref ApplicationObject, '' ]]
+  InstallApplication: !Not [ !Equals [ !Ref ApplicationKey, '' ]]
   ConfigureDomainName: !Not [ !Equals [ !Ref ApplicationDomain, '' ]]
   ConfigureDSnapshot: !Not [ !Equals [ !Ref DSnapshot, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -1890,7 +1889,7 @@ Resources:
         InstallApplication:
           sources:
             C:\Inetpub\wwwroot: !Sub
-              - https://${ExamplesBucket}.${s3}.amazonaws.com/WindowsWebServer/${ApplicationObject}
+              - https://${ExamplesBucket}.${s3}.amazonaws.com/${ApplicationKey}
               - ExamplesBucket: !ImportValue
                   Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]

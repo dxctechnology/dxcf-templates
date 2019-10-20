@@ -32,7 +32,7 @@ Metadata:
       - Label:
           default: Application Configuration
         Parameters:
-          - ApplicationObject
+          - ApplicationKey
           - ApplicationName
           - ApplicationDomain
           - ApplicationVersion
@@ -74,8 +74,8 @@ Metadata:
         default: Environment Type
       OSName:
         default: Operating System Name
-      ApplicationObject:
-        default: Application Object
+      ApplicationKey:
+        default: Application S3 Key
       ApplicationName:
         default: Application Name
       ApplicationDomain:
@@ -231,13 +231,12 @@ Parameters:
       - RHEL 7.6
       - RHEL 7.5
     ConstraintDescription: must be "Amazon Linux 2" (latest), "Amazon Linux 2.0", "RHEL 7" (latest), "RHEL 7.7", "RHEL 7.6" or "RHEL 7.5".
-  ApplicationObject:
-    Description: Object within the S3 bucket and folder containing the Application
+  ApplicationKey:
+    Description: Optional key of Object within the S3 Bucket containing the Application
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
+    AllowedPattern: (^$|^(?:Linux|LinuxWebServer)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
+    ConstraintDescription: must be a valid filename, within the Linux or LinuxWebServer folders, if specified.
   ApplicationName:
     Description: Name of the Application associated with the Stack
     Type: String
@@ -419,7 +418,7 @@ Conditions:
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureAMZN: !Equals [ !Select [ 0, !Split [ ' ', !Ref OSName ]], Amazon ]
   ConfigureRHEL: !Equals [ !Select [ 0, !Split [ ' ', !Ref OSName ]], RHEL ]
-  InstallApplication: !Not [ !Equals [ !Ref ApplicationObject, '' ]]
+  InstallApplication: !Not [ !Equals [ !Ref ApplicationKey, '' ]]
   ConfigureDomainName: !Not [ !Equals [ !Ref ApplicationDomain, '' ]]
   ConfigureWebSnapshot: !Not [ !Equals [ !Ref WebSnapshot, '' ]]
   ConfigureNormalSchedule: !Not [ !Equals [ !Ref NormalSchedule, '' ]]
@@ -2053,7 +2052,7 @@ Resources:
         InstallApplication:
           sources:
             /var/www: !Sub
-              - https://${ExamplesBucket}.${s3}.amazonaws.com/LinuxWebServer/${ApplicationObject}
+              - https://${ExamplesBucket}.${s3}.amazonaws.com/${ApplicationKey}
               - ExamplesBucket: !ImportValue
                   Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]

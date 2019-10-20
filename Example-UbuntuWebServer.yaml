@@ -32,7 +32,7 @@ Metadata:
       - Label:
           default: Application Configuration
         Parameters:
-          - ApplicationObject
+          - ApplicationKey
           - ApplicationName
           - ApplicationDomain
           - ApplicationVersion
@@ -72,8 +72,8 @@ Metadata:
         default: Environment Type
       OSName:
         default: Operating System Name
-      ApplicationObject:
-        default: Application Object
+      ApplicationKey:
+        default: Application S3 Key
       ApplicationName:
         default: Application Name
       ApplicationDomain:
@@ -221,13 +221,12 @@ Parameters:
       - Ubuntu 16.04
       - Ubuntu
     ConstraintDescription: must be "Ubuntu 16.04" (latest), "Ubuntu".
-  ApplicationObject:
-    Description: Object within the S3 bucket and folder containing the Application
+  ApplicationKey:
+    Description: Optional key of Object within the S3 Bucket containing the Application
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
+    AllowedPattern: (^$|^(?:Linux|LinuxWebServer|UbuntuWebServer)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
+    ConstraintDescription: must be a valid filename, within the Linux, LinuxWebServer or UbuntuWebServer folders, if specified.
   ApplicationName:
     Description: Name of the Application associated with the Stack
     Type: String
@@ -367,7 +366,7 @@ Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
-  InstallApplication: !Not [ !Equals [ !Ref ApplicationObject, '' ]]
+  InstallApplication: !Not [ !Equals [ !Ref ApplicationKey, '' ]]
   ConfigureDomainName: !Not [ !Equals [ !Ref ApplicationDomain, '' ]]
   ConfigureWebSnapshot: !Not [ !Equals [ !Ref WebSnapshot, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -466,6 +465,10 @@ Resources:
                         Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                   - !Sub
                     - arn:aws:s3:::${ExamplesBucket}/LinuxWebServer/*
+                    - ExamplesBucket: !ImportValue
+                        Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
+                  - !Sub
+                    - arn:aws:s3:::${ExamplesBucket}/UbuntuWebServer/*
                     - ExamplesBucket: !ImportValue
                         Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
   LogGroupName:
@@ -1939,7 +1942,7 @@ Resources:
         InstallApplication:
           sources:
             /var/www: !Sub
-              - https://${ExamplesBucket}.${s3}.amazonaws.com/LinuxWebServer/${ApplicationObject}
+              - https://${ExamplesBucket}.${s3}.amazonaws.com/${ApplicationKey}
               - ExamplesBucket: !ImportValue
                   Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
