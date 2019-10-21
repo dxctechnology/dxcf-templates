@@ -133,7 +133,7 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   TopicsStackName:
-    Description: Name of the CloudFormation Stack containing Keys
+    Description: Name of the CloudFormation Stack containing Topics
     Type: String
     MinLength: 2
     MaxLength: 64
@@ -141,7 +141,7 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   KeysStackName:
-    Description: Name of the CloudFormation Stack containing Topics
+    Description: Name of the CloudFormation Stack containing Keys
     Type: String
     MinLength: 2
     MaxLength: 64
@@ -332,13 +332,13 @@ Parameters:
   AdministratorNetworks:
     Description: Networks that can administer the Application
     Type: String
-    Default: -,-,-,-
-    ConstraintDescription: must be a comma-separated list of 4 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   AdministratorNetworkDescriptions:
     Description: Descriptions of networks that can administer the Application
     Type: String
-    Default: -,-,-,-
-    ConstraintDescription: must be a comma-separated list of 4 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
 Mappings:
   RegionNameMap:
     us-east-1:
@@ -404,31 +404,51 @@ Mappings:
       2xlarge: db.r5.2xlarge
       4xlarge: db.r5.4xlarge
       8xlarge: db.r5.8xlarge
-  AllocatedStorageMap:
+   # PostgreSQL Only, currently commented out below
+#  AllocatedStorageMap:
+#    Database:
+#      small: 64
+#      medium: 128
+#      large: 256
+#      xlarge: 512
+#      2xlarge: 1024
+#      4xlarge: 2048
+#      8xlarge: 4096
+#  StorageTypeMap:
+#    Database:
+#      small: gp2
+#      medium: gp2
+#      large: gp2
+#      xlarge: gp2
+#      2xlarge: gp2
+#      4xlarge: gp2
+#      8xlarge: gp2
+  CPUAlarmPercentMap:
     Database:
-      small: 64
-      medium: 128
-      large: 256
-      xlarge: 512
-      2xlarge: 1024
-      4xlarge: 2048
-      8xlarge: 4096
-  StorageTypeMap:
+      small: 90
+      medium: 80
+      large: 80
+      xlarge: 75
+      2xlarge: 75
+      4xlarge: 75
+      8xlarge: 75
+  MemoryAlarmBytesAvailableMap:
     Database:
-      small: gp2
-      medium: gp2
-      large: gp2
-      xlarge: gp2
-      2xlarge: gp2
-      4xlarge: gp2
-      8xlarge: gp2
+      small: 256000000
+      medium: 80
+      large: 80
+      xlarge: 75
+      2xlarge: 75
+      4xlarge: 75
+      8xlarge: 75
+
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
-  ConfigureEncryption: !Not [ !Equals [ !Ref KeysStackName, '' ]] # ToDo: Fix how we configure Encryption, custom vs user keys
-  #ConfigureEncryptionKey: !Not [ !Equals [ !Ref KmsKey, 'aws/rds' ]]
+# ConfigureEncryption: !Not [ !Equals [ !Ref KeysStackName, '' ]] # ToDo: Fix how we configure Encryption, custom vs user keys
+# ConfigureEncryptionKey: !Not [ !Equals [ !Ref KmsKey, 'aws/rds' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
   ConfigureMasterPassword: !Not [ !Equals [ !Ref MasterPassword, '' ]]
   GenerateMasterPassword: !Not [ !Condition ConfigureMasterPassword ]
@@ -437,6 +457,10 @@ Conditions:
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork3: !Not [ !Equals [ !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork4: !Not [ !Equals [ !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -552,6 +576,46 @@ Resources:
               - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork4
+          - IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306
+            CidrIp: !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (MySQL)
+              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork5
+          - IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306
+            CidrIp: !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (MySQL)
+              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork6
+          - IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306
+            CidrIp: !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (MySQL)
+              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork7
+          - IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306
+            CidrIp: !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (MySQL)
+              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -605,9 +669,9 @@ Resources:
       EngineVersion: !Ref EngineVersion
       MasterUsername: !Ref MasterUsername
       MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterPasswordSecret}}}'
-# ToDo: Finish Encryption
-#      StorageEncrypted: !If [ ConfigureEncryption, true, false ]
-#      KmsKeyId: !If [ ConfigureEncryptionKey, !Ref KmsKey, !Ref 'AWS::NoValue' ]
+      # ToDo: Finish Encryption
+      #StorageEncrypted: !If [ ConfigureEncryption, true, false ]
+      #KmsKeyId: !If [ ConfigureEncryptionKey, !Ref KmsKey, !Ref 'AWS::NoValue' ]
       DBClusterParameterGroupName: !Ref DBClusterParameterGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
@@ -648,43 +712,37 @@ Resources:
     DependsOn: DBInstance01
     Condition: ConfigureMultiZone
   #DBInstance: #PostgreSQL example
-  #  Type: AWS::RDS::DBInstance
-  #  Properties:
-  #    DBInstanceIdentifier: !Sub
-  #      - ${VPCName}-${ApplicationName}-${ComponentName}-DBInstance
-  #      - VPCName: !ImportValue
-  #          Fn::Sub: ${VPCStackName}-VPCName
-  #    Engine: postgres
-  #    EngineVersion: 9.6.10
-  #    LicenseModel: postgresql-license
-  #    DBInstanceClass: !FindInMap [ DBInstanceClassMap, Database, !Ref EnvironmentType ]
-  #    StorageType: !FindInMap [ StorageTypeMap, Database, !Ref EnvironmentType ]
-  #    AllocatedStorage: !FindInMap [ AllocatedStorageMap, Database, !Ref EnvironmentType ]
-  #    StorageEncrypted: false
-  #    DBSubnetGroupName: !Ref DBSubnetGroup
-  #    VPCSecurityGroups:
-  #      - !Ref DatabaseSecurityGroup
-  #    DBParameterGroupName: !Ref DBParameterGroup
-  #    MultiAZ: !If [ ConfigureMultiZone, true, false ]
-  #    AvailabilityZone: !If [ ConfigureMultiZone, !Ref 'AWS::NoValue', !Select [ 0, !GetAZs '' ]]
-  #    PubliclyAccessible: false
-  #    DBName: !Ref DatabaseName
-  #    MasterUsername: !Ref DatabaseMasterUsername
-  #    MasterUserPassword: !Ref DatabaseMasterUserPassword
-  #    PreferredBackupWindow: '06:00-06:30'
-  #    BackupRetentionPeriod: !Ref BackupRetention
-  #    MonitoringInterval: 60
-  #    MonitoringRoleArn: !GetAtt Role.Arn
-  #    PreferredMaintenanceWindow: 'sat:07:00-sat:07:30'
-  #    AllowMajorVersionUpgrade: false
-  #    AutoMinorVersionUpgrade: true
-  #    CopyTagsToSnapshot: true
-  #    Tags:
-  #      - Key: Name
-  #        Value: !Sub
-  #          - ${VPCName}-${ApplicationName}-${ComponentName}-DBInstance
-  #          - VPCName: !ImportValue
-  #              Fn::Sub: ${VPCStackName}-VPCName
+    #Type: AWS::RDS::DBInstance
+    #Properties:
+    #  DBInstanceIdentifier: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBInstance
+    #  Engine: postgres
+    #  EngineVersion: 9.6.10
+    #  LicenseModel: postgresql-license
+    #  DBInstanceClass: !FindInMap [ DBInstanceClassMap, Database, !Ref EnvironmentType ]
+    #  StorageType: !FindInMap [ StorageTypeMap, Database, !Ref EnvironmentType ]
+    #  AllocatedStorage: !FindInMap [ AllocatedStorageMap, Database, !Ref EnvironmentType ]
+    #  StorageEncrypted: false
+    #  DBSubnetGroupName: !Ref DBSubnetGroup
+    #  VPCSecurityGroups:
+    #    - !Ref DatabaseSecurityGroup
+    #  DBParameterGroupName: !Ref DBParameterGroup
+    #  MultiAZ: !If [ ConfigureMultiZone, true, false ]
+    #  AvailabilityZone: !If [ ConfigureMultiZone, !Ref 'AWS::NoValue', !Select [ 0, !GetAZs '' ]]
+    #  PubliclyAccessible: false
+    #  DBName: !Ref DatabaseName
+    #  MasterUsername: !Ref DatabaseMasterUsername
+    #  MasterUserPassword: !Ref DatabaseMasterUserPassword
+    #  PreferredBackupWindow: '06:00-06:30'
+    #  BackupRetentionPeriod: !Ref BackupRetention
+    #  MonitoringInterval: 60
+    #  MonitoringRoleArn: !GetAtt Role.Arn
+    #  PreferredMaintenanceWindow: 'sat:07:00-sat:07:30'
+    #  AllowMajorVersionUpgrade: false
+    #  AutoMinorVersionUpgrade: true
+    #  CopyTagsToSnapshot: true
+    #  Tags:
+    #    - Key: Name
+    #      Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBInstance
   CPUAlarm01:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -701,7 +759,7 @@ Resources:
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 80
+      Threshold: !FindInMap [ CPUAlarmPercentMap, Database, !Ref EnvironmentType ]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: DBInstanceIdentifier
@@ -722,7 +780,7 @@ Resources:
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 700000000
+      Threshold: !FindInMap [ MemoryAlarmBytesMap, Database, !Ref EnvironmentType ]
       ComparisonOperator: LessThanThreshold
       Dimensions:
         - Name: DBInstanceIdentifier
@@ -767,7 +825,7 @@ Resources:
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 80
+      Threshold: !FindInMap [ CPUAlarmPercentMap, Database, !Ref EnvironmentType ]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: DBInstanceIdentifier
@@ -789,7 +847,7 @@ Resources:
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 700000000
+      Threshold: !FindInMap [ MemoryAlarmBytesMap, Database, !Ref EnvironmentType ]
       ComparisonOperator: LessThanThreshold
       Dimensions:
         - Name: DBInstanceIdentifier
