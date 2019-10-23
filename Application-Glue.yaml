@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates AWS Glue resources.  **WARNING**  You will be billed for the
+  AWS resources used if you create a stack from this template.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - EnvironmentType
+    ParameterLabels:
+      EnvironmentType:
+        default: environment type
+Parameters:
+  EnvironmentType:
+    Description: Enter the CloudCheckr 3rd party External ID
+    Type: String
+    Default: ''
+
+Resources:
+  MyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "glue.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "root"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: "*"
+                Resource: "*"
+
+  Database:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "glue-database"
+        Description: "TestDatabaseDescription"
+        LocationUri: "TestLocationUri"
+        Parameters:
+          key1 : "value1"
+          key2 : "value2"
+
+  #MyClassifier:
+  #  Type: AWS::Glue::Classifier
+  #  Properties:
+  #    GrokClassifier:
+  #      Name: "CrawlerClassifier"
+  #      Classification: "wikiData"
+  #      GrokPattern: "%{NOTSPACE:language} %{NOTSPACE:page_title} %{NUMBER:hits:long} %{NUMBER:retrieved_size:long}"
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: "crawlertesttarget12345123"
+      AccessControl: "BucketOwnerFullControl"
+
+  Crawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "Glue-Crawler"
+      Role: !GetAtt MyRole.Arn
+      DatabaseName: !Ref Database
+#      Classifiers:
+#        - !Ref MyClassifier
+      Targets:
+        S3Targets:
+          - Path: !Ref S3Bucket
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "LOG"
+      Schedule:
+       ScheduleExpression: "cron(0/5 * ? * MON-FRI *)"
+#        ScheduleExpression: "cron(0 10 * * ? *)"
