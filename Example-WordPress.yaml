@@ -10,10 +10,8 @@ Metadata:
           - WordPressDatabaseStackName
           - WindowsBastionsStackName
           - VPNStackName
-          - DirectoryStackName
           - VPCStackName
           - AMIFunctionsStackName
-          - BuildBucketsStackName
           - BucketsStackName
           - TopicsStackName
           - KeysStackName
@@ -40,9 +38,11 @@ Metadata:
       - Label:
           default: Application Configuration
         Parameters:
-          - ApplicationKey
           - ApplicationName
           - ServiceName
+          - AdministratorUsername
+          - AdministratorPassword
+          - AdministratorEmail
           - LogRetention
           - Schedule
       - Label:
@@ -59,14 +59,10 @@ Metadata:
         default: WindowsBastions Stack Name
       VPNStackName:
         default: VPN Stack Name
-      DirectoryStackName:
-        default: Directory Stack Name
       VPCStackName:
         default: VPC Stack Name
       AMIFunctionsStackName:
         default: AMIFunctions Stack Name
-      BuildBucketsStackName:
-        default: Build Buckets Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -89,12 +85,16 @@ Metadata:
         default: Environment Type
       WordPressProductKey:
         default: WordPress Product S3 Key
-      ApplicationKey:
-        default: Application S3 Key
       ApplicationName:
         default: Application Name
       ServiceName:
         default: Service Name
+      AdministratorUsername:
+        default: Administrator Username
+      AdministratorPassword:
+        default: Administrator Password
+      AdministratorEmail:
+        default: Administrator Email Address
       LogRetention:
         default: Log Retention
       Schedule:
@@ -130,13 +130,6 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^[A-Z][-a-zA-Z0-9]*$)
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  DirectoryStackName:
-    Description: Name of the CloudFormation Stack containing the Directory Management Workstation (DirectoryService) or DomainControllers (ActiveDirectory)
-    Type: String
-    MaxLength: 64
-    Default: ''
-    AllowedPattern: (^$|^[A-Z][a-zA-Z0-9]*-(ActiveDirectory|DirectoryService)$)
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   VPCStackName:
     Description: Name of the CloudFormation Stack containing the VPC
     Type: String
@@ -151,14 +144,6 @@ Parameters:
     MinLength: 2
     MaxLength: 64
     Default: AMIFunctions
-    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  BuildBucketsStackName:
-    Description: Name of the CloudFormation Stack containing Build Buckets
-    Type: String
-    MinLength: 2
-    MaxLength: 64
-    Default: BuildBuckets
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
@@ -271,12 +256,6 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^(?:Linux|WordPress)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
     ConstraintDescription: must be a valid filename, within the Linux or WordPress folders, if specified.
-  ApplicationKey:
-    Description: Optional key of Object within the S3 Bucket containing the Application
-    Type: String
-    Default: ''
-    AllowedPattern: (^$|^(?:Linux|WordPress)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
-    ConstraintDescription: must be a valid filename, within the Linux or WordPress folders, if specified.
   ApplicationName:
     Description: Name of the Application associated with the Stack
     Type: String
@@ -292,6 +271,27 @@ Parameters:
     Default: wordpress
     AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
+  AdministratorUsername:
+    Description: Name of the Administrator User
+    Type: String
+    MinLength: 2
+    MaxLength: 63
+    Default: admin
+    AllowedPattern: ^[a-z][a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
+  AdministratorPassword:
+    Description: Optional password of the Administrator User (If unspecified, generate a random password)
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+  AdministratorEmail:
+    Description: Optional email address of the Administrator User (If unspecified, do not configure an email address)
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address, if specified.
   LogRetention:
     Description: Number of days to retain CloudWatch Log Events
     Type: Number
@@ -324,23 +324,23 @@ Parameters:
   UserNetworks:
     Description: Networks that can use the Application
     Type: String
-    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 16 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   UserNetworkDescriptions:
     Description: Descriptions of networks that can use the Application
     Type: String
-    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 16 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
   AdministratorNetworks:
     Description: Networks that can administer the Application
     Type: String
-    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 16 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   AdministratorNetworkDescriptions:
     Description: Descriptions of networks that can administer the Application
     Type: String
-    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 16 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
 Mappings:
   RegionNameMap:
     us-east-1:
@@ -398,7 +398,7 @@ Mappings:
       Name: SaoPaulo
       Code: se1
   InstanceTypeMap:
-    Blog:
+    WordPress:
       micro: t3.micro
       small: t3.small
       medium: t3.medium
@@ -410,11 +410,11 @@ Conditions:
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
-  ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
-  ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
   InstallWordPress: !Not [ !Equals [ !Ref WordPressProductKey, '' ]]
-  InstallApplication: !Not [ !Equals [ !Ref ApplicationKey, '' ]]
   ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
+  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref AdministratorPassword, '' ]]
+  GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
+  ConfigureAdministratorEmail: !Not [ !Equals [ !Ref AdministratorEmail, '' ]]
   ConfigureSchedule: !Not [ !Equals [ !Ref Schedule, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -424,14 +424,6 @@ Conditions:
   ConfigureUserNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork8: !Not [ !Equals [ !Select [ 8, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork9: !Not [ !Equals [ !Select [ 9, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork10: !Not [ !Equals [ !Select [ 10, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork11: !Not [ !Equals [ !Select [ 11, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork12: !Not [ !Equals [ !Select [ 12, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork13: !Not [ !Equals [ !Select [ 13, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork14: !Not [ !Equals [ !Select [ 14, !Split [ ',', !Ref UserNetworks ]], '-' ]]
-  ConfigureUserNetwork15: !Not [ !Equals [ !Select [ 15, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -440,14 +432,6 @@ Conditions:
   ConfigureAdministratorNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork8: !Not [ !Equals [ !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork9: !Not [ !Equals [ !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork10: !Not [ !Equals [ !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork11: !Not [ !Equals [ !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork12: !Not [ !Equals [ !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork13: !Not [ !Equals [ !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork14: !Not [ !Equals [ !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork15: !Not [ !Equals [ !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -466,7 +450,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
-        - PolicyName: GetPasswordSecretPolicy
+        - PolicyName: GetSecretPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -474,9 +458,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-Database-MasterPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-AdministratorUser-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-Database-MasterUser-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -525,22 +508,22 @@ Resources:
                     - arn:aws:s3:::${ProductsBucket}/WordPress/*
                     - ProductsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ProductsBucket
-        - PolicyName: DownloadExampleFromS3Policy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                Resource:
-                  - !Sub
-                    - arn:aws:s3:::${ExamplesBucket}/Linux/*
-                    - ExamplesBucket: !ImportValue
-                        Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
-                  - !Sub
-                    - arn:aws:s3:::${ExamplesBucket}/WordPress/*
-                    - ExamplesBucket: !ImportValue
-                        Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
+  AdministratorUserSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} Administrator User
+      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${AdministratorUsername}", "password": "${AdministratorPassword}"}', !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GenerateAdministratorPassword
+        - SecretStringTemplate: !Sub '{"username": "${AdministratorUsername}"}'
+          GenerateStringKey: password
+          PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -593,7 +576,7 @@ Resources:
             ToPort: 22
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
-            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (RDP)
+            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (SSH)
           - !Ref AWS::NoValue
         - !If
           - ConfigureVPNIntegration
@@ -620,7 +603,167 @@ Resources:
             ToPort: 22
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
-            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (RDP)
+            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (SSH)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork0
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 0, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork0
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 0, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork1
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 1, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork1
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 1, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork2
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 2, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork2
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 2, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork3
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 3, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork3
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 3, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork4
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 4, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork4
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 4, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork5
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 5, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork5
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 5, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork6
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 6, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork6
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 6, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork7
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 7, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork7
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 7, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref UserNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork0
@@ -941,326 +1084,6 @@ Resources:
             Description: !Sub
               - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: tcp
-            FromPort: 22
-            ToPort: 22
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (SSH)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
@@ -1301,8 +1124,6 @@ Resources:
               Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
             - !ImportValue
               Fn::Sub: ${BucketsStackName}-ProductsBucket
-            - !ImportValue
-              Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
       AWS::CloudFormation::Init:
         configSets:
           All:
@@ -1315,10 +1136,10 @@ Resources:
             - ConfigureCloudWatchAgent
             - ConfigureHostName
             - InstallApache
-            #- InstallPHP
-            #- InstallMariaDBClient
+            - InstallLAMP
+            - ConfigureLAMPTestPage
             - !If [ InstallWordPress, InstallWordPress, !Ref 'AWS::NoValue' ]
-            - !If [ InstallApplication, InstallApplication, ConfigureApplication ]
+            - !If [ InstallWordPress, ConfigureWordPress, !Ref 'AWS::NoValue' ]
         UpdateOS:
           commands:
             01-yum-update:
@@ -1343,6 +1164,7 @@ Resources:
         ConfigureOS:
           packages:
             yum:
+              yum-utils: []
               git: []
           files:
             /etc/profile.d/local.sh:
@@ -1446,74 +1268,74 @@ Resources:
                           {
                             "file_path" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log"
                           },
                           {
                             "file_path" : "/var/log/cloud-init.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/cloud-init.log",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cloud-init.log",
                             "timestamp_format" : "%b %d %H:%M:%S"
                           },
                           {
                             "file_path" : "/var/log/cloud-init-output.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/cloud-init-output.log"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cloud-init-output.log"
                           },
                           {
                             "file_path" : "/var/log/cfn-init.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/cfn-init.log",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cfn-init.log",
                             "timestamp_format" : "%Y-%m-%d %H:%M:%S"
                           },
                           {
                             "file_path" : "/var/log/cfn-init-cmd.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/cfn-init-cmd.log",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cfn-init-cmd.log",
                             "timestamp_format" : "%Y-%m-%d %H:%M:%S"
                           },
                           {
                             "file_path" : "/var/log/cfn-hup.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/cfn-hup.log",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cfn-hup.log",
                             "timestamp_format" : "%Y-%m-%d %H:%M:%S"
                           },
                           {
                             "file_path" : "/var/log/messages",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/messages",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/messages",
                             "timestamp_format" : "%b %d %H:%M:%S"
                           },
                           {
                             "file_path" : "/var/log/secure",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/secure",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/secure",
                             "timestamp_format" : "%b %d %H:%M:%S"
                           },
                           {
                             "file_path" : "/var/log/cron",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/cron",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cron",
                             "timestamp_format" : "%b %d %H:%M:%S"
                           },
                           {
                             "file_path" : "/var/log/dmesg",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/dmesg"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/dmesg"
                           },
                           {
                             "file_path" : "/var/log/yum.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/yum.log"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/yum.log"
                           },
                           {
                             "file_path" : "/var/log/httpd/access_log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/httpd/access_log"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/httpd/access_log"
                           },
                           {
                             "file_path" : "/var/log/httpd/error_log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Blog/{instance_id}/var/log/httpd/error_log"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/httpd/error_log"
                           }
                         ]
                       }
@@ -1564,14 +1386,23 @@ Resources:
                 ensureRunning: true
                 files:
                   - /etc/httpd/conf/httpd.conf
-        InstallPHP:
-          packages:
-            yum:
-              php: []
-        InstallMariaDBClient:
-          packages:
-            yum:
-              mariadb: []
+        InstallLAMP:
+          commands:
+            01-install-lamp:
+              command: amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+              ignoreErrors: false
+            01-restart-apache:
+              command: systemctl restart httpd
+              ignoreErrors: false
+        ConfigureLAMPTestPage:
+          files:
+            /var/www/html/info.php:
+              content: !Sub |
+                <?php
+                phpinfo();
+              mode: '000400'
+              owner: root
+              group: root
         InstallWordPress:
           sources:
             /var/tmp: !Sub
@@ -1579,53 +1410,49 @@ Resources:
               - ProductsBucket: !ImportValue
                   Fn::Sub: ${BucketsStackName}-ProductsBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-          #commands:
-          #  01-reset-permissions:
-          #    command: chown -R root:root /var/www
-          #    ignoreErrors: false
-        InstallApplication:
-          sources:
-            /var/www: !Sub
-              - https://${ExamplesBucket}.${s3}.amazonaws.com/${ApplicationKey}
-              - ExamplesBucket: !ImportValue
-                  Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
-                s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
           commands:
-            01-reset-permissions:
+            01-move-wordpress-docroot:
+              command: mv /var/tmp/wordpress/* /var/www/html
+              ignoreErrors: false
+            02-delete-wordpress-dir:
+              command: rmdir /var/tmp/wordpress
+              ignoreErrors: false
+            03-reset-ownership:
               command: chown -R root:root /var/www
               ignoreErrors: false
-        ConfigureApplication:
+        ConfigureWordPress:
           files:
-            /var/www/html/index.html:
-              content: !Sub |
-                <html>
-                <head>
-                <title>${ApplicationName} Test Application</title>
-                </head>
-                <body>
-                <h1>${ApplicationName}</h1>
-
-                <p>This page displays data obtained from the meta-data service via SSI.</p>
-
-                <ul>
-                  <li>ami-id: <!--#exec cmd="curl http://169.254.169.254/latest/meta-data/ami-id" --></li>
-                  <li>instance-id: <!--#exec cmd="curl http://169.254.169.254/latest/meta-data/instance-id" --></li>
-                  <li>instance-type: <!--#exec cmd="curl http://169.254.169.254/latest/meta-data/instance-type" --></li>
-                  <li>local-hostname: <!--#exec cmd="curl http://169.254.169.254/latest/meta-data/local-hostname" --></li>
-                  <li>local-ipv4: <!--#exec cmd="curl http://169.254.169.254/latest/meta-data/local-ipv4" --></li>
-                  <li>public-hostname: <!--#exec cmd="curl http://169.254.169.254/latest/meta-data/public-hostname" --></li>
-                  <li>public-ipv4: <!--#exec cmd="curl http://169.254.169.254/latest/meta-data/public-ipv4" --></li>
-                </ul>
-
-                <p>If you do not see the output values on this page, insure you have added &quot;XBitHack on&quot; to the
-                Apache main or vhost configuration file and restarted Apache</p>
-                </body>
-              mode: '000755'
+            /root/bin/configure-wordpress:
+              source: !Sub
+                - https://${ScriptsBucket}.${s3}.amazonaws.com/WordPress/configure-wordpress
+                - ScriptsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ScriptsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+              authentication: S3Credentials
+              mode: '000700'
               owner: root
               group: root
+          commands:
+            01-configure-wordpress:
+              command: !Sub
+                - /root/bin/configure-wordpress -n
+                  -t "${CompanyName} ${SystemName} ${EnvironmentName} ${ApplicationName}"
+                  -h ${ServiceName}.${VPCPrivateDomain} -s ${AdministratorUserSecret}${AdministratorEmail}
+                  -H ${DBInstanceHostName} -D ${DatabaseName} -S ${MasterUserSecret}
+                - VPCPrivateDomain: !ImportValue
+                    Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+                  AdministratorUserSecret: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
+                  AdministratorEmail: !If [ ConfigureAdministratorEmail, !Sub ' -e ${AdministratorEmail}', '' ]
+                  DBInstanceHostName: !ImportValue
+                    Fn::Sub: ${WordPressDatabaseStackName}-PrivateDBInstanceHostName
+                  DatabaseName: !ImportValue
+                    Fn::Sub: ${WordPressDatabaseStackName}-DatabaseName
+                  MasterUserSecret: !ImportValue
+                    Fn::Sub: ${WordPressDatabaseStackName}-MasterUserSecret
+              ignoreErrors: true
     Properties:
       ImageId: !Ref AmazonLinux2Image
-      InstanceType: !FindInMap [ InstanceTypeMap, Blog, !Ref EnvironmentType ]
+      InstanceType: !FindInMap [ InstanceTypeMap, WordPress, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
       KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
       Monitoring: true
@@ -2030,3 +1857,8 @@ Outputs:
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Condition: ConfigureServiceName
+  AdministratorUserSecret:
+    Description: The Administrator User Secret Name
+    Value: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
+    Export:
+      Name: !Sub ${AWS::StackName}-AdministratorUserSecret

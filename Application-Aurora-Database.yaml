@@ -468,6 +468,7 @@ Conditions:
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
   ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
+  ConfigureServiceName&MultiZone: !And [ !Condition ConfigureServiceName, !Condition ConfigureMultiZone ]
   ConfigureMasterPassword: !Not [ !Equals [ !Ref MasterPassword, '' ]]
   GenerateMasterPassword: !Not [ !Condition ConfigureMasterPassword ]
   ConfigureEncryption: !Not [ !Equals [ !Ref EncryptionType, none ]]
@@ -499,20 +500,22 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
-  MasterPasswordSecret:
+  MasterUserSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User (${MasterUsername})
-      SecretString: !If [ ConfigureMasterPassword, !Ref MasterPassword, !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User
+      SecretString: !If [ ConfigureMasterPassword, !Sub '{"username": "${MasterUsername}", "password": "${MasterPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateMasterPassword
-        - PasswordLength: 32
+        - SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
+          GenerateStringKey: password
+          PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -655,6 +658,16 @@ Resources:
       EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref ApplicationName
       ComponentName: !Ref ComponentName
+  ErrorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/cluster/${HostName}/error
+      RetentionInDays: !Ref LogRetention
+  GeneralLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/cluster/${HostName}/general
+      RetentionInDays: !Ref LogRetention
   SlowQueryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -679,6 +692,8 @@ Resources:
       Family: aurora5.6
       Parameters:
         time_zone: UTC
+        server_audit_logs_upload: 1 # Default 0
+        aws_default_logs_role: !GetAtt Role.Arn
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBClusterParameterGroup
@@ -689,27 +704,29 @@ Resources:
       Engine: !Ref EngineType
       EngineMode: !Ref EngineMode
       EngineVersion: !Ref EngineVersion
-      MasterUsername: !Ref MasterUsername
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterPasswordSecret}}}'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DatabaseSecurityGroup
+      DBClusterParameterGroupName: !Ref DBClusterParameterGroup
+      MasterUsername: !Sub '{{resolve:secretsmanager:${MasterUserSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterUserSecret}:SecretString:password}}'
       StorageEncrypted: !If [ ConfigureEncryption, true, false ]
       KmsKeyId: !If
         - ConfigureEncryptionKey
         - !ImportValue
             Fn::Sub: ${KeysStackName}-RDSAlias
         - !Ref AWS::NoValue
-      DBClusterParameterGroupName: !Ref DBClusterParameterGroup
-      DBSubnetGroupName: !Ref DBSubnetGroup
-      VpcSecurityGroupIds:
-        - !Ref DatabaseSecurityGroup
       PreferredBackupWindow: !If [ ConfigureBackupWindow, !Ref BackupWindow, !Ref 'AWS::NoValue' ]
       BackupRetentionPeriod: !Ref BackupRetention
       PreferredMaintenanceWindow: !If [ ConfigureMaintenanceWindow, !Ref MaintenanceWindow, !Ref 'AWS::NoValue' ]
+      EnableCloudwatchLogsExports: [ error, general, slowquery ]
       DatabaseName: !If [ ConfigureDatabase, !Ref DatabaseName, !Ref 'AWS::NoValue' ]
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBCluster
         - Key: HostName
           Value: !Ref HostName
+    DependsOn: [ ErrorLogGroup, GeneralLogGroup, SlowQueryLogGroup ]
   DBInstance01:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -723,7 +740,6 @@ Resources:
       MonitoringRoleArn: !GetAtt Role.Arn
       AllowMajorVersionUpgrade: false
       AutoMinorVersionUpgrade: true
-    DependsOn: SlowQueryLogGroup
   DBInstance02:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -737,9 +753,9 @@ Resources:
       MonitoringRoleArn: !GetAtt Role.Arn
       AllowMajorVersionUpgrade: false
       AutoMinorVersionUpgrade: true
-    DependsOn: [ SlowQueryLogGroup, DBInstance01 ]
+    DependsOn: DBInstance01
     Condition: ConfigureMultiZone
-  PrivateHostNameRecordSet:
+  PrivateDBClusterHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
@@ -753,7 +769,7 @@ Resources:
       TTL: 900
       ResourceRecords:
         - !GetAtt DBCluster.Endpoint.Address
-  PrivateServiceNameRecordSet:
+  PrivateDBClusterServiceNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
@@ -768,6 +784,65 @@ Resources:
       ResourceRecords:
         - !GetAtt DBCluster.Endpoint.Address
     Condition: ConfigureServiceName
+  PrivateDBInstance01HostNameRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue
+        Fn::Sub: ${VPCStackName}-PrivateHostedZone
+      Comment: !Sub Private DNS HostName for ${ApplicationName}-${ComponentName} DBInstance01
+      Name: !Sub
+        - ${HostName}01.${VPCPrivateDomain}.
+        - VPCPrivateDomain: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+        - !GetAtt DBInstance01.Endpoint.Address
+  PrivateDBInstance01ServiceNameRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue
+        Fn::Sub: ${VPCStackName}-PrivateHostedZone
+      Comment: !Sub Private DNS ServiceName for ${ApplicationName}-${ComponentName} DBInstance01
+      Name: !Sub
+        - ${ServiceName}01.${VPCPrivateDomain}.
+        - VPCPrivateDomain: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+        - !GetAtt DBInstance01.Endpoint.Address
+    Condition: ConfigureServiceName
+  PrivateDBInstance02HostNameRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue
+        Fn::Sub: ${VPCStackName}-PrivateHostedZone
+      Comment: !Sub Private DNS HostName for ${ApplicationName}-${ComponentName} DBInstance02
+      Name: !Sub
+        - ${HostName}02.${VPCPrivateDomain}.
+        - VPCPrivateDomain: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+        - !GetAtt DBInstance02.Endpoint.Address
+    Condition: ConfigureMultiZone
+  PrivateDBInstance02ServiceNameRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue
+        Fn::Sub: ${VPCStackName}-PrivateHostedZone
+      Comment: !Sub Private DNS ServiceName for ${ApplicationName}-${ComponentName} DBInstance02
+      Name: !Sub
+        - ${ServiceName}02.${VPCPrivateDomain}.
+        - VPCPrivateDomain: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+        - !GetAtt DBInstance02.Endpoint.Address
+    Condition: ConfigureServiceName&MultiZone
   CPUAlarm01:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -947,35 +1022,79 @@ Outputs:
     Value: !Ref DatabaseSecurityGroup
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseSecurityGroup
-  ClusterEndpoint:
-    Description: The Database Endpoint
+  DBClusterEndpoint:
+    Description: The DBCluster Endpoint
     Value: !GetAtt DBCluster.Endpoint.Address
     Export:
-      Name: !Sub ${AWS::StackName}-ClusterEndpoint
-  PrivateDatabaseHostName:
-    Description: The Private DNS HostName of the Aurora Database Endpoint
+      Name: !Sub ${AWS::StackName}-DBClusterEndpoint
+  PrivateDBClusterHostName:
+    Description: The Private DNS HostName of the Aurora DBCluster Endpoint
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Export:
-      Name: !Sub ${AWS::StackName}-PrivateDatabaseHostName
-  PrivateDatabaseServiceName:
-    Description: The Private DNS ServiceName of the Aurora Database Endpoint
+      Name: !Sub ${AWS::StackName}-PrivateDBClusterHostName
+  PrivateDBClusterServiceName:
+    Description: The Private DNS ServiceName of the Aurora DBCluster Endpoint
     Value: !Sub
       - ${ServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Export:
-      Name: !Sub ${AWS::StackName}-PrivateDatabaseServiceName
+      Name: !Sub ${AWS::StackName}-PrivateDBClusterServiceName
     Condition: ConfigureServiceName
-  # TODO: We may just want to enforce the same value for this and not allow changes
-  #       Or, we can put both the Username and Password in the same secret.
-  MasterUsername:
-    Description: The Master Username
-    Value: !Ref MasterUsername
+  DBInstance01Endpoint:
+    Description: The DBInstance01 Endpoint
+    Value: !GetAtt DBInstance01.Endpoint.Address
     Export:
-      Name: !Sub ${AWS::StackName}-MasterUsername
+      Name: !Sub ${AWS::StackName}-DBInstance01Endpoint
+  PrivateDBInstance01HostName:
+    Description: The Private DNS HostName of the Aurora DBInstance01 Endpoint
+    Value: !Sub
+      - ${HostName}01.${VPCPrivateDomain}
+      - VPCPrivateDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateDBInstance01HostName
+  PrivateDBInstance01ServiceName:
+    Description: The Private DNS ServiceName of the Aurora DBInstance01 Endpoint
+    Value: !Sub
+      - ${ServiceName}01.${VPCPrivateDomain}
+      - VPCPrivateDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateDBInstance01ServiceName
+    Condition: ConfigureServiceName
+  DBInstance02Endpoint:
+    Description: The DBInstance02 Endpoint
+    Value: !GetAtt DBInstance02.Endpoint.Address
+    Export:
+      Name: !Sub ${AWS::StackName}-DBInstance02Endpoint
+    Condition: ConfigureMultiZone
+  PrivateDBInstance02HostName:
+    Description: The Private DNS HostName of the Aurora DBInstance02 Endpoint
+    Value: !Sub
+      - ${HostName}02.${VPCPrivateDomain}
+      - VPCPrivateDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateDBInstance02HostName
+    Condition: ConfigureMultiZone
+  PrivateDBInstance02ServiceName:
+    Description: The Private DNS ServiceName of the Aurora DBInstance02 Endpoint
+    Value: !Sub
+      - ${ServiceName}02.${VPCPrivateDomain}
+      - VPCPrivateDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateDBInstance02ServiceName
+    Condition: ConfigureServiceName&MultiZone
+  MasterUserSecret:
+    Description: The Master User Secret Name
+    Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
+    Export:
+      Name: !Sub ${AWS::StackName}-MasterUserSecret
   DatabaseName:
     Description: The Database Name
     Value: !Ref DatabaseName

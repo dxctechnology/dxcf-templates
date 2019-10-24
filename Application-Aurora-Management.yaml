@@ -40,13 +40,16 @@ Metadata:
           - AwsCliProductKey
           - AwsPowerShellToolsProductKey
           - ChromeProductKey
+          - MySQLWebCommunityProductKey
           - DbForgeStudioExpressProductKey
       - Label:
           default: Application Configuration
         Parameters:
           - ApplicationName
-          - ApplicationDomain
           - ComponentName
+          - ServiceName
+          - AdministratorUsername
+          - AdministratorPassword
           - LogRetention
           - Schedule
       - Label:
@@ -68,7 +71,7 @@ Metadata:
       AMIFunctionsStackName:
         default: AMIFunctions Stack Name
       BuildBucketsStackName:
-        default: BuildBuckets Stack Name
+        default: Build Buckets Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -97,14 +100,20 @@ Metadata:
         default: AWS PowerShell Tools Product S3 Key
       ChromeProductKey:
         default: Chrome Product S3 Key
+      MySQLWebCommunityProductKey:
+        default: MySQL Web Community Product S3 Key
       DbForgeStudioExpressProductKey:
         default: dbForge Studio Express Product S3 Key
       ApplicationName:
         default: Application Name
-      ApplicationDomain:
-        default: Application Domain Name
       ComponentName:
         default: Component Name
+      ServiceName:
+        default: Service Name
+      AdministratorUsername:
+        default: Administrator Username
+      AdministratorPassword:
+        default: Administrator Password
       LogRetention:
         default: Log Retention
       Schedule:
@@ -274,26 +283,32 @@ Parameters:
     Description: Optional key of Object within the S3 Bucket containing the AWS CLI installer
     Type: String
     Default: ''
-    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, in the Windows folder, if specified.
+    AllowedPattern: (^$|^(?:Windows|AWS)\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows or AWS folders, if specified.
   AwsPowerShellToolsProductKey:
     Description: Optional key of Object within the S3 Bucket containing the AWS PowerShell Tools installer
     Type: String
     Default: ''
-    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, in the Windows folder, if specified.
+    AllowedPattern: (^$|^(?:Windows|AWS)\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows or AWS folders, if specified.
   ChromeProductKey:
     Description: Optional key of Object within the S3 Bucket containing the Chrome installer
     Type: String
     Default: ''
-    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, in the Windows folder, if specified.
+    AllowedPattern: (^$|^(?:Windows|Chrome)\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows or Chrome folders, if specified.
+  MySQLWebCommunityProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the MySQL Web Community installer
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|^(?:Windows|MySQL)\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows or MySQL folders, if specified.
   DbForgeStudioExpressProductKey:
     Description: Optional key of Object within the S3 Bucket containing the dbForge Studio Express installer
     Type: String
     Default: ''
-    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, in the Windows folder, if specified.
+    AllowedPattern: (^$|^(?:Windows|dbForge)\/[-_.a-zA-Z0-9]*\.exe$)
+    ConstraintDescription: must be a valid filename, within the Windows or dbForge folders, if specified.
   ApplicationName:
     Description: Name of the Application associated with the Stack
     Type: String
@@ -302,13 +317,6 @@ Parameters:
     Default: Aurora
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ApplicationDomain:
-    Description: DNS Name of the Application associated with the Stack
-    Type: String
-    MaxLength: 64
-    Default: aurora-management
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   ComponentName:
     Description: Name of the Application Component associated with the Stack
     Type: String
@@ -317,6 +325,28 @@ Parameters:
     Default: Management
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  ServiceName:
+    Description: Optional DNS Service Name
+    Type: String
+    MaxLength: 64
+    Default: aurora-management
+    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
+  AdministratorUsername:
+    Description: Name of the Administrator User
+    Type: String
+    MinLength: 2
+    MaxLength: 63
+    Default: admin
+    AllowedPattern: ^[a-z][a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
+  AdministratorPassword:
+    Description: Optional password of the Administrator User (If unspecified, generate a random password)
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   LogRetention:
     Description: Number of days to retain CloudWatch Log Events
     Type: Number
@@ -349,13 +379,13 @@ Parameters:
   AdministratorNetworks:
     Description: Networks that can administer the Application
     Type: String
-    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 16 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   AdministratorNetworkDescriptions:
     Description: Descriptions of networks that can administer the Application
     Type: String
-    Default: -,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-
-    ConstraintDescription: must be a comma-separated list of 16 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
 Mappings:
   RegionNameMap:
     us-east-1:
@@ -413,7 +443,7 @@ Mappings:
       Name: SaoPaulo
       Code: se1
   InstanceTypeMap:
-    Admin:
+    Management:
       micro: t3.micro
       small: t3.small
       medium: t3.medium
@@ -429,8 +459,11 @@ Conditions:
   InstallAwsCli: !Not [ !Equals [ !Ref AwsCliProductKey, '' ]]
   InstallAwsPowerShellTools: !Not [ !Equals [ !Ref AwsPowerShellToolsProductKey, '' ]]
   InstallChrome: !Not [ !Equals [ !Ref ChromeProductKey, '' ]]
+  InstallMySQLWebCommunity: !Not [ !Equals [ !Ref MySQLWebCommunityProductKey, '' ]]
   InstallDbForgeStudioExpress: !Not [ !Equals [ !Ref DbForgeStudioExpressProductKey, '' ]]
-  ConfigureDomainName: !Not [ !Equals [ !Ref ApplicationDomain, '' ]]
+  ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
+  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref AdministratorPassword, '' ]]
+  GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
   ConfigureSchedule: !Not [ !Equals [ !Ref Schedule, '' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -440,14 +473,6 @@ Conditions:
   ConfigureAdministratorNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork8: !Not [ !Equals [ !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork9: !Not [ !Equals [ !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork10: !Not [ !Equals [ !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork11: !Not [ !Equals [ !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork12: !Not [ !Equals [ !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork13: !Not [ !Equals [ !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork14: !Not [ !Equals [ !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
-  ConfigureAdministratorNetwork15: !Not [ !Equals [ !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -466,7 +491,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
-        - PolicyName: GetPasswordSecretPolicy
+        - PolicyName: GetSecretPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -474,9 +499,10 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-Database-MasterUser-*
                   - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-AdminPassword-*
                   - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-Database-MasterPassword-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -529,6 +555,22 @@ Resources:
                     - arn:aws:s3:::${ProductsBucket}/Aurora/*
                     - ProductsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ProductsBucket
+  AdministratorUserSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Administrator User
+      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${AdministratorUsername}", "password": "${AdministratorPassword}"}', !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GenerateAdministratorPassword
+        - SecretStringTemplate: !Sub '{"username": "${AdministratorUsername}"}'
+          GenerateStringKey: password
+          PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -931,326 +973,6 @@ Resources:
               - ${NetworkDescription} (RDP)
               - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork8
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 8, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 8, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork9
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 9, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 9, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork10
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 10, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 10, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork11
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 11, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 11, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork12
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 12, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 12, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork13
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 13, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 13, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork14
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 14, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 14, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: icmp
-            FromPort: -1
-            ToPort: -1
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (ICMP)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTP)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (HTTPS)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork15
-          - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
-            CidrIp: !Select [ 15, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (RDP)
-              - NetworkDescription: !Select [ 15, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-InstanceSecurityGroup
@@ -1309,6 +1031,7 @@ Resources:
             - !If [ InstallAwsCli, InstallAwsCli, !Ref 'AWS::NoValue' ]
             - !If [ InstallAwsPowerShellTools, InstallAwsPowerShellTools, !Ref 'AWS::NoValue' ]
             - !If [ InstallChrome, InstallChrome, !Ref 'AWS::NoValue' ]
+            - !If [ InstallMySQLWebCommunity, InstallMySQLWebCommunity, !Ref 'AWS::NoValue' ]
             - !If [ InstallDbForgeStudioExpress, InstallDbForgeStudioExpress, !Ref 'AWS::NoValue' ]
             - SignalCloudFormation
         InstallCloudFormationModule:
@@ -1423,21 +1146,21 @@ Resources:
                             "event_name" : "Application",
                             "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/ApplicationEventLog",
+                            "log_stream_name" : "Management/{instance_id}/ApplicationEventLog",
                             "event_format" : "text"
                           },
                           {
                             "event_name" : "System",
                             "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/SystemEventLog",
+                            "log_stream_name" : "Management/{instance_id}/SystemEventLog",
                             "event_format" : "text"
                           },
                           {
                             "event_name" : "Security",
                             "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/SecurityEventLog",
+                            "log_stream_name" : "Management/{instance_id}/SecurityEventLog",
                             "event_format" : "text"
                           }
                         ]
@@ -1447,40 +1170,40 @@ Resources:
                           {
                             "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/amazon-cloudwatch-agent.log",
+                            "log_stream_name" : "Management/{instance_id}/amazon-cloudwatch-agent.log",
                             "timezone" : "UTC"
                           },
                           {
                             "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/EC2ConfigLog.txt",
+                            "log_stream_name" : "Management/{instance_id}/EC2ConfigLog.txt",
                             "timezone" : "UTC"
                           },
                           {
                             "file_path" : "C:\\cfn\\log\\cfn-init.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/cfn-init.log",
+                            "log_stream_name" : "Management/{instance_id}/cfn-init.log",
                             "timestamp_format" : "%Y-%m-%d %H:%M:%S",
                             "timezone" : "Local"
                           },
                           {
                             "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/cfn-init-cmd.log",
+                            "log_stream_name" : "Management/{instance_id}/cfn-init-cmd.log",
                             "timestamp_format" : "%Y-%m-%d %H:%M:%S",
                             "timezone" : "Local"
                           },
                           {
                             "file_path" : "C:\\cfn\\log\\cfn-hup.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/cfn-hup.log",
+                            "log_stream_name" : "Management/{instance_id}/cfn-hup.log",
                             "timestamp_format" : "%Y-%m-%d %H:%M:%S",
                             "timezone" : "Local"
                           },
                           {
                             "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Admin/{instance_id}/IISLogs",
+                            "log_stream_name" : "Management/{instance_id}/IISLogs",
                             "timezone" : "UTC"
                           }
                         ]
@@ -1567,6 +1290,14 @@ Resources:
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+        InstallMySQLWebCommunity:
+          packages:
+            msi:
+              mysql-web-community: !Sub
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${MySQLWebCommunityProductKey}
+                - ProductsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ProductsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
         InstallDbForgeStudioExpress:
           files:
             C:\cfn\temp\dbForgeStudioExpress.exe:
@@ -1597,7 +1328,7 @@ Resources:
               command: powershell.exe -Command "Send-CloudFormationSuccess"
     Properties:
       ImageId: !Ref WindowsImage
-      InstanceType: !FindInMap [ InstanceTypeMap, Admin, !Ref EnvironmentType ]
+      InstanceType: !FindInMap [ InstanceTypeMap, Management, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
       KeyName: !Ref KeyName
       Monitoring: true
@@ -1663,7 +1394,7 @@ Resources:
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
       Comment: !Sub Private DNS ServiceName for ${ApplicationName}
       Name: !Sub
-        - ${ApplicationDomain}.${VPCPrivateDomain}.
+        - ${ServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
@@ -1673,7 +1404,7 @@ Resources:
           - ${HostName}.${VPCPrivateDomain}
           - VPCPrivateDomain: !ImportValue
               Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureDomainName
+    Condition: ConfigureServiceName
   CPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -1959,14 +1690,19 @@ Outputs:
   PrivateServiceName:
     Description: The Private DNS ServiceName of the Aurora-Management Instance
     Value: !Sub
-      - ${ApplicationDomain}.${VPCPrivateDomain}
+      - ${ServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureDomainName
+    Condition: ConfigureServiceName
   PrivateWebsiteURL:
     Description: The Private Website URL
     Value: !Sub
-      - http://${ApplicationDomain}.${VPCPrivateDomain}/
+      - http://${ServiceName}.${VPCPrivateDomain}/
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureDomainName
+    Condition: ConfigureServiceName
+  AdministratorUserSecret:
+    Description: The Administrator User Secret Name
+    Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
+    Export:
+      Name: !Sub ${AWS::StackName}-AdministratorUserSecret

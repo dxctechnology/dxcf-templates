@@ -31,6 +31,7 @@ Metadata:
         Parameters:
           - UtilityName
           - ComponentName
+          - ServiceName
       - Label:
           default: Engine Configuration
         Parameters:
@@ -38,7 +39,10 @@ Metadata:
           - EngineVersion
           - MasterUsername
           - MasterPassword
+          - EncryptionType
           - BackupRetention
+          - BackupWindow
+          - MaintenanceWindow
           - LogRetention
       - Label:
           default: Database Configuration
@@ -80,6 +84,8 @@ Metadata:
         default: Utility Name
       ComponentName:
         default: Component Name
+      ServiceName:
+        default: Service Name
       EngineType:
         default: Engine Type
       EngineVersion:
@@ -88,8 +94,14 @@ Metadata:
         default: Master Username
       MasterPassword:
         default: Master Password
+      EncryptionType:
+        default: Encryption Type
       BackupRetention:
         default: Backup Retention
+      BackupWindow:
+        default: Backup Window
+      MaintenanceWindow:
+        default: Maintenance Window
       LogRetention:
         default: Log Retention
       DatabaseName:
@@ -130,7 +142,7 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   TopicsStackName:
-    Description: Name of the CloudFormation Stack containing Keys
+    Description: Name of the CloudFormation Stack containing Topics
     Type: String
     MinLength: 2
     MaxLength: 64
@@ -138,7 +150,7 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   KeysStackName:
-    Description: Name of the CloudFormation Stack containing Topics
+    Description: Name of the CloudFormation Stack containing Keys
     Type: String
     MinLength: 2
     MaxLength: 64
@@ -240,11 +252,17 @@ Parameters:
   ComponentName:
     Description: Name of the Utility Component associated with the Stack
     Type: String
-    MinLength: 2
-    MaxLength: 32
     Default: Database
-    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+    AllowedValues:
+      - Database
+    ConstraintDescription: must be Database.
+  ServiceName:
+    Description: Optional DNS Service Name
+    Type: String
+    MaxLength: 64
+    Default: ds-db
+    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
   EngineType:
     Description: Type of Database Engine
     Type: String
@@ -255,10 +273,12 @@ Parameters:
   EngineVersion:
     Description: Version of the Database Engine
     Type: String
-    Default: 9.6
+    Default: 10
     AllowedValues:
+      - 11
+      - 10
       - 9.6
-    ConstraintDescription: must be 9.6.
+    ConstraintDescription: must be 11, 10 or 9.6.
   MasterUsername:
     Description: Name of the Master User
     Type: String
@@ -272,14 +292,23 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+  EncryptionType:
+    Description: Type of Encryption
+    Type: String
+    Default: default
+    AllowedValues:
+      - default
+      - custom
+      - none
+    ConstraintDescription: must be default, custom or none.
   BackupRetention:
     Description: Number of days to retain automated database backups
     Type: Number
     Default: 14
     AllowedValues:
+      - 0
       - 1
       - 3
       - 5
@@ -287,7 +316,19 @@ Parameters:
       - 14
       - 30
       - 35
-    ConstraintDescription: must be 1, 3, 5, 7, 14, 30 or 35.
+    ConstraintDescription: must be 0 (no backup) 1, 3, 5, 7, 14, 30 or 35.
+  BackupWindow:
+    Description: Optional preferred backup window
+    Type: String
+    Default: ''
+    AllowedPattern: (?:^$|^(?:[01][0-9]|2[0-3]):[0-5][0-9]-(?:[01][0-9]|2[0-3]):[0-5][0-9]$)
+    ConstraintDescription: must be in the format hh24:mi-hh24:mi, in UTC, not conflict with any maintenance window, and be at least 30 minutes, if specified.
+  MaintenanceWindow:
+    Description: Optional preferred maintenance window
+    Type: String
+    Default: ''
+    AllowedPattern: (?:^$|^(?:sun|mon|tue|wed|thu|fri|sat):(?:[01][0-9]|2[0-3]):[0-5][0-9]-(?:sun|mon|tue|wed|thu|fri|sat):(?:[01][0-9]|2[0-3]):[0-5][0-9]$)
+    ConstraintDescription: must be in the format ddd:hh24:mi-ddd:hh24:mi, in UTC, not conflict with any backup window, and be at least 30 minutes, if specified.
   LogRetention:
     Description: Number of days to retain CloudWatch Log Events
     Type: Number
@@ -322,55 +363,79 @@ Parameters:
   AdministratorNetworks:
     Description: Networks that can administer the Application
     Type: String
-    Default: -,-,-,-
-    ConstraintDescription: must be a comma-separated list of 4 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
   AdministratorNetworkDescriptions:
     Description: Descriptions of networks that can administer the Utility
     Type: String
-    Default: -,-,-,-
-    ConstraintDescription: must be a comma-separated list of 4 values, each a short text description or '-'.
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
 Mappings:
   RegionNameMap:
     us-east-1:
       Name: Virginia
+      Code: ue1
     us-east-2:
       Name: Ohio
+      Code: ue2
     us-west-1:
       Name: California
+      Code: uw1
     us-west-2:
       Name: Oregon
-    ca-central-1:
-      Name: Canada
-    eu-west-1:
-      Name: Ireland
-    eu-central-1:
-      Name: Frankfurt
-    eu-west-2:
-      Name: London
-    eu-west-3:
-      Name: Paris
-    ap-southeast-1:
-      Name: Singapore
-    ap-southeast-2:
-      Name: Sydney
-    ap-northeast-2:
-      Name: Seoul
-    ap-northeast-1:
-      Name: Tokyo
+      Code: uw2
+    ap-east-1:
+      Name: HongKong
+      Code: ae1
     ap-south-1:
       Name: Mumbai
+      Code: ad1
+    ap-northeast-2:
+      Name: Seoul
+      Code: an2
+    ap-southeast-1:
+      Name: Singapore
+      Code: as1
+    ap-southeast-2:
+      Name: Sydney
+      Code: as2
+    ap-northeast-1:
+      Name: Tokyo
+      Code: an1
+    ca-central-1:
+      Name: Canada
+      Code: cc1
+    eu-central-1:
+      Name: Frankfurt
+      Code: ec1
+    eu-west-1:
+      Name: Ireland
+      Code: ew1
+    eu-west-2:
+      Name: London
+      Code: ew2
+    eu-west-3:
+      Name: Paris
+      Code: ew3
+    eu-north-1:
+      Name: Stockholm
+      Code: en1
+    me-south-1:
+      Name: Bahrain
+      Code: ms1
     sa-east-1:
       Name: SaoPaulo
+      Code: se1
   DBInstanceClassMap:
     Database:
-      micro: db.t2.micro
-      small: db.t2.small
-      medium: db.t2.medium
-      large: db.r4.large
-      xlarge: db.r4.xlarge
-      2xlarge: db.r4.2xlarge
-      4xlarge: db.r4.4xlarge
-      8xlarge: db.r4.8xlarge
+      micro: db.t3.micro
+      small: db.t3.small
+      medium: db.t3.medium
+      large: db.r5.large
+      xlarge: db.r5.xlarge
+      2xlarge: db.r5.2xlarge
+      4xlarge: db.r5.4xlarge
+      8xlarge: db.r5.8xlarge
   AllocatedStorageMap:
     Database:
       micro: 32
@@ -381,30 +446,47 @@ Mappings:
       2xlarge: 1024
       4xlarge: 2048
       8xlarge: 4096
-  StorageTypeMap:
+  CPUAlarmPercentMap:
     Database:
-      micro: standard
-      small: standard
-      medium: gp2
-      large: gp2
-      xlarge: gp2
-      2xlarge: gp2
-      4xlarge: gp2
-      8xlarge: gp2
+      micro: 95
+      small: 90
+      medium: 80
+      large: 80
+      xlarge: 75
+      2xlarge: 75
+      4xlarge: 75
+      8xlarge: 75
+  MemoryAlarmBytesAvailableMap:
+    Database:
+      micro: 128000000
+      small: 256000000
+      medium: 512000000
+      large: 768000000
+      xlarge: 1024000000
+      2xlarge: 2048000000
+      4xlarge: 4096000000
+      8xlarge: 8192000000
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
-  ConfigureEncryption: !Not [ !Equals [ !Ref KeysStackName, '' ]] # ToDo: Fix how we configure Encryption, custom vs user keys
-  #ConfigureEncryptionKey: !Not [ !Equals [ !Ref KmsKey, 'aws/rds' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
+  ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
   ConfigureMasterPassword: !Not [ !Equals [ !Ref MasterPassword, '' ]]
   GenerateMasterPassword: !Not [ !Condition ConfigureMasterPassword ]
+  ConfigureEncryption: !Not [ !Equals [ !Ref EncryptionType, none ]]
+  ConfigureEncryptionKey: !Equals [ !Ref EncryptionType, custom ]
+  ConfigureBackupWindow: !Not [ !Equals [ !Ref BackupWindow, '' ]]
+  ConfigureMaintenanceWindow: !Not [ !Equals [ !Ref MaintenanceWindow, '' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork3: !Not [ !Equals [ !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork4: !Not [ !Equals [ !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
+  ConfigureAdministratorNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
 Resources:
   Role:
     Type: AWS::IAM::Role
@@ -421,20 +503,22 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
-  MasterPasswordSecret:
+  MasterUserSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-MasterPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} ${ComponentName} Master User (${MasterUsername})
-      SecretString: !If [ ConfigureMasterPassword, !Ref MasterPassword, !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-MasterUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${UtilityName} ${ComponentName} Master User
+      SecretString: !If [ ConfigureMasterPassword, !Sub '{"username": "${MasterUsername}", "password": "${MasterPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateMasterPassword
-        - PasswordLength: 32
+        - SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
+          GenerateStringKey: password
+          PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-MasterPassword
+          Value: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-MasterUser
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -520,6 +604,46 @@ Resources:
               - ${NetworkDescription} (PostgreSQL)
               - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork4
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (PostgreSQL)
+              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork5
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (PostgreSQL)
+              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork6
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (PostgreSQL)
+              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureAdministratorNetwork7
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (PostgreSQL)
+              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
+          - !Ref AWS::NoValue
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -536,7 +660,17 @@ Resources:
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref UtilityName
-      ComponentName: Database
+      ComponentName: !Ref ComponentName
+  PostgresqlLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/instance/${HostName}/postgresql
+      RetentionInDays: !Ref LogRetention
+  UpgradeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/instance/${HostName}/upgrade
+      RetentionInDays: !Ref LogRetention
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -553,10 +687,13 @@ Resources:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       Description: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-DBParameterGroup
-      Family: postgres9.6
+      Family: !Sub postgres${EngineVersion}
       Parameters:
         application_name: !Ref UtilityName
         autovacuum: 1
+        rds.log_retention_period: 4320 # Default is 3 days (minutes)
+        log_statement: all # Default is none (Can also use all, ddl, mod)
+        log_min_duration_statement: 100 # Default is -1 (off) (milliseconds)
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-DBParameterGroup
@@ -567,31 +704,69 @@ Resources:
       Engine: !Ref EngineType
       EngineVersion: !Ref EngineVersion
       LicenseModel: postgresql-license
-      MasterUsername: !Ref MasterUsername
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterPasswordSecret}}}'
-      MultiAZ: !If [ ConfigureMultiZone, true, false ]
-      AvailabilityZone: !If [ ConfigureMultiZone, !Ref 'AWS::NoValue', !Select [ 0, !GetAZs '' ]]
       DBInstanceClass: !FindInMap [ DBInstanceClassMap, Database, !Ref EnvironmentType ]
-      StorageType: !FindInMap [ StorageTypeMap, Database, !Ref EnvironmentType ]
-      AllocatedStorage: !FindInMap [ AllocatedStorageMap, Database, !Ref EnvironmentType ]
-      StorageEncrypted: false
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DatabaseSecurityGroup
       DBParameterGroupName: !Ref DBParameterGroup
-      PubliclyAccessible: false
-      DBName: !Ref DatabaseName
-      PreferredBackupWindow: '06:00-06:30'
+      MultiAZ: !If [ ConfigureMultiZone, true, false ]
+      AvailabilityZone: !If [ ConfigureMultiZone, !Ref 'AWS::NoValue', !Select [ 0, !GetAZs '' ]]
+      MasterUsername: !Sub '{{resolve:secretsmanager:${MasterUserSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterUserSecret}:SecretString:password}}'
+      StorageType: gp2
+      AllocatedStorage: !FindInMap [ AllocatedStorageMap, Database, !Ref EnvironmentType ]
+      StorageEncrypted: !If [ ConfigureEncryption, true, false ]
+      KmsKeyId: !If
+        - ConfigureEncryptionKey
+        - !ImportValue
+            Fn::Sub: ${KeysStackName}-RDSAlias
+        - !Ref AWS::NoValue
+      PreferredBackupWindow: !If [ ConfigureBackupWindow, !Ref BackupWindow, !Ref 'AWS::NoValue' ]
       BackupRetentionPeriod: !Ref BackupRetention
+      PreferredMaintenanceWindow: !If [ ConfigureMaintenanceWindow, !Ref MaintenanceWindow, !Ref 'AWS::NoValue' ]
+      EnableCloudwatchLogsExports: [ postgresql, upgrade ]
       MonitoringInterval: 60
       MonitoringRoleArn: !GetAtt Role.Arn
-      PreferredMaintenanceWindow: 'sat:07:00-sat:07:30'
       AllowMajorVersionUpgrade: false
       AutoMinorVersionUpgrade: true
+      PubliclyAccessible: false
       CopyTagsToSnapshot: true
+      DBName: !Ref DatabaseName
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-DBInstance
+        - Key: HostName
+          Value: !Ref HostName
+    DependsOn: [ PostgresqlLogGroup, UpgradeLogGroup ]
+  PrivateDBInstanceHostNameRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue
+        Fn::Sub: ${VPCStackName}-PrivateHostedZone
+      Comment: !Sub Private DNS HostName for ${UtilityName}-${ComponentName} DBInstance
+      Name: !Sub
+        - ${HostName}.${VPCPrivateDomain}.
+        - VPCPrivateDomain: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+        - !GetAtt DBInstance.Endpoint.Address
+  PrivateDBInstanceServiceNameRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !ImportValue
+        Fn::Sub: ${VPCStackName}-PrivateHostedZone
+      Comment: !Sub Private DNS ServiceName for ${UtilityName}-${ComponentName} DBInstance
+      Name: !Sub
+        - ${ServiceName}.${VPCPrivateDomain}.
+        - VPCPrivateDomain: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+      Type: CNAME
+      TTL: 900
+      ResourceRecords:
+        - !GetAtt DBInstance.Endpoint.Address
+    Condition: ConfigureServiceName
   CPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -608,7 +783,7 @@ Resources:
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 80
+      Threshold: !FindInMap [ CPUAlarmPercentMap, Database, !Ref EnvironmentType ]
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: DBInstanceIdentifier
@@ -629,7 +804,7 @@ Resources:
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 700000000
+      Threshold: !FindInMap [ MemoryAlarmBytesAvailableMap, Database, !Ref EnvironmentType ]
       ComparisonOperator: LessThanThreshold
       Dimensions:
         - Name: DBInstanceIdentifier
@@ -684,28 +859,33 @@ Outputs:
     Value: !Ref DatabaseSecurityGroup
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseSecurityGroup
-  DatabaseEndpoint:
-    Description: The Database Endpoint
+  DBInstanceEndpoint:
+    Description: The DBInstance Endpoint
     Value: !GetAtt DBInstance.Endpoint.Address
     Export:
-      Name: !Sub ${AWS::StackName}-DatabaseEndpoint
-# TODO: We may just want to enforce the same value for this and not allow changes
-#       Or, we can put both the Username and Password in the same secret.
-  MasterUsername:
-    Description: The Master Username
-    Value: !Ref MasterUsername
+      Name: !Sub ${AWS::StackName}-DBInstanceEndpoint
+  PrivateDBInstanceHostName:
+    Description: The Private DNS HostName of the DeepSecurity DBInstance Endpoint
+    Value: !Sub
+      - ${HostName}.${VPCPrivateDomain}
+      - VPCPrivateDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Export:
-      Name: !Sub ${AWS::StackName}-MasterUsername
-# TODO: This output value was used to pass the MasterPassword to the Application Component
-#       But, we are switching to SecretsManager, so we (a) don't have this value, and
-#       (b) The ApplicationStack must obtain it directly. More modifications are needed
-#       there to make this work. For now, commenting this out, but leaving it here to show
-#       this was the original way of passing passwords.
-#  MasterPassword:
-#    Description: The Master Password
-#    Value: !Ref MasterPassword
-#    Export:
-#      Name: !Sub ${AWS::StackName}-MasterPassword
+      Name: !Sub ${AWS::StackName}-PrivateDBInstanceHostName
+  PrivateDBInstanceServiceName:
+    Description: The Private DNS ServiceName of the DeepSecurity DBInstance Endpoint
+    Value: !Sub
+      - ${ServiceName}.${VPCPrivateDomain}
+      - VPCPrivateDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateDBInstanceServiceName
+    Condition: ConfigureServiceName
+  MasterUserSecret:
+    Description: The Master User Secret Name
+    Value: !Sub ${EnvironmentName}-${UtilityName}-${ComponentName}-MasterUser
+    Export:
+      Name: !Sub ${AWS::StackName}-MasterUserSecret
   DatabaseName:
     Description: The Database Name
     Value: !Ref DatabaseName

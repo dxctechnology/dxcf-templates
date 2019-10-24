@@ -279,7 +279,7 @@ Parameters:
       - 10.2
       - 10.1
       - 10.0
-    ConstraintDescription: must be a 10.3, 10.2, 10.1 or 10.0.
+    ConstraintDescription: must be 10.3, 10.2, 10.1 or 10.0.
   MasterUsername:
     Description: Name of the Master User
     Type: String
@@ -504,20 +504,22 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
-  MasterPasswordSecret:
+  MasterUserSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User (${MasterUsername})
-      SecretString: !If [ ConfigureMasterPassword, !Ref MasterPassword, !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User
+      SecretString: !If [ ConfigureMasterPassword, !Sub '{"username": "${MasterUsername}", "password": "${MasterPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateMasterPassword
-        - PasswordLength: 32
+        - SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
+          GenerateStringKey: password
+          PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterPassword
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -665,6 +667,11 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/rds/instance/${HostName}/error
       RetentionInDays: !Ref LogRetention
+  GeneralLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/instance/${HostName}/general
+      RetentionInDays: !Ref LogRetention
   SlowQueryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -689,7 +696,10 @@ Resources:
       Family: !Sub mariadb${EngineVersion}
       Parameters:
         log_output: FILE
+        general_log: 1
         slow_query_log: 1
+        long_query_time: 1
+        log_queries_not_using_indexes: 0
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
@@ -700,11 +710,15 @@ Resources:
       Engine: !Ref EngineType
       EngineVersion: !Ref EngineVersion
       LicenseModel: general-public-license
-      MasterUsername: !Ref MasterUsername
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterPasswordSecret}}}'
+      DBInstanceClass: !FindInMap [ DBInstanceClassMap, Database, !Ref EnvironmentType ]
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      DBParameterGroupName: !Ref DBParameterGroup
       MultiAZ: !If [ ConfigureMultiZone, true, false ]
       AvailabilityZone: !If [ ConfigureMultiZone, !Ref 'AWS::NoValue', !Select [ 0, !GetAZs '' ]]
-      DBInstanceClass: !FindInMap [ DBInstanceClassMap, Database, !Ref EnvironmentType ]
+      MasterUsername: !Sub '{{resolve:secretsmanager:${MasterUserSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${MasterUserSecret}:SecretString:password}}'
       StorageType: gp2
       AllocatedStorage: !FindInMap [ AllocatedStorageMap, Database, !Ref EnvironmentType ]
       StorageEncrypted: !If [ ConfigureEncryption, true, false ]
@@ -713,27 +727,24 @@ Resources:
         - !ImportValue
             Fn::Sub: ${KeysStackName}-RDSAlias
         - !Ref AWS::NoValue
-      DBSubnetGroupName: !Ref DBSubnetGroup
-      VPCSecurityGroups:
-        - !Ref DatabaseSecurityGroup
-      DBParameterGroupName: !Ref DBParameterGroup
-      PubliclyAccessible: false
-      DBName: !Ref DatabaseName
       PreferredBackupWindow: !If [ ConfigureBackupWindow, !Ref BackupWindow, !Ref 'AWS::NoValue' ]
       BackupRetentionPeriod: !Ref BackupRetention
+      PreferredMaintenanceWindow: !If [ ConfigureMaintenanceWindow, !Ref MaintenanceWindow, !Ref 'AWS::NoValue' ]
+      EnableCloudwatchLogsExports: [ error, general, slowquery ]
       MonitoringInterval: 60
       MonitoringRoleArn: !GetAtt Role.Arn
-      PreferredMaintenanceWindow: !If [ ConfigureMaintenanceWindow, !Ref MaintenanceWindow, !Ref 'AWS::NoValue' ]
       AllowMajorVersionUpgrade: false
       AutoMinorVersionUpgrade: true
+      PubliclyAccessible: false
       CopyTagsToSnapshot: true
+      DBName: !Ref DatabaseName
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBInstance
         - Key: HostName
           Value: !Ref HostName
-    DependsOn: [ ErrorLogGroup, SlowQueryLogGroup ]
-  PrivateHostNameRecordSet:
+    DependsOn: [ ErrorLogGroup, GeneralLogGroup, SlowQueryLogGroup ]
+  PrivateDBInstanceHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
@@ -747,7 +758,7 @@ Resources:
       TTL: 900
       ResourceRecords:
         - !GetAtt DBInstance.Endpoint.Address
-  PrivateServiceNameRecordSet:
+  PrivateDBInstanceServiceNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
@@ -854,45 +865,33 @@ Outputs:
     Value: !Ref DatabaseSecurityGroup
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseSecurityGroup
-  DatabaseEndpoint:
-    Description: The Database Endpoint
+  DBInstanceEndpoint:
+    Description: The DBInstance Endpoint
     Value: !GetAtt DBInstance.Endpoint.Address
     Export:
-      Name: !Sub ${AWS::StackName}-DatabaseEndpoint
-  PrivateDatabaseHostName:
-    Description: The Private DNS HostName of the WordPress Database Endpoint
+      Name: !Sub ${AWS::StackName}-DBInstanceEndpoint
+  PrivateDBInstanceHostName:
+    Description: The Private DNS HostName of the WordPress DBInstance Endpoint
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Export:
-      Name: !Sub ${AWS::StackName}-PrivateDatabaseHostName
-  PrivateDatabaseServiceName:
-    Description: The Private DNS ServiceName of the WordPress Database Endpoint
+      Name: !Sub ${AWS::StackName}-PrivateDBInstanceHostName
+  PrivateDBInstanceServiceName:
+    Description: The Private DNS ServiceName of the WordPress DBInstance Endpoint
     Value: !Sub
       - ${ServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Export:
-      Name: !Sub ${AWS::StackName}-PrivateDatabaseServiceName
+      Name: !Sub ${AWS::StackName}-PrivateDBInstanceServiceName
     Condition: ConfigureServiceName
-  # TODO: We may just want to enforce the same value for this and not allow changes
-  #       Or, we can put both the Username and Password in the same secret.
-  MasterUsername:
-    Description: The Master Username
-    Value: !Ref MasterUsername
+  MasterUserSecret:
+    Description: The Master User Secret Name
+    Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
     Export:
-      Name: !Sub ${AWS::StackName}-MasterUsername
-  # TODO: This output value was used to pass the MasterPassword to the Application Component
-  #       But, we are switching to SecretsManager, so we (a) don't have this value, and
-  #       (b) The ApplicationStack must obtain it directly. More modifications are needed
-  #       there to make this work. For now, commenting this out, but leaving it here to show
-  #       this was the original way of passing passwords.
-  #  MasterPassword:
-  #    Description: The Master Password
-  #    Value: !Ref MasterPassword
-  #    Export:
-  #      Name: !Sub ${AWS::StackName}-MasterPassword
+      Name: !Sub ${AWS::StackName}-MasterUserSecret
   DatabaseName:
     Description: The Database Name
     Value: !Ref DatabaseName
