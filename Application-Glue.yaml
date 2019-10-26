@@ -11,6 +11,8 @@ Metadata:
     ParameterLabels:
       EnvironmentType:
         default: environment type
+#      DataBaseName-2:
+#        Type: String
 Parameters:
   EnvironmentType:
     Description: Enter the CloudCheckr 3rd party External ID
@@ -18,7 +20,52 @@ Parameters:
     Default: ''
 
 Resources:
-  MyRole:
+  DatasetsDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: clientdatabasename
+        Description: Creating New DataBase to Create Table were Quary Data Stores
+        LocationUri: TestLocationUri
+        Parameters:
+          key1 : "value1"
+#          key2 : "value2"
+  CrawlerTable:
+    # Creating the table waits for the database to be created
+    DependsOn: DatasetsDatabase
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref DatasetsDatabase
+      TableInput:
+        Name: clienttenanttable
+        Description: Define the first few columns of the flights table
+        TableType: EXTERNAL_TABLE
+        Parameters: {
+    "classification": "csv"
+  }
+
+  HLSBucketName:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: clientuploaddatabucketsfile
+      AccessControl: BucketOwnerFullControl
+
+  DeveloperBucketName:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: dxcgluejobscriptlocation
+      AccessControl: BucketOwnerFullControl
+
+  DestinationBucketName:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: processed-data-for-clients
+      AccessControl: BucketOwnerFullControl
+
+
+  AWSGlueCrawlerRoleName:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -43,46 +90,37 @@ Resources:
                 Action: "*"
                 Resource: "*"
 
-  Database:
-    Type: AWS::Glue::Database
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput:
-        Name: "glue-database"
-        Description: "TestDatabaseDescription"
-        LocationUri: "TestLocationUri"
-        Parameters:
-          key1 : "value1"
-          key2 : "value2"
-
-  #MyClassifier:
-  #  Type: AWS::Glue::Classifier
-  #  Properties:
-  #    GrokClassifier:
-  #      Name: "CrawlerClassifier"
-  #      Classification: "wikiData"
-  #      GrokPattern: "%{NOTSPACE:language} %{NOTSPACE:page_title} %{NUMBER:hits:long} %{NUMBER:retrieved_size:long}"
-
-  S3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: "crawlertesttarget12345123"
-      AccessControl: "BucketOwnerFullControl"
-
-  Crawler:
+  Crawlercatlog:
     Type: AWS::Glue::Crawler
     Properties:
-      Name: "Glue-Crawler"
-      Role: !GetAtt MyRole.Arn
-      DatabaseName: !Ref Database
-#      Classifiers:
-#        - !Ref MyClassifier
+      Name: GlueCrawler
+      Role: !Ref AWSGlueCrawlerRoleName
+      DatabaseName: !Ref DatasetsDatabase
       Targets:
         S3Targets:
-          - Path: !Ref S3Bucket
+          - Path: !Ref HLSBucketName
       SchemaChangePolicy:
-        UpdateBehavior: "UPDATE_IN_DATABASE"
+        UpdateBehavior: UPDATE_IN_DATABASE
         DeleteBehavior: "LOG"
       Schedule:
-       ScheduleExpression: "cron(0/5 * ? * MON-FRI *)"
+       ScheduleExpression: cron(0/5 * ? * MON-FRI *)
 #        ScheduleExpression: "cron(0 10 * * ? *)"
+#  CuratedDatasetsJob:
+#    Type: AWS::Glue::Job
+#    Properties:
+#      Command:
+#        Name: glueetl
+#        ScriptLocation: !Sub 's3://${QSS3BucketName}/${QSS3KeyPrefix}assets/glue/curated-datasets-job.py'
+#      MaxRetries: 0
+#      DefaultArguments:
+#        --datalake_submissions_database_name: !Ref 'DatalakeSubmissionsDatabase'
+##        --datalake_curated_datasets_bucket_name: !Ref 'CuratedBucketName'
+#        --job-bookmark-option: job-bookmark-disable
+#      Role: !Ref 'AWSGlueJobRoleName'
+#@Outputs:
+#  CuratedDatasetsDatabaseName:
+#    Value: !Ref 'CuratedDatasetsDatabase'
+#  CuratedDatasetsCrawlerName:
+#    Value: !Ref 'CuratedDatasetsCrawler'
+#  CuratedDatasetsJobName:
+#    Value: !Ref 'CuratedDatasetsJob'
