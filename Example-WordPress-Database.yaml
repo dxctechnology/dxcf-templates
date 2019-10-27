@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Application-AutoSys-Database Template.
-  This template implements an Oracle RDS Database and related resources.
+Description: Example-WordPress-Database Template.
+  This is an example of the database back-end for a simple 2-tier application, WordPress.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -224,6 +224,7 @@ Parameters:
     Type: String
     Default: small
     AllowedValues:
+      - micro
       - small
       - medium
       - large
@@ -231,7 +232,7 @@ Parameters:
       - 2xlarge
       - 4xlarge
       - 8xlarge
-    ConstraintDescription: must be small, medium, large, xlarge, 2xlarge, 4xlarge or 8xlarge.
+    ConstraintDescription: must be micro, small, medium, large, xlarge, 2xlarge, 4xlarge or 8xlarge.
   EnvironmentZones:
     Description: Number of Availability Zones to build
     Type: String
@@ -245,7 +246,7 @@ Parameters:
     Type: String
     MinLength: 2
     MaxLength: 32
-    Default: Oracle
+    Default: WordPress
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
   ComponentName:
@@ -259,29 +260,32 @@ Parameters:
     Description: Optional DNS Service Name
     Type: String
     MaxLength: 64
-    Default: oracle-db
+    Default: wordpress-db
     AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
   EngineType:
     Description: Type of Database Engine
     Type: String
-    Default: oracle-se2
+    Default: mariadb
     AllowedValues:
-      - oracle-se2
-    ConstraintDescription: must be oracle-se2.
+      - mariadb
+    ConstraintDescription: must be mariadb.
   EngineVersion:
     Description: Version of the Database Engine
     Type: String
-    Default: 12.1.0.2.v13
+    Default: 10.3
     AllowedValues:
-      - 12.1.0.2.v13
-    ConstraintDescription: must be 12.1.0.2.v13.
+      - 10.3
+      - 10.2
+      - 10.1
+      - 10.0
+    ConstraintDescription: must be 10.3, 10.2, 10.1 or 10.0.
   MasterUsername:
     Description: Name of the Master User
     Type: String
     MinLength: 2
     MaxLength: 63
-    Default: oracle
+    Default: admin
     AllowedPattern: ^[a-z][a-z0-9]*$
     ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
   MasterPassword:
@@ -289,8 +293,8 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{20,30}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
-    ConstraintDescription: must be 20 to 30 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   EncryptionType:
     Description: Type of Encryption
     Type: String
@@ -350,12 +354,13 @@ Parameters:
       - 3653
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
   DatabaseName:
-    Description: Optional name of the Database
+    Description: Name of the Database
     Type: String
+    MinLength: 3
     MaxLength: 32
-    Default: prototype
-    AllowedPattern: (^$|^[-a-zA-Z0-9]*$)
-    ConstraintDescription: must contain alphanumeric characters and dashes, if specified.
+    Default: wordpress
+    AllowedPattern: ^[-a-zA-Z0-9]*$
+    ConstraintDescription: must contain alphanumeric characters and dashes.
   AdministratorNetworks:
     Description: Networks that can administer the Application
     Type: String
@@ -424,6 +429,7 @@ Mappings:
       Code: se1
   DBInstanceClassMap:
     Database:
+      micro: db.t3.micro
       small: db.t3.small
       medium: db.t3.medium
       large: db.r5.large
@@ -433,6 +439,7 @@ Mappings:
       8xlarge: db.r5.8xlarge
   AllocatedStorageMap:
     Database:
+      micro: 32
       small: 64
       medium: 128
       large: 256
@@ -442,6 +449,7 @@ Mappings:
       8xlarge: 4096
   CPUAlarmPercentMap:
     Database:
+      micro: 95
       small: 90
       medium: 80
       large: 80
@@ -451,6 +459,7 @@ Mappings:
       8xlarge: 75
   MemoryAlarmBytesAvailableMap:
     Database:
+      micro: 128000000
       small: 256000000
       medium: 512000000
       large: 768000000
@@ -471,7 +480,6 @@ Conditions:
   ConfigureEncryptionKey: !Equals [ !Ref EncryptionType, custom ]
   ConfigureBackupWindow: !Not [ !Equals [ !Ref BackupWindow, '' ]]
   ConfigureMaintenanceWindow: !Not [ !Equals [ !Ref MaintenanceWindow, '' ]]
-  ConfigureDatabase: !Not [ !Equals [ !Ref DatabaseName, '' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -506,7 +514,7 @@ Resources:
         - GenerateMasterPassword
         - SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
           GenerateStringKey: password
-          PasswordLength: 30
+          PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
@@ -535,312 +543,106 @@ Resources:
             Fn::Sub: ${VPCStackName}-VPCNetwork
           Description: VPC (ICMP)
         - IpProtocol: tcp
-          FromPort: 1521
-          ToPort: 1521
+          FromPort: 3306
+          ToPort: 3306
           SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle)
-        - IpProtocol: tcp
-          FromPort: 2483
-          ToPort: 2483
-          SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle)
-        - IpProtocol: tcp
-          FromPort: 2484
-          ToPort: 2484
-          SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle-SSL)
+          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (MySQL)
         - !If
           - ConfigureWindowsBastionsIntegration
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
-            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (Oracle)
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureWindowsBastionsIntegration
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            SourceSecurityGroupId: !ImportValue
-              Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
-            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (Oracle)
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureWindowsBastionsIntegration
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            SourceSecurityGroupId: !ImportValue
-              Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
-            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (Oracle-SSL)
+            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (MySQL)
           - !Ref AWS::NoValue
         - !If
           - ConfigureVPNIntegration
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
-            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (Oracle)
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureVPNIntegration
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            SourceSecurityGroupId: !ImportValue
-              Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
-            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (Oracle)
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureVPNIntegration
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            SourceSecurityGroupId: !ImportValue
-              Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
-            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (Oracle-SSL)
+            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (MySQL)
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork0
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork0
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork0
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 0, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork1
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork1
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork1
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 1, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork2
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork2
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork2
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 2, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork3
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork3
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork3
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork4
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork4
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork4
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 4, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork5
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork5
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork5
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 5, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork6
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork6
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork6
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 6, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork7
           - IpProtocol: tcp
-            FromPort: 1521
-            ToPort: 1521
+            FromPort: 3306
+            ToPort: 3306
             CidrIp: !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork7
-          - IpProtocol: tcp
-            FromPort: 2483
-            ToPort: 2483
-            CidrIp: !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle)
-              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
-          - !Ref AWS::NoValue
-        - !If
-          - ConfigureAdministratorNetwork7
-          - IpProtocol: tcp
-            FromPort: 2484
-            ToPort: 2484
-            CidrIp: !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]]
-            Description: !Sub
-              - ${NetworkDescription} (Oracle-SSL)
+              - ${NetworkDescription} (MySQL)
               - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
       SecurityGroupEgress:
@@ -865,25 +667,15 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/rds/instance/${HostName}/error
       RetentionInDays: !Ref LogRetention
-  TraceLogGroup:
+  GeneralLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/rds/instance/${HostName}/trace
+      LogGroupName: !Sub /aws/rds/instance/${HostName}/general
       RetentionInDays: !Ref LogRetention
-  AuditLogGroup:
+  SlowQueryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/rds/instance/${HostName}/audit
-      RetentionInDays: !Ref LogRetention
-  AlertLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/rds/instance/${HostName}/alert
-      RetentionInDays: !Ref LogRetention
-  ListenerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/rds/instance/${HostName}/listener
+      LogGroupName: !Sub /aws/rds/instance/${HostName}/slowquery
       RetentionInDays: !Ref LogRetention
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -901,32 +693,28 @@ Resources:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
-      Family: oracle-se2-12.1
+      Family: !Sub mariadb${EngineVersion}
+      Parameters:
+        log_output: FILE
+        general_log: 1
+        slow_query_log: 1
+        long_query_time: 1
+        log_queries_not_using_indexes: 0
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
-  OptionGroup:
-    Type: AWS::RDS::OptionGroup
-    Properties:
-      EngineName: oracle-se2
-      MajorEngineVersion: '12.1'
-      OptionGroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-OptionGroup
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-OptionGroup
   DBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: !Ref HostName
       Engine: !Ref EngineType
       EngineVersion: !Ref EngineVersion
-      LicenseModel: license-included
+      LicenseModel: general-public-license
       DBInstanceClass: !FindInMap [ DBInstanceClassMap, Database, !Ref EnvironmentType ]
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref DatabaseSecurityGroup
       DBParameterGroupName: !Ref DBParameterGroup
-      OptionGroupName: !Ref OptionGroup
       MultiAZ: !If [ ConfigureMultiZone, true, false ]
       AvailabilityZone: !If [ ConfigureMultiZone, !Ref 'AWS::NoValue', !Select [ 0, !GetAZs '' ]]
       MasterUsername: !Sub '{{resolve:secretsmanager:${MasterUserSecret}:SecretString:username}}'
@@ -942,20 +730,20 @@ Resources:
       PreferredBackupWindow: !If [ ConfigureBackupWindow, !Ref BackupWindow, !Ref 'AWS::NoValue' ]
       BackupRetentionPeriod: !Ref BackupRetention
       PreferredMaintenanceWindow: !If [ ConfigureMaintenanceWindow, !Ref MaintenanceWindow, !Ref 'AWS::NoValue' ]
-      EnableCloudwatchLogsExports: [ trace, audit, alert, listener ]
+      EnableCloudwatchLogsExports: [ error, general, slowquery ]
       MonitoringInterval: 60
       MonitoringRoleArn: !GetAtt Role.Arn
       AllowMajorVersionUpgrade: false
       AutoMinorVersionUpgrade: true
       PubliclyAccessible: false
       CopyTagsToSnapshot: true
-      DBName: !If [ ConfigureDatabase, !Ref DatabaseName, !Ref 'AWS::NoValue' ]
+      DBName: !Ref DatabaseName
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBInstance
         - Key: HostName
           Value: !Ref HostName
-    DependsOn: [ TraceLogGroup, AuditLogGroup, AlertLogGroup, ListenerLogGroup ]
+    DependsOn: [ ErrorLogGroup, GeneralLogGroup, SlowQueryLogGroup ]
   PrivateDBInstanceHostNameRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -1083,7 +871,7 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-DBInstanceEndpoint
   PrivateDBInstanceHostName:
-    Description: The Private DNS HostName of the Oracle DBInstance Endpoint
+    Description: The Private DNS HostName of the WordPress DBInstance Endpoint
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
@@ -1091,7 +879,7 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-PrivateDBInstanceHostName
   PrivateDBInstanceServiceName:
-    Description: The Private DNS ServiceName of the Oracle DBInstance Endpoint
+    Description: The Private DNS ServiceName of the WordPress DBInstance Endpoint
     Value: !Sub
       - ${ServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
@@ -1109,4 +897,3 @@ Outputs:
     Value: !Ref DatabaseName
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseName
-    Condition: ConfigureDatabase

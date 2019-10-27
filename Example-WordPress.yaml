@@ -1,19 +1,17 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Application-Aurora-Management Template.
-  This is an example of a Front-End Component, a Mangement Workstation for Aurora.
+Description: Example-WordPress Template.
+  This is an example of an Application which uses a separate Database Component.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
           default: Stack Dependencies
         Parameters:
-          - AuroraDatabaseStackName
+          - WordPressDatabaseStackName
           - WindowsBastionsStackName
           - VPNStackName
-          - DirectoryStackName
           - VPCStackName
           - AMIFunctionsStackName
-          - BuildBucketsStackName
           - BucketsStackName
           - TopicsStackName
           - KeysStackName
@@ -33,45 +31,38 @@ Metadata:
           - AccountName
           - EnvironmentName
           - EnvironmentType
-          - OSName
       - Label:
           default: Application Dependencies Configuration
         Parameters:
-          - AwsCliProductKey
-          - AwsPowerShellToolsProductKey
-          - ChromeProductKey
-          - MySQLWebCommunityProductKey
-          - DbForgeStudioExpressProductKey
+          - WordPressProductKey
       - Label:
           default: Application Configuration
         Parameters:
           - ApplicationName
-          - ComponentName
           - ServiceName
           - AdministratorUsername
           - AdministratorPassword
+          - AdministratorEmail
           - LogRetention
           - Schedule
       - Label:
           default: Security Configuration
         Parameters:
+          - UserNetworks
+          - UserNetworkDescriptions
           - AdministratorNetworks
           - AdministratorNetworkDescriptions
     ParameterLabels:
-      AuroraDatabaseStackName:
-        default: Aurora-Database Stack Name
+      WordPressDatabaseStackName:
+        default: WordPress-Database Stack Name
       WindowsBastionsStackName:
         default: WindowsBastions Stack Name
       VPNStackName:
         default: VPN Stack Name
-      DirectoryStackName:
-        default: Directory Stack Name
       VPCStackName:
         default: VPC Stack Name
       AMIFunctionsStackName:
         default: AMIFunctions Stack Name
-      BuildBucketsStackName:
-        default: Build Buckets Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
@@ -92,43 +83,37 @@ Metadata:
         default: Environment Name
       EnvironmentType:
         default: Environment Type
-      OSName:
-        default: Operating System Name
-      AwsCliProductKey:
-        default: AWS CLI Product S3 Key
-      AwsPowerShellToolsProductKey:
-        default: AWS PowerShell Tools Product S3 Key
-      ChromeProductKey:
-        default: Chrome Product S3 Key
-      MySQLWebCommunityProductKey:
-        default: MySQL Web Community Product S3 Key
-      DbForgeStudioExpressProductKey:
-        default: dbForge Studio Express Product S3 Key
+      WordPressProductKey:
+        default: WordPress Product S3 Key
       ApplicationName:
         default: Application Name
-      ComponentName:
-        default: Component Name
       ServiceName:
         default: Service Name
       AdministratorUsername:
         default: Administrator Username
       AdministratorPassword:
         default: Administrator Password
+      AdministratorEmail:
+        default: Administrator Email Address
       LogRetention:
         default: Log Retention
       Schedule:
         default: Schedule
+      UserNetworks:
+        default: User Networks
+      UserNetworkDescriptions:
+        default: User Network Descriptions
       AdministratorNetworks:
         default: Administrator Networks
       AdministratorNetworkDescriptions:
         default: Administrator Network Descriptions
 Parameters:
-  AuroraDatabaseStackName:
-    Description: Name of the CloudFormation Stack containing the Aurora Database
+  WordPressDatabaseStackName:
+    Description: Name of the CloudFormation Stack containing the WordPress Database
     Type: String
     MinLength: 2
     MaxLength: 64
-    Default: Production-Aurora-Database
+    Default: Production-WordPress-Database
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   WindowsBastionsStackName:
@@ -145,13 +130,6 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^[A-Z][-a-zA-Z0-9]*$)
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  DirectoryStackName:
-    Description: Name of the CloudFormation Stack containing the Directory Management Workstation (DirectoryService) or DomainControllers (ActiveDirectory)
-    Type: String
-    MaxLength: 64
-    Default: ''
-    AllowedPattern: (^$|^[A-Z][a-zA-Z0-9]*-(ActiveDirectory|DirectoryService)$)
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   VPCStackName:
     Description: Name of the CloudFormation Stack containing the VPC
     Type: String
@@ -166,14 +144,6 @@ Parameters:
     MinLength: 2
     MaxLength: 64
     Default: AMIFunctions
-    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  BuildBucketsStackName:
-    Description: Name of the CloudFormation Stack containing Build Buckets
-    Type: String
-    MinLength: 2
-    MaxLength: 64
-    Default: BuildBuckets
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
@@ -192,6 +162,14 @@ Parameters:
     Default: Topics
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  KeysStackName:
+    Description: Name of the CloudFormation Stack containing Keys
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: Keys
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   CodesStackName:
     Description: Name of the CloudFormation Stack containing the Codes Resources
     Type: String
@@ -201,7 +179,7 @@ Parameters:
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   KeyName:
-    Description: Name of an existing KeyPair to enable the Administrator Password
+    Description: Name of an existing KeyPair to enable SSH access to the Instance
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
     Default: example
@@ -272,64 +250,25 @@ Parameters:
       - large
       - xlarge
     ConstraintDescription: must be micro, small, medium, large or xlarge.
-  OSName:
-    Description: The Operating System to use for Instances
-    Type: String
-    Default: Windows Server 2012 R2
-    AllowedValues:
-      - Windows Server 2012 R2
-    ConstraintDescription: must be "Windows Server 2012 R2".
-  AwsCliProductKey:
-    Description: Optional key of Object within the S3 Bucket containing the AWS CLI installer
+  WordPressProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the WordPress installer
     Type: String
     Default: ''
-    AllowedPattern: (^$|^(?:Windows|AWS)\/[-_.a-zA-Z0-9]*\.msi$)
-    ConstraintDescription: must be a valid filename, within the Windows or AWS folders, if specified.
-  AwsPowerShellToolsProductKey:
-    Description: Optional key of Object within the S3 Bucket containing the AWS PowerShell Tools installer
-    Type: String
-    Default: ''
-    AllowedPattern: (^$|^(?:Windows|AWS)\/[-_.a-zA-Z0-9]*\.msi$)
-    ConstraintDescription: must be a valid filename, within the Windows or AWS folders, if specified.
-  ChromeProductKey:
-    Description: Optional key of Object within the S3 Bucket containing the Chrome installer
-    Type: String
-    Default: ''
-    AllowedPattern: (^$|^(?:Windows|Chrome)\/[-_.a-zA-Z0-9]*\.msi$)
-    ConstraintDescription: must be a valid filename, within the Windows or Chrome folders, if specified.
-  MySQLWebCommunityProductKey:
-    Description: Optional key of Object within the S3 Bucket containing the MySQL Web Community installer
-    Type: String
-    Default: ''
-    AllowedPattern: (^$|^(?:Windows|MySQL)\/[-_.a-zA-Z0-9]*\.msi$)
-    ConstraintDescription: must be a valid filename, within the Windows or MySQL folders, if specified.
-  DbForgeStudioExpressProductKey:
-    Description: Optional key of Object within the S3 Bucket containing the dbForge Studio Express installer
-    Type: String
-    Default: ''
-    AllowedPattern: (^$|^(?:Windows|dbForge)\/[-_.a-zA-Z0-9]*\.exe$)
-    ConstraintDescription: must be a valid filename, within the Windows or dbForge folders, if specified.
+    AllowedPattern: (^$|^(?:Linux|WordPress)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
+    ConstraintDescription: must be a valid filename, within the Linux or WordPress folders, if specified.
   ApplicationName:
     Description: Name of the Application associated with the Stack
     Type: String
     MinLength: 2
     MaxLength: 32
-    Default: Aurora
-    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ComponentName:
-    Description: Name of the Application Component associated with the Stack
-    Type: String
-    MinLength: 2
-    MaxLength: 32
-    Default: Management
+    Default: WordPress
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
   ServiceName:
     Description: Optional DNS Service Name
     Type: String
     MaxLength: 64
-    Default: aurora-management
+    Default: wordpress
     AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
   AdministratorUsername:
@@ -347,6 +286,12 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
     ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+  AdministratorEmail:
+    Description: Optional email address of the Administrator User (If unspecified, do not configure an email address)
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
+    ConstraintDescription: must be a valid email address, if specified.
   LogRetention:
     Description: Number of days to retain CloudWatch Log Events
     Type: Number
@@ -376,6 +321,16 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^(([01][0-9]|2[0-3]):[0-5][0-9]-|-([01][0-9]|2[0-3]):[0-5][0-9]|([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])( ([A-Z][_A-Za-z0-9]*\/[A-Z][_+A-Za-z0-9]*))?$)
     ConstraintDescription: See Scheduler Lambda Function description for Tag format.
+  UserNetworks:
+    Description: Networks that can use the Application
+    Type: String
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each an IP CIDR range of the form x.x.x.x/x or '-'.
+  UserNetworkDescriptions:
+    Description: Descriptions of networks that can use the Application
+    Type: String
+    Default: -,-,-,-,-,-,-,-
+    ConstraintDescription: must be a comma-separated list of 8 values, each a short text description or '-'.
   AdministratorNetworks:
     Description: Networks that can administer the Application
     Type: String
@@ -443,7 +398,7 @@ Mappings:
       Name: SaoPaulo
       Code: se1
   InstanceTypeMap:
-    Management:
+    WordPress:
       micro: t3.micro
       small: t3.small
       medium: t3.medium
@@ -452,19 +407,23 @@ Mappings:
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
+  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
-  ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
-  ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
-  InstallAwsCli: !Not [ !Equals [ !Ref AwsCliProductKey, '' ]]
-  InstallAwsPowerShellTools: !Not [ !Equals [ !Ref AwsPowerShellToolsProductKey, '' ]]
-  InstallChrome: !Not [ !Equals [ !Ref ChromeProductKey, '' ]]
-  InstallMySQLWebCommunity: !Not [ !Equals [ !Ref MySQLWebCommunityProductKey, '' ]]
-  InstallDbForgeStudioExpress: !Not [ !Equals [ !Ref DbForgeStudioExpressProductKey, '' ]]
+  InstallWordPress: !Not [ !Equals [ !Ref WordPressProductKey, '' ]]
   ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
   ConfigureAdministratorPassword: !Not [ !Equals [ !Ref AdministratorPassword, '' ]]
   GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
+  ConfigureAdministratorEmail: !Not [ !Equals [ !Ref AdministratorEmail, '' ]]
   ConfigureSchedule: !Not [ !Equals [ !Ref Schedule, '' ]]
+  ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork3: !Not [ !Equals [ !Select [ 3, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork4: !Not [ !Equals [ !Select [ 4, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork5: !Not [ !Equals [ !Select [ 5, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork6: !Not [ !Equals [ !Select [ 6, !Split [ ',', !Ref UserNetworks ]], '-' ]]
+  ConfigureUserNetwork7: !Not [ !Equals [ !Select [ 7, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -499,10 +458,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-AdministratorUser-*
                   - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-Database-MasterUser-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-AdminPassword-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -512,15 +469,11 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${ScriptsBucket}/Windows/*
+                    - arn:aws:s3:::${ScriptsBucket}/Linux/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   - !Sub
-                    - arn:aws:s3:::${ScriptsBucket}/Aurora/*
-                    - ScriptsBucket: !ImportValue
-                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
-                  - !Sub
-                    - arn:aws:s3:::${ScriptsBucket}/Modules/*
+                    - arn:aws:s3:::${ScriptsBucket}/WordPress/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
         - PolicyName: DownloadConfigurationFromS3Policy
@@ -532,11 +485,11 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${ConfigurationsBucket}/Windows/*
+                    - arn:aws:s3:::${ConfigurationsBucket}/Linux/*
                     - ConfigurationsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
                   - !Sub
-                    - arn:aws:s3:::${ConfigurationsBucket}/Aurora/*
+                    - arn:aws:s3:::${ConfigurationsBucket}/WordPress/*
                     - ConfigurationsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ConfigurationsBucket
         - PolicyName: DownloadProductFromS3Policy
@@ -548,18 +501,18 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${ProductsBucket}/Windows/*
+                    - arn:aws:s3:::${ProductsBucket}/Linux/*
                     - ProductsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ProductsBucket
                   - !Sub
-                    - arn:aws:s3:::${ProductsBucket}/Aurora/*
+                    - arn:aws:s3:::${ProductsBucket}/WordPress/*
                     - ProductsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ProductsBucket
   AdministratorUserSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
-      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Administrator User
+      Name: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} Administrator User
       SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${AdministratorUsername}", "password": "${AdministratorPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateAdministratorPassword
@@ -570,7 +523,7 @@ Resources:
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -579,7 +532,6 @@ Resources:
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
       ApplicationName: !Ref ApplicationName
-      ComponentName: !Ref ComponentName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -589,7 +541,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -620,11 +572,11 @@ Resources:
         - !If
           - ConfigureWindowsBastionsIntegration
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
-            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (RDP)
+            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (SSH)
           - !Ref AWS::NoValue
         - !If
           - ConfigureVPNIntegration
@@ -647,11 +599,171 @@ Resources:
         - !If
           - ConfigureVPNIntegration
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
-            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (RDP)
+            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (SSH)
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork0
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 0, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork0
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 0, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 0, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork1
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 1, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork1
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 1, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 1, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork2
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 2, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork2
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 2, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 2, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork3
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 3, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork3
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 3, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 3, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork4
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 4, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork4
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 4, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 4, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork5
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 5, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork5
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 5, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 5, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork6
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 6, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork6
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 6, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 6, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork7
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: !Select [ 7, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTP)
+              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref UserNetworkDescriptions ]]
+          - !Ref AWS::NoValue
+        - !If
+          - ConfigureUserNetwork7
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: !Select [ 7, !Split [ ',', !Ref UserNetworks ]]
+            Description: !Sub
+              - ${NetworkDescription} (HTTPS)
+              - NetworkDescription: !Select [ 7, !Split [ ',', !Ref UserNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
           - ConfigureAdministratorNetwork0
@@ -686,11 +798,11 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork0
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 0, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
@@ -726,11 +838,11 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork1
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 1, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
@@ -766,11 +878,11 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork2
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 2, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
@@ -806,11 +918,11 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork3
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 3, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 3, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
@@ -846,11 +958,11 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork4
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 4, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 4, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
@@ -886,11 +998,11 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork5
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 5, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 5, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
@@ -926,11 +1038,11 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork6
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 6, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 6, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
         - !If
@@ -966,22 +1078,21 @@ Resources:
         - !If
           - ConfigureAdministratorNetwork7
           - IpProtocol: tcp
-            FromPort: 3389
-            ToPort: 3389
+            FromPort: 22
+            ToPort: 22
             CidrIp: !Select [ 7, !Split [ ',', !Ref AdministratorNetworks ]]
             Description: !Sub
-              - ${NetworkDescription} (RDP)
+              - ${NetworkDescription} (SSH)
               - NetworkDescription: !Select [ 7, !Split [ ',', !Ref AdministratorNetworkDescriptions ]]
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-InstanceSecurityGroup
-  WindowsImage:
-    Type: Custom::WindowsImage
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+  AmazonLinux2Image:
+    Type: Custom::AmazonLinux2Image
     Properties:
       ServiceToken: !ImportValue
-        Fn::Sub: ${AMIFunctionsStackName}-WindowsImageFunctionArn
-      OSName: !Ref OSName
+        Fn::Sub: ${AMIFunctionsStackName}-AmazonLinux2ImageFunctionArn
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -997,7 +1108,6 @@ Resources:
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
       ApplicationName: !Ref ApplicationName
-      ComponentName: !Ref ComponentName
       InstanceNumber: 01
       ZoneCode: a
   Instance:
@@ -1017,114 +1127,127 @@ Resources:
       AWS::CloudFormation::Init:
         configSets:
           All:
-            - InstallCloudFormationModule
-            - RegisterCloudFormationSignal
+            - UpdateOS
+            - ConfigureOSUpdates
             - ConfigureOS
             - ConfigureCFN
             - InstallSSMAgent
             - InstallCloudWatchAgent
             - ConfigureCloudWatchAgent
             - ConfigureHostName
-            - JoinDomain
-            - InstallWebServer
-            - ConfigureTestWebsite
-            - !If [ InstallAwsCli, InstallAwsCli, !Ref 'AWS::NoValue' ]
-            - !If [ InstallAwsPowerShellTools, InstallAwsPowerShellTools, !Ref 'AWS::NoValue' ]
-            - !If [ InstallChrome, InstallChrome, !Ref 'AWS::NoValue' ]
-            - !If [ InstallMySQLWebCommunity, InstallMySQLWebCommunity, !Ref 'AWS::NoValue' ]
-            - !If [ InstallDbForgeStudioExpress, InstallDbForgeStudioExpress, !Ref 'AWS::NoValue' ]
-            - SignalCloudFormation
-        InstallCloudFormationModule:
+            - InstallApache
+            - InstallLAMP
+            - ConfigureLAMPTestPage
+            - !If [ InstallWordPress, InstallWordPress, !Ref 'AWS::NoValue' ]
+            - !If [ InstallWordPress, ConfigureWordPress, !Ref 'AWS::NoValue' ]
+        UpdateOS:
+          commands:
+            01-yum-update:
+              command: yum update -y
+              ignoreErrors: false
+        ConfigureOSUpdates:
+          packages:
+            yum:
+              yum-cron: []
           files:
-            C:\Windows\system32\WindowsPowerShell\v1.0\Modules\CloudFormation\CloudFormation.psm1:
-              source: !Sub
-                - https://${ScriptsBucket}.${s3}.amazonaws.com/Modules/CloudFormation.psm1
-                - ScriptsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ScriptsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-              authentication: S3Credentials
-        RegisterCloudFormationSignal:
-          commands:
-            01-register-signal:
-              command: !Sub 'powershell.exe -Command "Register-CloudFormationSignal
-                -Stack ''${AWS::StackName}''
-                -Resource ''Instance''
-                -Region ''${AWS::Region}''"'
-              waitAfterCompletion: 0
+            /etc/yum/yum-cron.conf:
+              content: |
+                [commands]
+                update_cmd = security
+                update_messages = yes
+                download_updates = yes
+                apply_updates = yes
+                random_sleep = 10
+              mode: '000644'
+              owner: root
+              group: root
         ConfigureOS:
-          commands:
-            01-set-execution-policy:
-              command: powershell.exe -Command "Set-ExecutionPolicy RemoteSigned -Force"
-              waitAfterCompletion: 0
-            02-disable-windows-firewall:
-              command: powershell.exe -Command "Get-NetFirewallProfile | Set-NetFirewallProfile -Enabled False"
-              waitAfterCompletion: 0
+          packages:
+            yum:
+              yum-utils: []
+              git: []
+          files:
+            /etc/profile.d/local.sh:
+              content: |
+                alias lsa='ls -lAF'
+                alias ip4='ip addr | grep " inet "'
+              mode: '000644'
+              owner: root
+              group: root
         ConfigureCFN:
           files:
-            C:\cfn\cfn-hup.conf:
+            /etc/cfn/cfn-hup.conf:
               content: !Sub |
                 [main]
                 stack=${AWS::StackId}
                 region=${AWS::Region}
-            C:\cfn\hooks.d\cfn-auto-reloader.conf:
+              mode: '000400'
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
               content: !Sub |
                 [cfn-auto-reloader-hook]
                 triggers=post.update
                 path=Resources.Instance.Metadata.AWS::CloudFormation::Init
-                action=cfn-init.exe --verbose --configsets All --stack ${AWS::StackId} --resource Instance --region ${AWS::Region}
+                action=/opt/aws/bin/cfn-init --verbose --configsets All --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
+              mode: '000400'
+              owner: root
+              group: root
           services:
-            windows:
+            sysvinit:
               cfn-hup:
                 enabled: true
                 ensureRunning: true
                 files:
-                  - C:\cfn\cfn-hup.conf
-                  - C:\cfn\hooks.d\cfn-auto-reloader.conf
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
         InstallSSMAgent:
-          files:
-            C:\cfn\temp\AmazonSSMAgentSetup.exe:
-              source: https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/windows_amd64/AmazonSSMAgentSetup.exe
-          commands:
-            01-install-ssm-agent:
-              command: C:\cfn\temp\AmazonSSMAgentSetup.exe /install /passive /quiet
-              ignoreErrors: false
+          packages:
+            rpm:
+              amazon-ssm-agent:
+                - https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
         InstallCloudWatchAgent:
           sources:
-            C:\cfn\temp\AmazonCloudWatchAgent: https://s3.amazonaws.com/amazoncloudwatch-agent/windows/amd64/latest/AmazonCloudWatchAgent.zip
+            /var/tmp: https://s3.amazonaws.com/amazoncloudwatch-agent/linux/amd64/latest/AmazonCloudWatchAgent.zip
           commands:
             01-install-cloudwatch-agent:
-              command: powershell.exe -Command ".\install.ps1"
-              cwd: C:\cfn\temp\AmazonCloudWatchAgent
+              command: yum install -y /var/tmp/amazon-cloudwatch-agent.rpm
               ignoreErrors: false
         ConfigureCloudWatchAgent:
           files:
-            C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json:
+            /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json:
               content: !Sub |
                 {
                   "agent" : {
                     "metrics_collection_interval" : 60,
-                    "logfile" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                    "logfile" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${ApplicationName}",
                     "metrics_collected" : {
-                      "Memory" : {
+                      "mem" : {
                         "measurement" : [
-                          { "name" : "% Committed Bytes In Use", "rename" : "MemoryCommittedPercent", "unit" : "Percent" },
-                          { "name" : "Pages/sec", "rename" : "MemoryPageOps", "unit" : "Count/Second" }
+                          { "name" : "mem_used_percent", "rename" : "MemoryUsedPercent" }
                         ]
                       },
-                      "LogicalDisk" : {
+                      "swap" : {
+                        "measurement" : [
+                          { "name" : "swap_used_percent", "rename" : "SwapUsedPercent" }
+                        ]
+                      },
+                      "disk" : {
                         "resources" : [
-                          "C:",
-                          "D:"
+                          "*"
                         ],
                         "measurement" : [
-                          { "name" : "% Free Space", "rename" : "DiskFreePercent", "unit" : "Percent" },
-                          { "name" : "Free Megabytes", "rename" : "DiskFreeMegabytes", "unit" : "Megabytes" },
-                          { "name" : "Disk Bytes/sec", "rename" : "DiskBytesPerSecond", "unit" : "Bytes/Second" },
-                          { "name" : "Avg. Disk Queue Length", "rename" : "DiskQueueLength", "unit" : "Count" }
+                          { "name" : "used_percent", "rename" : "DiskUsedPercent" }
+                        ],
+                        "ignore_file_system_types": [
+                          "rootfs",
+                          "sysfs",
+                          "tmpfs",
+                          "devtmpfs"
                         ]
                       }
                     },
@@ -1134,228 +1257,229 @@ Resources:
                     },
                     "aggregation_dimensions" : [
                       [ "InstanceId" ],
-                      [ "AutoScalingGroupName" ],
-                      []
+                      [ "InstanceId", "path" ],
+                      [ "AutoScalingGroupName" ]
                     ]
                   },
                   "logs" : {
                     "logs_collected" : {
-                      "windows_events" : {
-                        "collect_list" : [
-                          {
-                            "event_name" : "Application",
-                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                            "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/ApplicationEventLog",
-                            "event_format" : "text"
-                          },
-                          {
-                            "event_name" : "System",
-                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                            "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/SystemEventLog",
-                            "event_format" : "text"
-                          },
-                          {
-                            "event_name" : "Security",
-                            "event_levels" : [ "ERROR", "WARNING", "INFORMATION" ],
-                            "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/SecurityEventLog",
-                            "event_format" : "text"
-                          }
-                        ]
-                      },
                       "files" : {
                         "collect_list" : [
                           {
-                            "file_path" : "C:\\Program Files\\Amazon\\CloudWatchAgent\\Logs\\amazon-cloudwatch-agent.log",
+                            "file_path" : "/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/amazon-cloudwatch-agent.log",
-                            "timezone" : "UTC"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/amazon/cloudwatch/amazon-cloudwatch-agent.log"
                           },
                           {
-                            "file_path" : "C:\\Program Files\\Amazon\\Ec2ConfigService\\Logs\\EC2ConfigLog.txt",
+                            "file_path" : "/var/log/cloud-init.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/EC2ConfigLog.txt",
-                            "timezone" : "UTC"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cloud-init.log",
+                            "timestamp_format" : "%b %d %H:%M:%S"
                           },
                           {
-                            "file_path" : "C:\\cfn\\log\\cfn-init.log",
+                            "file_path" : "/var/log/cloud-init-output.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/cfn-init.log",
-                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                            "timezone" : "Local"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cloud-init-output.log"
                           },
                           {
-                            "file_path" : "C:\\cfn\\log\\cfn-init-cmd.log",
+                            "file_path" : "/var/log/cfn-init.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/cfn-init-cmd.log",
-                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                            "timezone" : "Local"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cfn-init.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
                           },
                           {
-                            "file_path" : "C:\\cfn\\log\\cfn-hup.log",
+                            "file_path" : "/var/log/cfn-init-cmd.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/cfn-hup.log",
-                            "timestamp_format" : "%Y-%m-%d %H:%M:%S",
-                            "timezone" : "Local"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cfn-init-cmd.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
                           },
                           {
-                            "file_path" : "C:\\inetpub\\logs\\LogFiles\\W3SVC1\\*.log",
+                            "file_path" : "/var/log/cfn-hup.log",
                             "log_group_name" : "${LogGroup}",
-                            "log_stream_name" : "Management/{instance_id}/IISLogs",
-                            "timezone" : "UTC"
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cfn-hup.log",
+                            "timestamp_format" : "%Y-%m-%d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/messages",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/messages",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/secure",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/secure",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/cron",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/cron",
+                            "timestamp_format" : "%b %d %H:%M:%S"
+                          },
+                          {
+                            "file_path" : "/var/log/dmesg",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/dmesg"
+                          },
+                          {
+                            "file_path" : "/var/log/yum.log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/yum.log"
+                          },
+                          {
+                            "file_path" : "/var/log/httpd/access_log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/httpd/access_log"
+                          },
+                          {
+                            "file_path" : "/var/log/httpd/error_log",
+                            "log_group_name" : "${LogGroup}",
+                            "log_stream_name" : "WordPress/{instance_id}/var/log/httpd/error_log"
                           }
                         ]
                       }
                     }
                   }
                 }
-          commands:
-            01-start-cloudwatch-agent:
-              command: powershell.exe -Command ".\amazon-cloudwatch-agent-ctl.ps1 -a fetch-config -m ec2 -c file:C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json -s"
-              cwd: C:\Program Files\Amazon\AmazonCloudWatchAgent
-              ignoreErrors: false
+              mode: '000644'
+              owner: root
+              group: root
           services:
-            windows:
-              AmazonCloudWatchAgent:
+            sysvinit:
+              amazon-cloudwatch-agent:
                 enabled: true
                 ensureRunning: true
                 files:
-                  - C:\ProgramData\Amazon\AmazonCloudWatchAgent\amazon-cloudwatch-agent.json
+                  - /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
         ConfigureHostName:
           files:
-            C:\cfn\scripts\Configure-HostName.ps1:
+            /root/bin/configure-hostname:
               source: !Sub
-                - https://${ScriptsBucket}.${s3}.amazonaws.com/Windows/Configure-HostName.ps1
+                - https://${ScriptsBucket}.${s3}.amazonaws.com/Linux/configure-hostname
                 - ScriptsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
+              mode: '000700'
+              owner: root
+              group: root
           commands:
             01-configure-hostname:
-              command: !Sub powershell.exe -Command "C:\cfn\scripts\Configure-HostName.ps1
-                -HostName ${HostName}"
+              command: !Sub
+                - /root/bin/configure-hostname -n -h ${HostName} -d ${VPCPrivateDomain}
+                - VPCPrivateDomain: !ImportValue
+                    Fn::Sub: ${VPCStackName}-VPCPrivateDomain
               ignoreErrors: false
-              waitAfterCompletion: forever
-        JoinDomain:
+        InstallApache:
+          packages:
+            yum:
+              httpd: []
+          commands:
+            01-enable-ssi:
+              command: sed -i -e 's/\(^    Options Indexes FollowSymLinks$\)/\1 Includes\n    XBitHack on/' /etc/httpd/conf/httpd.conf
+              ignoreErrors: false
+          services:
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/httpd/conf/httpd.conf
+        InstallLAMP:
+          commands:
+            01-install-lamp:
+              command: amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+              ignoreErrors: false
+            01-restart-apache:
+              command: systemctl restart httpd
+              ignoreErrors: false
+        ConfigureLAMPTestPage:
           files:
-            C:\cfn\scripts\Join-Domain.ps1:
+            /var/www/html/info.php:
+              content: !Sub |
+                <?php
+                phpinfo();
+              mode: '000400'
+              owner: root
+              group: root
+        InstallWordPress:
+          sources:
+            /var/tmp: !Sub
+              - https://${ProductsBucket}.${s3}.amazonaws.com/${WordPressProductKey}
+              - ProductsBucket: !ImportValue
+                  Fn::Sub: ${BucketsStackName}-ProductsBucket
+                s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+          commands:
+            01-move-wordpress-docroot:
+              command: mv /var/tmp/wordpress/* /var/www/html
+              ignoreErrors: false
+            02-delete-wordpress-dir:
+              command: rmdir /var/tmp/wordpress
+              ignoreErrors: false
+            03-reset-ownership:
+              command: chown -R root:root /var/www
+              ignoreErrors: false
+        ConfigureWordPress:
+          files:
+            /root/bin/configure-wordpress:
               source: !Sub
-                - https://${ScriptsBucket}.${s3}.amazonaws.com/Windows/Join-Domain.ps1
+                - https://${ScriptsBucket}.${s3}.amazonaws.com/WordPress/configure-wordpress
                 - ScriptsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
               authentication: S3Credentials
+              mode: '000700'
+              owner: root
+              group: root
           commands:
-            01-join-domain:
+            01-configure-wordpress:
               command: !Sub
-                - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
-                  -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${PasswordSecretId}"
-                - VPCDirectoryDomain: !ImportValue
-                    Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-                  PasswordSecretId: !If
-                    - ConfigureActiveDirectoryIntegration
-                    - !Sub ${EnvironmentName}-ActiveDirectory-AdminPassword
-                    - !Sub ${EnvironmentName}-DirectoryService-AdminPassword
-              ignoreErrors: false
-              waitAfterCompletion: forever
-        InstallWebServer:
-          commands:
-            01-install-webserver:
-              command: powershell.exe -Command "Install-WindowsFeature Web-Server -IncludeAllSubFeature"
-              waitAfterCompletion: 0
-        InstallAwsCli:
-          packages:
-            msi:
-              AwsCli: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/${AwsCliProductKey}
-                - ProductsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ProductsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallAwsPowerShellTools:
-          packages:
-            msi:
-              AwsCli: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/${AwsPowerShellToolsProductKey}
-                - ProductsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ProductsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallChrome:
-          packages:
-            msi:
-              Chrome: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/${ChromeProductKey}
-                - ProductsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ProductsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallMySQLWebCommunity:
-          packages:
-            msi:
-              mysql-web-community: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/${MySQLWebCommunityProductKey}
-                - ProductsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ProductsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallDbForgeStudioExpress:
-          files:
-            C:\cfn\temp\dbForgeStudioExpress.exe:
-              source: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/${DbForgeStudioExpressProductKey}
-                - ProductsBucket: !ImportValue
-                    Fn::Sub: ${BucketsStackName}-ProductsBucket
-                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-              authentication: S3Credentials
-          commands:
-            01-install-dbforge-studio-express:
-              command: powershell.exe -Command "C:\cfn\temp\dbForgeStudioExpress.exe /Silent"
-        ConfigureTestWebsite:
-          files:
-            C:\Inetpub\wwwroot\index.htm:
-              content: !Sub |
-                <html>
-                <head>
-                <title>${ApplicationName}-${ComponentName} Test Website</title>
-                </head>
-                <body>
-                <h1>${ApplicationName}-${ComponentName}</h1>
-                </body>
-                </html>
-        SignalCloudFormation:
-          commands:
-            01-signal-success:
-              command: powershell.exe -Command "Send-CloudFormationSuccess"
+                - /root/bin/configure-wordpress -n
+                  -t "${CompanyName} ${SystemName} ${EnvironmentName} ${ApplicationName}"
+                  -h ${ServiceName}.${VPCPrivateDomain} -s ${AdministratorUserSecret}${AdministratorEmail}
+                  -H ${DBInstanceHostName} -D ${DatabaseName} -S ${MasterUserSecret}
+                - VPCPrivateDomain: !ImportValue
+                    Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+                  AdministratorUserSecret: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
+                  AdministratorEmail: !If [ ConfigureAdministratorEmail, !Sub ' -e ${AdministratorEmail}', '' ]
+                  DBInstanceHostName: !ImportValue
+                    Fn::Sub: ${WordPressDatabaseStackName}-PrivateDBInstanceHostName
+                  DatabaseName: !ImportValue
+                    Fn::Sub: ${WordPressDatabaseStackName}-DatabaseName
+                  MasterUserSecret: !ImportValue
+                    Fn::Sub: ${WordPressDatabaseStackName}-MasterUserSecret
+              ignoreErrors: true
     Properties:
-      ImageId: !Ref WindowsImage
-      InstanceType: !FindInMap [ InstanceTypeMap, Management, !Ref EnvironmentType ]
+      ImageId: !Ref AmazonLinux2Image
+      InstanceType: !FindInMap [ InstanceTypeMap, WordPress, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !Ref KeyName
+      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${ApplicationName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
-            Fn::Sub: ${VPCStackName}-DatabaseSubnetA
+            Fn::Sub: ${VPCStackName}-ApplicationSubnetA
           GroupSet:
             - !Ref InstanceSecurityGroup
             - !ImportValue
-              Fn::Sub: ${AuroraDatabaseStackName}-ClientSecurityGroup
+              Fn::Sub: ${WordPressDatabaseStackName}-ClientSecurityGroup
           DeleteOnTermination: true
       BlockDeviceMappings:
         - DeviceName: /dev/sda1
           Ebs:
             VolumeType: gp2
-            VolumeSize: 32
+            VolumeSize: 16
             DeleteOnTermination: true
-        - DeviceName: /dev/xvdb
+        - DeviceName: /dev/xvdb # Not configuring or using this at first, but will add later and mount on /var/www or similar
           Ebs:
             VolumeType: gp2
             VolumeSize: 8
             DeleteOnTermination: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-Instance
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-Instance
         #- Key: HostName
         #  Value: !Ref HostName
         - !If
@@ -1365,9 +1489,11 @@ Resources:
           - !Ref AWS::NoValue
       UserData:
         Fn::Base64: !Sub |
-          <script>
-          cfn-init.exe --verbose --configsets All --stack ${AWS::StackId} --resource Instance --region ${AWS::Region}
-          </script>
+          #!/bin/bash -xe
+          yum update -y aws-cfn-bootstrap
+
+          /opt/aws/bin/cfn-init --verbose --configsets All --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
+          /opt/aws/bin/cfn-signal --exit-code $? --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
     CreationPolicy:
       ResourceSignal:
         Timeout: PT20M
@@ -1378,7 +1504,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName}-${ComponentName} Instance
+      Comment: !Sub Private DNS HostName for ${ApplicationName} Instance
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1425,69 +1551,86 @@ Resources:
   MemoryAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: The committed memory is greater than 50% over 3 consecutive minutes
+      AlarmDescription: The used memory is greater than 90% over 3 consecutive minutes
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}
-      MetricName: MemoryCommittedPercent
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      MetricName: MemoryUsedPercent
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 50
+      Threshold: 90
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: InstanceId
           Value: !Ref Instance
-        - Name: objectname
-          Value: Memory
   Disk1Alarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: 'The disk C: percent free is less than than 10% over 3 consecutive minutes'
+      AlarmDescription: The disk / percent used is more than than 90% over 3 consecutive minutes
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}
-      MetricName: DiskFreePercent
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 10
-      ComparisonOperator: LessThanThreshold
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: InstanceId
           Value: !Ref Instance
-        - Name: objectname
-          Value: LogicalDisk
-        - Name: instance
-          Value: 'C:'
+        - Name: path
+          Value: /
   Disk2Alarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: 'The disk D: percent free is less than than 10% over 3 consecutive minutes'
+      AlarmDescription: The disk /var/www percent used is more than than 90% over 3 consecutive minutes
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}
-      MetricName: DiskFreePercent
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
       EvaluationPeriods: 3
-      Threshold: 10
-      ComparisonOperator: LessThanThreshold
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: InstanceId
           Value: !Ref Instance
-        - Name: objectname
-          Value: LogicalDisk
-        - Name: instance
-          Value: 'D:'
+        - Name: path
+          Value: /var/www
+  404MetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref LogGroup
+      FilterPattern: '[ip, identity, user_id, timestamp, request, status_code = 404, size, ...]'
+      MetricTransformations:
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+          MetricName: 404Count
+          MetricValue: 1
+  404Alarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: The number of 404s is greater than 5 over 1 minute
+      AlarmActions:
+        - !ImportValue
+          Fn::Sub: ${TopicsStackName}-AlarmsTopic
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      MetricName: 404Count
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
   Dashboard:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${ApplicationName}-${ComponentName}-${RegionName}
+        - ${EnvironmentName}-${ApplicationName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -1498,7 +1641,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${ApplicationName}-${ComponentName}"
+              "markdown" : "# ${EnvironmentName}-${ApplicationName}"
             }
           },
           {
@@ -1555,8 +1698,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "MemoryCommittedPercent", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "MemoryPageOps", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
+                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "MemoryUsedPercent", "InstanceId", "${Instance}", { "label" : "Memory Used %" } ],
+                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "SwapUsedPercent", "InstanceId", "${Instance}", { "label" : "Swap Used %" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -1576,10 +1719,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
-                [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
+                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/", { "label" : "Disk Used % (/)" } ],
+                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/var/www", { "label" : "Disk Used % (/var/www)" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -1651,7 +1792,7 @@ Resources:
             "width" : 3,
             "height" : 6,
             "properties" : {
-              "title" : "Disk (C:) Alarm",
+              "title" : "Disk (/) Alarm",
               "view" : "timeSeries",
               "stacked" : false,
               "annotations" : {
@@ -1666,11 +1807,26 @@ Resources:
             "width" : 3,
             "height" : 6,
             "properties" : {
-              "title" : "Disk (D:) Alarm",
+              "title" : "Disk (/var/www) Alarm",
               "view" : "timeSeries",
               "stacked" : false,
               "annotations" : {
                 "alarms" : [ "${Disk2Alarm.Arn}" ]
+              }
+            }
+          },
+          {
+            "type" : "metric",
+            "x" : 12,
+            "y" : 13,
+            "width" : 3,
+            "height" : 6,
+            "properties" : {
+              "title" : "HTTP 404 Alarm",
+              "view" : "timeSeries",
+              "stacked" : false,
+              "annotations" : {
+                "alarms" : [ "${404Alarm.Arn}" ]
               }
             }
           } ]
@@ -1682,13 +1838,13 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-InstanceSecurityGroup
   PrivateHostName:
-    Description: The Private DNS HostName of the Aurora-Management Instance
+    Description: The Private DNS HostName of the WordPress Instance
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
   PrivateServiceName:
-    Description: The Private DNS ServiceName of the Aurora-Management Instance
+    Description: The Private DNS ServiceName of the WordPress Instance
     Value: !Sub
       - ${ServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
@@ -1703,6 +1859,6 @@ Outputs:
     Condition: ConfigureServiceName
   AdministratorUserSecret:
     Description: The Administrator User Secret Name
-    Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
+    Value: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
     Export:
       Name: !Sub ${AWS::StackName}-AdministratorUserSecret
