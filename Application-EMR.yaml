@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: EMR Stack
-  This creates a analytics EMR application cluster with 1 master nodes and 2 slave nodes, it also creates EMR Kerberos configuration and attaches to ActiveDirectory.
+  This creates a analytics EMR application cluster with master node(s) and slave node(s), it also creates EMR Kerberos configuration and attaches to ActiveDirectory/DirectoryService.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -12,6 +12,7 @@ Metadata:
           - VPNStackName
           - VPCStackName
           - BucketsStackName
+          - LogBucketsStackName
           - TopicsStackName
           - KeysStackName
           - CodesStackName
@@ -56,11 +57,7 @@ Metadata:
           - DomainDNSName
           - DomainAdminUser
           - ADDomainJoinPassword
-      - Label:
-          default: AWS Quick Start Configuration
-        Parameters:
-          - QSS3BucketName
-          - QSS3KeyPrefix
+          - DirectoryAdministratorPassword
     ParameterLabels:
       WindowsBastionsStackName:
         default: WindowsBastions Stack Name
@@ -70,6 +67,8 @@ Metadata:
         default: VPC Stack Name
       BucketsStackName:
         default: Buckets Stack Name
+      Log BucketsStackName:
+        default: Log Buckets Stack Name
       TopicsStackName:
         default: Topics Stack Name
       KeysStackName:
@@ -90,6 +89,8 @@ Metadata:
         default: Environment Zones
       ApplicationName:
         default: Application Name
+      DirectoryAdministratorPassword:
+        default: Directory Administrator Password
 Parameters:
   WindowsBastionsStackName:
     Description: Name of the CloudFormation Stack containing the Windows Bastions
@@ -114,20 +115,20 @@ Parameters:
     Default: AMIFunctions
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  BuildBucketsStackName:
-    Description: Name of the CloudFormation Stack containing Build Buckets
-    Type: String
-    MinLength: 2
-    MaxLength: 64
-    Default: BuildBuckets
-    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
     MinLength: 2
     MaxLength: 64
     Default: Buckets
+    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  LogBucketsStackName:
+    Description: Name of the CloudFormation Stack containing Log Buckets
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: LogBuckets
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   TopicsStackName:
@@ -266,9 +267,22 @@ Parameters:
     Default: EMR
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  UtilityName:
+    Description: Name of the Utility associated with the Stack
+    Type: String
+    MinLength: 2
+    MaxLength: 32
+    Default: DirectoryService
+    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
   EmrLogBucketDnsName:
     Description: EMR Log Bucket DNS name
     Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: archive-logs-dxcapd-us-west-2
+    AllowedPattern: ^[-a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   EmrMasterInstanceType:
     AllowedValues:
     - m4.large
@@ -337,184 +351,124 @@ Parameters:
     MinValue: '1'
     Type: Number
     Default: '2'
-  # EmrSecurityGroup:
-  #   Description: Talend EMR Security Group.
-  #   Type: String
-  RemoteAccessEmrSecurityGroup:
-    Description: Remote access EMR Security Group.
-    Type: String
-  # EmrMasterSecurityGroup:
-  #   Description: EMR Naster Security Group.
-  #   Type: String
-  # EmrSlaveSecurityGroup:
-  #   Description: EMR Slave Security Group.
-  #   Type: String
-  # EmrServiceAccessSecurityGroup:
-  #   Description: EMR Service Access Security Group.
-  #   Type: String
-  DocVersion:
-    AllowedPattern: ^([-]?[0-9]{1,2}v{1}[0-9]{2}){0,1}$
-    ConstraintDescription: Documents Version prefix with format -00v00 or not present.
-    Default: '-1v03'
-    Description: Document Version prefix can include numbers, lowercase letter v,  hyphen (-) in pattern -00v00.
-    Type: String
   KerberosRealm:
     AllowedPattern: '[a-zA-Z0-9\-]+\..+'
-    Default: C.DAPJ.DXCANALYTICS.COM
+    Default: D.US-WEST-2.M1.DXC-AP.COM
     Description: Cluster's Kerberos realm name. VPC's domain name e.g. EC2.INTERNAL
     MaxLength: '36'
     MinLength: '3'
     Type: String
   KerberosADdomain:
-    AllowedPattern: '[a-zA-Z0-9\-]+\..+'
-    Default: C.AD.DAPJ.DXCANALYTICS.COM
     Description: The AD domain that you want to trust. e.g., EXAMPLE.COM
     MaxLength: '35'
     MinLength: '3'
     Type: String
+    Default: D.AD.M1.DXC-AP.COM
+    AllowedPattern: '[a-zA-Z0-9\-]+\..+'
   CrossRealmTrustPrincipalPassword:
     Description: Password that you want to use for your cross-realm trust
-    Default: 'Temp-12345'
-    MaxLength: '32'
-    MinLength: '5'
+    Default: ''
     NoEcho: 'true'
     Type: String
-  ADDomainJoinPassword:
-    AllowedPattern: (?=^.{6,255}$)((?=.*\d)(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[^A-Za-z0-9])(?=.*[a-z])|(?=.*[^A-Za-z0-9])(?=.*[A-Z])(?=.*[a-z])|(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9]))^.*
-    Description: Password for the domain admin user. Must be at least 8 characters containing letters, numbers and symbols
-    MaxLength: '32'
-    MinLength: '8'
-    NoEcho: 'true'
-    Type: String
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   DomainAdminUser:
-    AllowedPattern: '[a-zA-Z0-9]*'
     Default: Admin
     Description: User name for the account that will be added as Domain Administrator. This is separate from the default "Administrator" account
     MaxLength: '25'
     MinLength: '5'
     Type: String
+    AllowedPattern: '[a-zA-Z0-9]*'
+  DirectoryAdministratorPassword:
+    Description: Optional password for the Enterprise Admin User (If unspecified, generate a random password)
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
+    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
+      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   DomainDNSName:
-    AllowedPattern: '[a-zA-Z0-9\-]+\..+'
-    Default: c.ad.dapj.dxcanalytics.com
     Description: Fully qualified domain name (FQDN) of the forest root domain e.g. example.com
     MaxLength: '255'
     MinLength: '2'
     Type: String
-  JobFlowRole:
-    Description: 'EMR Job Flow EC2 Role'
+    Default: d.ad.m1.dxc-ap.com
+    AllowedPattern: '[a-zA-Z0-9\-]+\..+'
+  EMRVersion:
+    Description: EMR Application Version
     Type: String
-    Default: arn:aws:iam::581524105996:instance-profile/EMR_EC2_DefaultRole
-  ServiceRole:
-    Description: 'EMR Service Role'
-    Type: String
-    Default: arn:aws:iam::581524105996:role/EMR_DefaultRole
-  QSS3BucketName:
-    AllowedPattern: '^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$'
-    ConstraintDescription: >-
-      Quick Start bucket name can include numbers, lowercase letters, uppercase
-      letters, and hyphens (-). It cannot start or end with a hyphen (-).
-    Default: emr-cluster-eu-west-1
-    Description: >-
-      S3 bucket name for the Quick Start assets. Quick Start bucket name can
-      include numbers, lowercase letters, uppercase letters, and hyphens (-). It
-      cannot start or end with a hyphen (-).
-    Type: String
-  QSS3KeyPrefix:
-    AllowedPattern: '^[0-9a-zA-Z-/]*$'
-    ConstraintDescription: >-
-      Quick Start key prefix can include numbers, lowercase letters, uppercase
-      letters, hyphens (-), and forward slash (/).
-    Default: modules
-    Description: >-
-      S3 key prefix for the Quick Start assets. Quick Start key prefix can
-      include numbers, lowercase letters, uppercase letters, hyphens (-), and
-      forward slash (/).
-    Type: String
-Mappings:
-  RegionMap:
-    ap-northeast-1:
-      Version: emr-5.26.0
-    ap-northeast-2:
-      Version: emr-5.26.0
-    ap-south-1:
-      Version: emr-5.26.0
-    ap-southeast-1:
-      Version: emr-5.26.0
-    ap-southeast-2:
-      Version: emr-5.26.0
-    ca-central-1:
-      Version: emr-5.26.0
-    eu-central-1:
-      Version: emr-5.26.0
-    eu-west-1:
-      Version: emr-5.26.0
-    eu-west-2:
-      Version: emr-5.26.0
-    sa-east-1:
-      Version: emr-5.26.0
-    us-east-1:
-      Version: emr-5.26.0
-    us-east-2:
-      Version: emr-5.0.1
-    us-west-1:
-      Version: emr-5.26.0
-    us-west-2:
-      Version: emr-5.26.0
+    Default: emr-5.27.0
+    AllowedValues:
+      - emr-5.27.0
+      - emr-5.26.0
+      - emr-5.25.0
+      - emr-5.24.0
 Conditions:
-  GovCloudCondition: !Equals [!Ref 'AWS::Region', us-gov-west-1]
+  ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
-  # ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
-  # GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
+  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
+  GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
 Resources:
-  # EmrServiceRole:
-  #   Type: 'AWS::IAM::Role'
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service:
-  #               - elasticmapreduce.amazonaws.com
-  #           Action:
-  #             - 'sts:AssumeRole'
-  #     ManagedPolicyArns:
-  #       - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole'
-  # EmrEc2Role:
-  #   Type: 'AWS::IAM::Role'
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service:
-  #               - ec2.amazonaws.com
-  #           Action:
-  #             - 'sts:AssumeRole'
-  #     ManagedPolicyArns:
-  #       - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role'
-  # InstanceProfile:
-  #   Type: 'AWS::IAM::InstanceProfile'
-  #   Properties:
-  #     # InstanceProfileName: !Ref EmrEc2Role
-  #     Roles:
-  #       - !Ref EmrEc2Role
-  # ADDomainJoinPassword:
-  # Type: AWS::SecretsManager::Secret
-  # Properties:
-  #   Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
-  #   Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User (Admin)
-  #   SecretString: !If [ ConfigureAdminPassword, !Ref DirectoryAdministratorPassword, !Ref 'AWS::NoValue' ]
-  #   GenerateSecretString: !If
-  #     - GenerateAdminPassword
-  #     - PasswordLength: 32
-  #       ExcludePunctuation: true
-  #     - !Ref AWS::NoValue
-  #   Tags:
-  #     - Key: Name
-  #       Value: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
+  EmrServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - elasticmapreduce.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole'
+  Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role
+      Policies:
+        - PolicyName: GetPasswordSecretPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-LDAPBindPassword-*
+        - PolicyName: DownloadScriptFromS3Policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub
+                    - arn:aws:s3:::${ScriptsBucket}/EMR/*
+                    - ScriptsBucket: !ImportValue
+                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
+  InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref Role
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -537,11 +491,17 @@ Resources:
           CidrIp: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCNetwork
           Description: VPC (ICMP)
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCNetwork
+          Description: VPC (All Traffic)
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-ClientSecurityGroup (MySQL)
+          Description: !Sub ${EnvironmentName}-${ApplicationName}-ClientSecurityGroup
         - !If
           - ConfigureWindowsBastionsIntegration
           - IpProtocol: tcp
@@ -549,7 +509,7 @@ Resources:
             ToPort: 3306
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${WindowsBastionsStackName}-InstanceSecurityGroup
-            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup (MySQL)
+            Description: !Sub ${WindowsBastionsStackName}-InstanceSecurityGroup
           - !Ref AWS::NoValue
         - !If
           - ConfigureVPNIntegration
@@ -558,7 +518,7 @@ Resources:
             ToPort: 22
             SourceSecurityGroupId: !ImportValue
               Fn::Sub: ${VPNStackName}-InstanceSecurityGroup
-            Description: !Sub ${VPNStackName}-InstanceSecurityGroup (MySQL)
+            Description: !Sub ${VPNStackName}-InstanceSecurityGroup
           - !Ref AWS::NoValue
       SecurityGroupEgress:
         - IpProtocol: -1
@@ -566,19 +526,57 @@ Resources:
           Description: Global (All)
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-DatabaseSecurityGroup
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-MasterSecurityGroup
   EmrSlavePrivateSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: EMR Slave Instance security group
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCNetwork
+          Description: VPC (All Traffic)
+        # - IpProtocol: -1
+        #   FromPort: -1
+        #   ToPort: -1
+        #   CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-SlaveSecurityGroup
   EmrServiceAccessSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: EMR Service Access security group
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: !ImportValue
+            Fn::Sub: ${VPCStackName}-VPCNetwork
+          Description: VPC (All Traffic)
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${ApplicationName}-ServiceAccessSecurityGroup
+  # RemoteAccessEmrSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupDescription: Enable EMR remote access
+  #     VpcId: !ImportValue
+  #       Fn::Sub: ${VPCStackName}-VPC
+  #     SecurityGroupIngress:
+  #     - IpProtocol: tcp
+  #       FromPort: 0
+  #       ToPort: 65535
+  #       CidrIp: 0.0.0.0/0
+  # Tags:
+  #   - Key: Name
+  #     Value: !Sub ${EnvironmentName}-${ApplicationName}-RemoteAccessSecurityGroup
   TCPFromServiceAccessSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -812,12 +810,21 @@ Resources:
             ClusterDedicatedKdcConfiguration:
               CrossRealmTrustConfiguration:
                 Realm: !Ref KerberosADdomain
-                KdcServer: !Ref DomainDNSName
-                Domain: !Ref DomainDNSName
-                AdminServer: !Ref DomainDNSName
+                  # Fn::Transform:
+                  #   - Name: String
+                  #     Parameters:
+                  #       InputString: !ImportValue
+                  #         Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
+                  #       Operation: Upper
+                KdcServer: !ImportValue
+                    Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
+                Domain: !ImportValue
+                    Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
+                AdminServer: !ImportValue
+                    Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               TicketLifetimeInHours: 24
             Provider: ClusterDedicatedKdc
-  EmrInstance:
+  EmrCluster:
     Type: AWS::EMR::Cluster
     Properties:
       Instances:
@@ -826,14 +833,14 @@ Resources:
           InstanceType:
             Ref: EmrMasterInstanceType
           Market: ON_DEMAND
-          Name: Master
+          Name: !Sub ${EnvironmentName}-${ApplicationName}-Master
         CoreInstanceGroup:
           InstanceCount:
             Ref: EmrCoreNodes
           InstanceType:
             Ref: EmrCoreInstanceType
           Market: ON_DEMAND
-          Name: Core
+          Name: !Sub ${EnvironmentName}-${ApplicationName}-Core
         TerminationProtected: false
         Ec2SubnetId: !ImportValue
           Fn::Sub: ${VPCStackName}-IdentitySubnetA
@@ -842,23 +849,23 @@ Resources:
         EmrManagedMasterSecurityGroup: !GetAtt EmrMasterPrivateSecurityGroup.GroupId
         EmrManagedSlaveSecurityGroup: !GetAtt EmrSlavePrivateSecurityGroup.GroupId
         ServiceAccessSecurityGroup: !GetAtt EmrServiceAccessSecurityGroup.GroupId
-# #        AdditionalMasterSecurityGroups:
-#           - Ref: EmrSecurityGroup
-#           - Ref: RemoteAccessEmrSecurityGroup
-# #        AdditionalSlaveSecurityGroups:
-#           - Ref: EmrSecurityGroup
-#           - Ref: RemoteAccessEmrSecurityGroup
       BootstrapActions:
         - Name: "create-hfds-home"
           ScriptBootstrapAction:
-            Path: "s3://scripts-dxcapd-us-west-2/EMR/create-hdfs-home-ba.sh"
-#            Path: !Sub ['s3://${QSS3BucketName}.${QSS3Region}.amazonaws.com/${QSS3KeyPrefix}/create-hdfs-home-ba.sh',
-#              {QSS3Region: !If [GovCloudCondition, s3-us-gov-west-1, s3]}]
+            Path: "s3://cf-templates-us-west-1/hlsmtc-emr/templates/create-hdfs-home-ba.sh"
+              # - ['s3://${ScriptsBucket}.${s3}.amazonaws.com/EMR/create-hdfs-home-ba.sh',
+              # {s3: !If [ConfigureGlobal, s3, !Sub 's3-${AWS::Region}']}]
+            # Path: "s3://scripts-dxcapd-us-west-2.s3-us-west-2.amazonaws.com/EMR/create-hdfs-home-ba.sh"
+            # Path: 'https://scripts-dxcapd-us-west-2.s3-us-west-2.amazonaws.com/EMR/create-hdfs-home-ba.sh'
+            #   - ScriptsBucket: !ImportValue
+            #       Fn::Sub: ${BucketsStackName}-ScriptsBucket
+            #     s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+            # # # authentication: S3Credentials
       KerberosAttributes:
-        ADDomainJoinPassword: !Ref ADDomainJoinPassword
+        ADDomainJoinPassword: !Sub '{{resolve:secretsmanager:${EnvironmentName}-${UtilityName}-AdminPassword}}'
         ADDomainJoinUser: !Ref DomainAdminUser
-        CrossRealmTrustPrincipalPassword: !Ref CrossRealmTrustPrincipalPassword
-        KdcAdminPassword: !Ref CrossRealmTrustPrincipalPassword
+        CrossRealmTrustPrincipalPassword: !Sub '{{resolve:secretsmanager:${EnvironmentName}-${UtilityName}-AdminPassword}}'
+        KdcAdminPassword: !Sub '{{resolve:secretsmanager:${EnvironmentName}-${UtilityName}-AdminPassword}}'
         Realm: !Ref KerberosRealm
       Applications:
         - Name: Hadoop
@@ -873,33 +880,30 @@ Resources:
         - Name: HCatalog
         - Name: Livy
         - Name: Spark
-      LogUri:
-        Fn::Sub: s3://${EmrLogBucketDnsName}
-      ReleaseLabel:
-        Fn::FindInMap:
-        - RegionMap
-        - Ref: AWS::Region
-        - Version
-      Name: EmrInstance
-      JobFlowRole: !Ref JobFlowRole
-      ServiceRole: !Ref ServiceRole
+      LogUri: !Sub
+        - s3://${ArchiveBucket}
+        - ArchiveBucket: !ImportValue
+            Fn::Sub: ${LogBucketsStackName}-ArchiveLogsBucket
+      ReleaseLabel: !Ref EMRVersion
+      Name: EmrCluster
+      JobFlowRole: !Ref InstanceProfile
+      ServiceRole: !Ref EmrServiceRole
       VisibleToAllUsers: true
       SecurityConfiguration: !Ref SecurityConfiguration
       Tags:
         - Key: Name
-          Value:
-            Fn::Sub: emr-instance-${AWS::StackName}
+          Value: !Sub ${EnvironmentName}-${ApplicationName}
 Outputs:
   EmrClusterId:
     Value:
-      Ref: EmrInstance
+      Ref: EmrCluster
     Export:
       Name:
         Fn::Sub: "${AWS::StackName}:EmrClusterId"
   EmrMasterPublicDns:
     Value:
       Fn::GetAtt:
-      - EmrInstance
+      - EmrCluster
       - MasterPublicDNS
     Export:
       Name:
