@@ -34,11 +34,10 @@ Metadata:
           - EnvironmentZones
           - OSName
       - Label:
-          default: Utility Configuration
+          default: Linux Bastions Utility Configuration
         Parameters:
-          - UtilityName
-          - UtilityDomain
-          - UseStaticPublicAddress
+          - LinuxBastionsUtilityName
+          - LinuxBastionsServiceName
           - UseLocalUsers
           - LogRetention
           - OnSchedule
@@ -77,12 +76,10 @@ Metadata:
         default: Environment Zones
       OSName:
         default: Operating System Name
-      UtilityName:
-        default: Utility Name
-      UtilityDomain:
-        default: Utility Domain
-      UseStaticPublicAddress:
-        default: Use Static Public Address
+      LinuxBastionsUtilityName:
+        default: Linux Bastions Utility Name
+      LinuxBastionsServiceName:
+        default: Linux Bastions DNS Service Name
       UseLocalUsers:
         default: Use Local Users
       LogRetention:
@@ -233,7 +230,7 @@ Parameters:
       - Amazon Linux 2
       - Amazon Linux 2.0
     ConstraintDescription: must be "Amazon Linux 2" (latest) or "Amazon Linux 2.0".
-  UtilityName:
+  LinuxBastionsUtilityName:
     Description: Name of the Utility associated with the Stack
     Type: String
     MinLength: 2
@@ -241,21 +238,13 @@ Parameters:
     Default: LinuxBastions
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  UtilityDomain:
+  LinuxBastionsServiceName:
     Description: DNS Name of the Utility associated with the Stack
     Type: String
     MaxLength: 16
     Default: lbastion
     AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
-  UseStaticPublicAddress:
-    Description: Create and associate a separate Static Public Address
-    Type: String
-    Default: true
-    AllowedValues:
-      - true
-      - false
-    ConstraintDescription: must be either true or false.
   UseLocalUsers:
     Description: Synchronize Members of BastionAdministrators and BastionUsers IAM Groups (with SSH Keys) to Local Unix Users
     Type: String
@@ -382,10 +371,6 @@ Conditions:
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureStandby: !Equals [ !Ref EnvironmentType, standby ]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
-  ConfigureStaticPublicAddress: !Equals [ !Ref UseStaticPublicAddress, true ]
-  ConfigureStaticPublicAddress&MultiZone: !And [ !Condition ConfigureStaticPublicAddress, !Condition ConfigureMultiZone ]
-  ConfigureDomainName: !And [ !Not [ !Equals [ !Ref UtilityDomain, '' ]], !Condition ConfigureStaticPublicAddress ]
-  ConfigureDomainName&MultiZone: !And [ !Condition ConfigureDomainName, !Condition ConfigureMultiZone ]
   ConfigureUsers: !Equals [ !Ref UseLocalUsers, true ]
   ConfigureOnSchedule: !And [ !Not [ !Equals [ !Ref OnSchedule, '' ]], !Not [ !Condition ConfigureStandby ]]
   ConfigureOffSchedule: !And [ !Not [ !Equals [ !Ref OffSchedule , '' ]], !Not [ !Condition ConfigureStandby ]]
@@ -502,7 +487,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref LinuxBastionsUtilityName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -512,7 +497,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${LinuxBastionsUtilityName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -844,17 +829,16 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${LinuxBastionsUtilityName}-InstanceSecurityGroup
   EIPA:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-    Condition: ConfigureStaticPublicAddress
   EIPB:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-    Condition: ConfigureStaticPublicAddress&MultiZone
+    Condition: ConfigureMultiZone
   HostName:
     Type: Custom::HostName
     Properties:
@@ -863,7 +847,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref LinuxBastionsUtilityName
       InstanceNumber: 01
       # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
       #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
@@ -906,7 +890,7 @@ Resources:
             - InstallCloudWatchAgent
             - ConfigureCloudWatchAgent
             - ConfigureHostName
-            - !If [ ConfigureStaticPublicAddress, ConfigureStaticPublicAddress, !Ref 'AWS::NoValue' ]
+            - ConfigureStaticPublicAddress
             - !If [ ConfigureUsers, ConfigureUsers, !Ref 'AWS::NoValue' ]
         UpdateOS:
           commands:
@@ -991,7 +975,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${LinuxBastionsUtilityName}",
                     "metrics_collected" : {
                       "mem" : {
                         "measurement" : [
@@ -1154,8 +1138,8 @@ Resources:
             01-associate-eip:
               command: !Sub
                 - /root/bin/associate-eip -n -a "${EIPAAllocationId}" -b "${EIPBAllocationId}"
-                - EIPAAllocationId: !If [ ConfigureStaticPublicAddress, !GetAtt EIPA.AllocationId, '' ]
-                  EIPBAllocationId: !If [ ConfigureStaticPublicAddress&MultiZone, !GetAtt EIPB.AllocationId, '' ]
+                - EIPAAllocationId: !GetAtt EIPA.AllocationId
+                  EIPBAllocationId: !If [ ConfigureMultiZone, !GetAtt EIPB.AllocationId, '' ]
               ignoreErrors: false
         ConfigureUsers:
           files:
@@ -1219,7 +1203,7 @@ Resources:
       Cooldown: 300
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-Instance
+          Value: !Sub ${EnvironmentName}-${LinuxBastionsUtilityName}-Instance
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
@@ -1255,7 +1239,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[month, day, time, host, program=sshd*, message=Accepted publickey, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${LinuxBastionsUtilityName}
           MetricName: ValidUsersCount
           MetricValue: 1
   InvalidUserMetricFilter:
@@ -1264,7 +1248,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[month, day, time, host, program=sshd*, message=Invalid user, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${LinuxBastionsUtilityName}
           MetricName: InvalidUsersCount
           MetricValue: 1
   InvalidUsersAlarm:
@@ -1274,7 +1258,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${LinuxBastionsUtilityName}
       MetricName: InvalidUsersCount
       Statistic: Sum
       Period: 60
@@ -1286,50 +1270,49 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub DNS name for ${UtilityName} Instance
+      Comment: !Sub Public DNS Service Name of the ${LinuxBastionsUtilityName} Instance
       Name: !Sub
-        - ${UtilityDomain}.${VPCPublicDomain}.
+        - ${LinuxBastionsServiceName}.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPA
-    Condition: ConfigureDomainName
   PublicServiceNameRecordSetA:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
       Comment: !Sub
-        - DNS name for ${UtilityName} Instance in ${ZoneA}
+        - Public DNS Service Name of the ${LinuxBastionsUtilityName} Instance in ${ZoneA}
         - ZoneA: !Select [ 0, !GetAZs '' ]
       Name: !Sub
-        - ${UtilityDomain}a.${VPCPublicDomain}.
+        - ${LinuxBastionsServiceName}a.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPA
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceNameRecordSetB:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
       Comment: !Sub
-        - DNS name for ${UtilityName} Instance in ${ZoneB}
+        - Public DNS Service Name of the ${LinuxBastionsUtilityName} Instance in ${ZoneB}
         - ZoneB: !Select [ 1, !GetAZs '' ]
       Name: !Sub
-        - ${UtilityDomain}b.${VPCPublicDomain}.
+        - ${LinuxBastionsServiceName}b.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPB
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
 Outputs:
   InstanceSecurityGroup:
     Description: The Instance SecurityGroup
@@ -1339,29 +1322,27 @@ Outputs:
   EIPA:
     Description: The Public Address of the Bastion in Availability Zone A
     Value: !Ref EIPA
-    Condition: ConfigureStaticPublicAddress
   EIPB:
     Description: The Public Address of the Bastion in Availability Zone B
     Value: !Ref EIPB
-    Condition: ConfigureStaticPublicAddress&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceName:
-    Description: The Public DNS ServiceName of the Bastion
+    Description: The Public DNS Service Name of the Bastion
     Value: !Sub
-      - ${UtilityDomain}.${VPCPublicDomain}
+      - ${LinuxBastionsServiceName}.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName
   PublicServiceNameA:
-    Description: The Public DNS ServiceName of the Bastion in Availability Zone A
+    Description: The Public DNS Service Name of the Bastion in Availability Zone A
     Value: !Sub
-      - ${UtilityDomain}a.${VPCPublicDomain}
+      - ${LinuxBastionsServiceName}a.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceNameB:
-    Description: The Public DNS ServiceName of the Bastion in Availability Zone B
+    Description: The Public DNS Service Name of the Bastion in Availability Zone B
     Value: !Sub
-      - ${UtilityDomain}b.${VPCPublicDomain}
+      - ${LinuxBastionsServiceName}b.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone

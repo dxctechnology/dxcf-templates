@@ -33,7 +33,7 @@ Metadata:
           - EnvironmentZones
           - OSName
       - Label:
-          default: Utility Dependencies Configuration
+          default: Windows Bastions Utility Dependencies Configuration
         Parameters:
           - AwsCliProductKey
           - AwsPowerShellToolsProductKey
@@ -41,11 +41,10 @@ Metadata:
           - RoyalTSProductKey
           - PuTTYProductKey
       - Label:
-          default: Utility Configuration
+          default: Windows Bastions Utility Configuration
         Parameters:
-          - UtilityName
-          - UtilityDomain
-          - UseStaticPublicAddress
+          - WindowsBastionsUtilityName
+          - WindowsBastionsServiceName
           - UseFedRAMP
           - LogRetention
           - OnSchedule
@@ -95,11 +94,9 @@ Metadata:
       PuTTYProductKey:
         default: PuTTY Product S3 Key
       UtilityName:
-        default: Utility Name
-      UtilityDomain:
-        default: Utility Domain
-      UseStaticPublicAddress:
-        default: Use Static Public Address
+        default: Windows Bastions Utility Name
+      WindowsBastionsServiceName:
+        default: Windows Bastions DNS Service Name
       UseFedRAMP:
         default: Harden for FedRAMP Security Standards
       LogRetention:
@@ -279,29 +276,22 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
     ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
-  UtilityName:
-    Description: Name of the Utility associated with the Stack
+  WindowsBastionsUtilityName:
+    Description: Name of the Windows Bastions Utility
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: WindowsBastions
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  UtilityDomain:
-    Description: DNS Name of the Utility associated with the Stack
+  WindowsBastionsServiceName:
+    Description: DNS Service Name of the Windows Bastions Utility
     Type: String
-    MaxLength: 16
+    MinLength: 2
+    MaxLength: 64
     Default: wbastion
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
+    AllowedPattern: ^[a-z][-a-z0-9]*$
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
-  UseStaticPublicAddress:
-    Description: Create and associate a separate Static Public Address
-    Type: String
-    Default: true
-    AllowedValues:
-      - true
-      - false
-    ConstraintDescription: must be either true or false.
   UseFedRAMP:
     Description: Harden Bastions for FedRAMP Security Standards
     Type: String
@@ -432,11 +422,7 @@ Conditions:
   InstallChrome: !Not [ !Equals [ !Ref ChromeProductKey, '' ]]
   InstallRoyalTS: !Not [ !Equals [ !Ref RoyalTSProductKey, '' ]]
   InstallPuTTY: !Not [ !Equals [ !Ref PuTTYProductKey, '' ]]
-  ConfigureStaticPublicAddress: !Equals [ !Ref UseStaticPublicAddress, true ]
-  ConfigureStaticPublicAddress&MultiZone: !And [ !Condition ConfigureStaticPublicAddress, !Condition ConfigureMultiZone ]
   ConfigureFedRAMP: !Equals [ !Ref UseFedRAMP, true ]
-  ConfigureDomainName: !And [ !Not [ !Equals [ !Ref UtilityDomain, '' ]], !Condition ConfigureStaticPublicAddress ]
-  ConfigureDomainName&MultiZone: !And [ !Condition ConfigureDomainName, !Condition ConfigureMultiZone ]
   ConfigureOnSchedule: !And [ !Not [ !Equals [ !Ref OnSchedule, '' ]], !Not [ !Condition ConfigureStandby ]]
   ConfigureOffSchedule: !And [ !Not [ !Equals [ !Ref OffSchedule , '' ]], !Not [ !Condition ConfigureStandby ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -473,7 +459,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
-        - PolicyName: GetPasswordSecretPolicy
+        - PolicyName: GetSecretPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -481,8 +467,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-Administrator-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -551,7 +537,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref WindowsBastionsUtilityName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName , !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -561,7 +547,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${WindowsBastionsUtilityName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1053,17 +1039,16 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${WindowsBastionsUtilityName}-InstanceSecurityGroup
   EIPA:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-    Condition: ConfigureStaticPublicAddress
   EIPB:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-    Condition: ConfigureStaticPublicAddress&MultiZone
+    Condition: ConfigureMultiZone
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -1085,7 +1070,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref WindowsBastionsUtilityName
       InstanceNumber: 01
       # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
       #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
@@ -1119,7 +1104,7 @@ Resources:
             - InstallRDSGateway
             - ConfigureRDSGateway
             - ConfigureRemoteDesktopUsers
-            - !If [ ConfigureStaticPublicAddress, ConfigureStaticPublicAddress, !Ref 'AWS::NoValue' ]
+            - ConfigureStaticPublicAddress
             - !If [ InstallAwsCli, InstallAwsCli, !Ref 'AWS::NoValue' ]
             - !If [ InstallAwsPowerShellTools, InstallAwsPowerShellTools, !Ref 'AWS::NoValue' ]
             - !If [ InstallChrome, InstallChrome, !Ref 'AWS::NoValue' ]
@@ -1196,7 +1181,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${WindowsBastionsUtilityName}",
                     "metrics_collected" : {
                       "Memory" : {
                         "measurement" : [
@@ -1342,13 +1327,13 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${PasswordSecretId}"
+                  -SecretId ${SecretId}"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-                  PasswordSecretId: !If
+                  SecretId: !If
                     - ConfigureActiveDirectoryIntegration
-                    - !Sub ${EnvironmentName}-ActiveDirectory-AdminPassword
-                    - !Sub ${EnvironmentName}-DirectoryService-AdminPassword
+                    - !Sub ${EnvironmentName}-ActiveDirectory-Administrator
+                    - !Sub ${EnvironmentName}-DirectoryService-Administrator
               ignoreErrors: false
               waitAfterCompletion: forever
         InstallRDSGateway:
@@ -1428,8 +1413,8 @@ Resources:
                 - powershell.exe -Command "C:\cfn\scripts\Associate-EIP.ps1
                   -EIPAAllocationId ${EIPAAllocationId}
                   -EIPBAllocationId ${EIPBAllocationId}"
-                - EIPAAllocationId: !If [ ConfigureStaticPublicAddress, !GetAtt EIPA.AllocationId, NONE ]
-                  EIPBAllocationId: !If [ ConfigureStaticPublicAddress&MultiZone, !GetAtt EIPB.AllocationId, NONE ]
+                - EIPAAllocationId: !GetAtt EIPA.AllocationId
+                  EIPBAllocationId: !If [ ConfigureMultiZone, !GetAtt EIPB.AllocationId, NONE ]
               ignoreErrors: false
               waitAfterCompletion: 15
         InstallAwsCli:
@@ -1522,7 +1507,7 @@ Resources:
       Cooldown: 300
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-Instance
+          Value: !Sub ${EnvironmentName}-${WindowsBastionsUtilityName}-Instance
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
@@ -1557,50 +1542,49 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub DNS name for ${UtilityName} Instance
+      Comment: !Sub Public DNS Service Name of the ${WindowsBastionsUtilityName} Instance
       Name: !Sub
-        - ${UtilityDomain}.${VPCPublicDomain}.
+        - ${WindowsBastionsServiceName}.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPA
-    Condition: ConfigureDomainName
   PublicServiceNameRecordSetA:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
       Comment: !Sub
-        - DNS name for ${UtilityName} Instance in ${ZoneA}
+        - Public DNS Service Name of the ${WindowsBastionsUtilityName} Instance in ${ZoneA}
         - ZoneA: !Select [ 0, !GetAZs '' ]
       Name: !Sub
-        - ${UtilityDomain}a.${VPCPublicDomain}.
+        - ${WindowsBastionsServiceName}a.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPA
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceNameRecordSetB:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
       Comment: !Sub
-        - DNS name for ${UtilityName} Instance in ${ZoneB}
+        - Public DNS Service Name of the ${WindowsBastionsUtilityName} Instance in ${ZoneB}
         - ZoneB: !Select [ 1, !GetAZs '' ]
       Name: !Sub
-        - ${UtilityDomain}b.${VPCPublicDomain}.
+        - ${WindowsBastionsServiceName}b.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPB
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
 Outputs:
   InstanceSecurityGroup:
     Description: The Instance SecurityGroup
@@ -1610,29 +1594,27 @@ Outputs:
   EIPA:
     Description: The Public Address of the Bastion in Availability Zone A
     Value: !Ref EIPA
-    Condition: ConfigureStaticPublicAddress
   EIPB:
     Description: The Public Address of the Bastion in Availability Zone B
     Value: !Ref EIPB
-    Condition: ConfigureStaticPublicAddress&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceName:
-    Description: The Public DNS ServiceName of the Bastion
+    Description: The Public DNS Service Name of the Bastion
     Value: !Sub
-      - ${UtilityDomain}.${VPCPublicDomain}
+      - ${WindowsBastionsServiceName}.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName
   PublicServiceNameA:
-    Description: The Public DNS ServiceName of the Bastion in Availability Zone A
+    Description: The Public DNS Service Name of the Bastion in Availability Zone A
     Value: !Sub
-      - ${UtilityDomain}a.${VPCPublicDomain}
+      - ${WindowsBastionsServiceName}a.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceNameB:
-    Description: The Public DNS ServiceName of the Bastion in Availability Zone B
+    Description: The Public DNS Service Name of the Bastion in Availability Zone B
     Value: !Sub
-      - ${UtilityDomain}b.${VPCPublicDomain}
+      - ${WindowsBastionsServiceName}b.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
