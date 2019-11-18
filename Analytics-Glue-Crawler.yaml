@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates AWS Glue resources and create Glue Crawler stack from this template.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - EnvironmentType
+      - Label:
+          default: System Configuration
+        Parameters:
+          - HLSBucketName
+          - DeveloperBucketName
+          - DestinationBucketName
+    ParameterLabels:
+      EnvironmentType:
+        default: environment type
+      HLSBucketName:
+        default: HLS Bucket Name
+      DeveloperBucketName:
+        default: Developer Bucket Name
+      DestinationBucketName:
+        default: Destination Bucket Name
+Parameters:
+  EnvironmentType:
+    Description: Enter the CloudCheckr 3rd party External ID
+    Type: String
+    Default: ''
+  HLSBucketName:
+    Description: Enter the HLSBucket Name as string
+    Type: String
+    Default: ''
+  DeveloperBucketName:
+    Description: Enter the Developer Bucket Name Name as a string
+    Type: String
+    Default: ''
+  DestinationBucketName:
+    Description: Enter the Destination Bucket Name as a string
+    Type: String
+    Default: ''
+
+Resources:
+  DatasetsDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: clientdatabasename
+        Description: Creating New DataBase to Create Table were Quary Data Stores
+        LocationUri: TestLocationUri
+        Parameters:
+          key1 : "value1"
+
+  CrawlerTable:
+    DependsOn: DatasetsDatabase
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref DatasetsDatabase
+      TableInput:
+        Name: clienttenanttable
+        Description: Define the first few columns of the flights table
+        TableType: EXTERNAL_TABLE
+        Parameters: {
+    "classification": "csv"
+  }
+
+  ClientsBubcketName:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref HLSBucketName
+      AccessControl: BucketOwnerFullControl
+
+  ScriptBucketName:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DeveloperBucketName
+      AccessControl: BucketOwnerFullControl
+
+  BucketStorageDataName:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DestinationBucketName
+      AccessControl: BucketOwnerFullControl
+
+
+  AWSGlueCrawlerRoleName:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "glue.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        -
+          PolicyName: "root"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: "*"
+                Resource: "*"
+
+  Crawlercatalog:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: GlueCrawler
+      Role: !Ref AWSGlueCrawlerRoleName
+      DatabaseName: !Ref DatasetsDatabase
+      Targets:
+        S3Targets:
+          - Path: !Ref HLSBucketName
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: "LOG"
+      Schedule:
+       ScheduleExpression: cron(0/5 * ? * MON-FRI *)
+Outputs:
+  CrawlerTable:
+    Description: The Crawler Table
+    Value: !Ref CrawlerTable
+    Export:
+      Name: !Sub ${AWS::StackName}-CrawlerTable
+  DatasetsDatabase:
+    Description: The Datasets Database
+    Value: !Ref DatasetsDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-DatasetsDatabase
+  Crawlercatalog:
+    Description: The Crawler catalog
+    Value: !Ref Crawlercatalog
+    Export:
+      Name: !Sub ${AWS::StackName}-Crawlercatalog
+  ClientsBubcketName:
+    Description: The Clients Bubcket Name
+    Value: !Ref ClientsBubcketName
+    Export:
+      Name: !Sub ${AWS::StackName}-ClientsBubcketName
+  ScriptBucketName:
+    Description: The Script Bucket Name
+    Value: !Ref ScriptBucketName
+    Export:
+      Name: !Sub ${AWS::StackName}-ScriptBucketName
+  BucketStorageDataName:
+    Description: The Bucket Storage Data Name
+    Value: !Ref BucketStorageDataName
+    Export:
+      Name: !Sub ${AWS::StackName}-BucketStorageDataName

@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates AWS Glue-Job resource
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - EnvironmentType
+      - Label:
+          default: System Configuration
+        Parameters:
+          - S3ETLScriptPath
+          - S3ETLOutputPath
+    ParameterLabels:
+      EnvironmentType:
+        default: environment type
+      S3ETLScriptPath:
+        default: S3 ETL Script Path
+      S3ETLOutputPath:
+        default: S3 ETL Output Path
+
+Parameters:
+  EnvironmentType:
+    Description: Enter the CloudCheckr 3rd party External ID
+    Type: String
+    Default: ''
+
+  S3ETLScriptPath:
+    Type: String
+    Default: ''
+    Description: "Location of the Glue job ETL scripts Stored in S3."
+
+  S3ETLOutputPath:
+    Type: String
+    Default: ''
+    Description: "Name of the S3 output path to which this CloudFormation template's AWS Glue jobs are going to write ETL output."
+
+Resources:
+  AWSGlueJobRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - glue.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: "/"
+
+  GHCDXCDataJob:
+    Type: "AWS::Glue::Job"
+    Properties:
+      Role: !Ref AWSGlueJobRole
+      Name: "glue-job-etl"
+      Command: {
+        Name: "glueetl",
+        "ScriptLocation" : !Sub "${S3ETLScriptPath}/ghcdxcetl.py"
+      }
+      DefaultArguments:
+        --job-bookmark-option: job-bookmark-enable
+      ExecutionProperty:
+        MaxConcurrentRuns: 4
+      MaxRetries: 3
+      Description: "Join Marketing and Sales data."
+      AllocatedCapacity: 8
+
+  OnDemandJobTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Type: ON_DEMAND
+#      Type: SCHEDULED
+      Description: DESCRIPTION_ON_DEMAND
+#      Schedule: cron(0/5 * ? * MON-FRI *)
+      Actions:
+        - JobName: !Ref GHCDXCDataJob
+      Name: prod-trigger1-ondemand
+
+Outputs:
+  GHCDXCDataJob:
+    Description: The GHC DXC Data Job
+    Value: !Ref GHCDXCDataJob
+    Export:
+      Name: !Sub ${AWS::StackName}-GHCDXCDataJob
+  OnDemandJobTrigger:
+    Description: The On Demand Job Trigger
+    Value: !Ref OnDemandJobTrigger
+    Export:
+      Name: !Sub ${AWS::StackName}-OnDemandJobTrigger

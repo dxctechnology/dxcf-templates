@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates AWS Glue resources.  **WARNING**  You will be billed for the
+  AWS resources used if you create a stack from this template.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      # - Label:
+      #     default: Stack Dependencies
+      #   Parameters:
+      #     - WorkGroupStackName
+      - Label:
+          default: Environment Configuration
+        Parameters:
+          - EnvironmentType
+          - CompanyName
+      - Label:
+          default: Application Configuration
+        Parameters:
+          - ApplicationName
+    ParameterLabels:
+      EnvironmentType:
+        default: environment type
+      # WorkGroupStackName:
+      #   default: workgroup stack name
+      CompanyName:
+        default: company name
+      ApplicationName:
+        default: Application Name
+Parameters:
+  EnvironmentType:
+    Description: Enter in Which region Analitics action will perform.
+    Type: String
+    Default: ''
+  # WorkGroupStackName:
+  #   Description: Name of the CloudFormation Stack containing the Codes Resources
+  #   Type: String
+  #   MinLength: 2
+  #   MaxLength: 64
+  #   Default: ''
+  #   AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
+  #   ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
+  CompanyName:
+    Description: Name of the Company associated with the Stack
+    Type: String
+    MinLength: 2
+    MaxLength: 32
+    Default: DXC
+    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  ApplicationName:
+    Description: Name of the Application associated with the Stack
+    Type: String
+    MinLength: 2
+    MaxLength: 32
+    Default: Athena
+    AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
+    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+
+Resources:
+  # ClientQuery:
+  #   Type: Custom::ClientQuery
+  #   Properties:
+  #     ServiceToken: !ImportValue
+  #       Fn::Sub: ${DBAthenaStackName}-AthenaWorkGroupFunctionArn
+  #     CompanyName: !Ref CompanyName
+  #     LocationName: !Ref AWS::Region
+  #     ApplicationName: !Ref ApplicationName
+  #     ComponentName: Query
+
+  AthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: clientdatabasename
+      Description: "A query that selects all aggregated data"
+      Name: "HLS-DXC First Query"
+      QueryString: >
+                  SELECT * FROM "clientdatabasename"."clientuploaddatabucketsfile" limit 10;
+#      ClientGroup: !Ref ClientQuery
+Outputs:
+  AthenaNamedQuery:
+    Description: The Athena Named Query
+    Value: !Ref AthenaNamedQuery
+    Export:
+      Name: !Sub ${AWS::StackName}-AthenaNamedQuery
