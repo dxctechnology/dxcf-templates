@@ -30,12 +30,12 @@ Metadata:
           - EnvironmentType
           - OSName
       - Label:
-          default: Application Configuration
+          default: LinuxWebServers Application Configuration
         Parameters:
-          - ApplicationKey
-          - ApplicationName
-          - ApplicationDomain
-          - ApplicationVersion
+          - LinuxWebServersApplicationKey
+          - LinuxWebServersApplicationName
+          - LinuxWebServersApplicationVersion
+          - LinuxWebServersServiceName
           - WebSnapshot
           - LogRetention
           - NormalSchedule
@@ -74,14 +74,14 @@ Metadata:
         default: Environment Type
       OSName:
         default: Operating System Name
-      ApplicationKey:
-        default: Application S3 Key
-      ApplicationName:
-        default: Application Name
-      ApplicationDomain:
-        default: Application Domain Name
-      ApplicationVersion:
-        default: Application Version
+      LinuxWebServersApplicationKey:
+        default: LinuxWebServers Application S3 Key
+      LinuxWebServersApplicationName:
+        default: LinuxWebServers Application Name
+      LinuxWebServersApplicationVersion:
+        default: LinuxWebServers Application Version
+      LinuxWebServersServiceName:
+        default: LinuxWebServers DNS Service Name
       WebSnapshot:
         default: Web Snapshot
       LogRetention:
@@ -231,35 +231,36 @@ Parameters:
       - RHEL 7.6
       - RHEL 7.5
     ConstraintDescription: must be "Amazon Linux 2" (latest), "Amazon Linux 2.0", "RHEL 7" (latest), "RHEL 7.7", "RHEL 7.6" or "RHEL 7.5".
-  ApplicationKey:
-    Description: Optional key of Object within the S3 Bucket containing the Application
+  LinuxWebServersApplicationKey:
+    Description: Optional key of Object within the S3 Bucket containing the LinuxWebServers Application
     Type: String
     Default: ''
     AllowedPattern: (^$|^(?:Linux|LinuxWebServer)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
     ConstraintDescription: must be a valid filename, within the Linux or LinuxWebServer folders, if specified.
-  ApplicationName:
-    Description: Name of the Application associated with the Stack
+  LinuxWebServersApplicationName:
+    Description: Name of the LinuxWebServers Application
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: LinuxWebServers
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ApplicationDomain:
-    Description: DNS Name of the Application associated with the Stack
-    Type: String
-    MaxLength: 16
-    Default: lwsm
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
-  ApplicationVersion:
-    Description: Version of the Application
+  LinuxWebServersApplicationVersion:
+    Description: Version of the LinuxWebServers Application
     Type: String
     MinLength: 5
     MaxLength: 32
     Default: 1.0.0
     AllowedPattern: ^[0-9]*.[0-9]*.[0-9]*(-[a-zA-Z0-9][-a-zA-Z0-9]*)?$
     ConstraintDescription: must follow semantic versioning conventions.
+  LinuxWebServersServiceName:
+    Description: DNS Service Name of the LinuxWebServers Application
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: lwsm
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   WebSnapshot:
     Description: Optional snapshot of previous EBS Volume containing Web directories
     Type: String
@@ -418,8 +419,7 @@ Conditions:
   ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
   ConfigureAMZN: !Equals [ !Select [ 0, !Split [ ' ', !Ref OSName ]], Amazon ]
   ConfigureRHEL: !Equals [ !Select [ 0, !Split [ ' ', !Ref OSName ]], RHEL ]
-  InstallApplication: !Not [ !Equals [ !Ref ApplicationKey, '' ]]
-  ConfigureDomainName: !Not [ !Equals [ !Ref ApplicationDomain, '' ]]
+  InstallApplication: !Not [ !Equals [ !Ref LinuxWebServersApplicationKey, '' ]]
   ConfigureWebSnapshot: !Not [ !Equals [ !Ref WebSnapshot, '' ]]
   ConfigureNormalSchedule: !Not [ !Equals [ !Ref NormalSchedule, '' ]]
   ConfigureReducedSchedule: !Not [ !Equals [ !Ref ReducedSchedule, '' ]]
@@ -528,7 +528,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref LinuxWebServersApplicationName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -538,7 +538,7 @@ Resources:
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-LoadBalancerSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${LinuxWebServersApplicationName}-LoadBalancerSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1024,11 +1024,11 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-LoadBalancerSecurityGroup
+          Value: !Sub ${EnvironmentName}-${LinuxWebServersApplicationName}-LoadBalancerSecurityGroup
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${LinuxWebServersApplicationName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1684,7 +1684,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${LinuxWebServersApplicationName}-InstanceSecurityGroup
   LoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -1713,7 +1713,7 @@ Resources:
         Timeout: 5
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-LoadBalancer
+          Value: !Sub ${EnvironmentName}-${LinuxWebServersApplicationName}-LoadBalancer
   AmazonLinux2Image:
     Type: Custom::AmazonLinux2Image
     Properties:
@@ -1742,7 +1742,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref LinuxWebServersApplicationName
       # This is a partial hostname - Due to the use of AutoScaling, we can't know the InstanceNumber or ZoneCode at this time.
       # However, by use of the PrivateRecordSet CloudWatchEvents Function, Instances can still be given DNS names.
   LaunchConfiguration:
@@ -1764,7 +1764,7 @@ Resources:
           All:
             - UpdateOS
             - !If [ ConfigureRHEL, EnableRHELOptionalRepo, !Ref 'AWS::NoValue' ]
-            - ConfigureOSUpdates
+            - !If [ ConfigureAMZN, ConfigureOSUpdates, !Ref 'AWS::NoValue' ] # TODO: This stopped working on RHEL recently, as the yum-cron package is no longer available. Commenting out for now...
             - ConfigureOS
             - ConfigureCFN
             - InstallSSMAgent
@@ -1862,7 +1862,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${ApplicationName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${LinuxWebServersApplicationName}",
                     "metrics_collected" : {
                       "mem" : {
                         "measurement" : [
@@ -2052,7 +2052,7 @@ Resources:
         InstallApplication:
           sources:
             /var/www: !Sub
-              - https://${ExamplesBucket}.${s3}.amazonaws.com/${ApplicationKey}
+              - https://${ExamplesBucket}.${s3}.amazonaws.com/${LinuxWebServersApplicationKey}
               - ExamplesBucket: !ImportValue
                   Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -2066,10 +2066,10 @@ Resources:
               content: !Sub |
                 <html>
                 <head>
-                <title>${ApplicationName} Test Application</title>
+                <title>${LinuxWebServersApplicationName} Test Application</title>
                 </head>
                 <body>
-                <h1>${ApplicationName} (${ApplicationVersion})</h1>
+                <h1>${LinuxWebServersApplicationName} (${LinuxWebServersApplicationVersion})</h1>
 
                 <p>This page displays data obtained from the meta-data service via SSI.</p>
 
@@ -2172,7 +2172,7 @@ Resources:
         - !Ref LoadBalancer
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-Instance
+          Value: !Sub ${EnvironmentName}-${LinuxWebServersApplicationName}-Instance
           PropagateAtLaunch: true
         - Key: HostName
           Value: !Ref HostName
@@ -2259,7 +2259,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[ip, identity, user_id, timestamp, request, status_code = 404, size, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${LinuxWebServersApplicationName}
           MetricName: 404Count
           MetricValue: 1
   BytesTransferredMetricFilter:
@@ -2268,7 +2268,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[ip, identity, user_id, timestamp, request, status_code, size, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${LinuxWebServersApplicationName}
           MetricName: BytesTransferred
           MetricValue: $size
   404Alarm:
@@ -2278,7 +2278,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${LinuxWebServersApplicationName}
       MetricName: 404Count
       Statistic: Sum
       Period: 60
@@ -2292,7 +2292,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${LinuxWebServersApplicationName}
       MetricName: BytesTransferred
       Statistic: Average
       Period: 60
@@ -2304,17 +2304,16 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub Public DNS ServiceName for ${ApplicationName}.
+      Comment: !Sub Public DNS Service Name of the ${LinuxWebServersApplicationName} Service
       RecordSets:
         - Name: !Sub
-            - ${ApplicationDomain}.${VPCPublicDomain}.
+            - ${LinuxWebServersServiceName}.${VPCPublicDomain}.
             - VPCPublicDomain: !ImportValue
                 Fn::Sub: ${VPCStackName}-VPCPublicDomain
           Type: A
           AliasTarget:
             HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneNameID
             DNSName: !GetAtt LoadBalancer.DNSName
-    Condition: ConfigureDomainName
 Outputs:
   LoadBalancerSecurityGroup:
     Description: The LoadBalancer SecurityGroup
@@ -2326,10 +2325,15 @@ Outputs:
     Value: !Ref InstanceSecurityGroup
     Export:
       Name: !Sub ${AWS::StackName}-InstanceSecurityGroup
+  PublicServiceName:
+    Description: The Public DNS Service Name of the LinuxWebServers Service
+    Value: !Sub
+      - ${LinuxWebServersServiceName}.${VPCPublicDomain}
+      - VPCPublicDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPublicDomain
   PublicWebsiteURL:
     Description: The Public Website URL
     Value: !Sub
-      - http://${ApplicationDomain}.${VPCPublicDomain}/
+      - http://${LinuxWebServersServiceName}.${VPCPublicDomain}/
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName

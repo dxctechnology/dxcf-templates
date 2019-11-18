@@ -30,12 +30,12 @@ Metadata:
           - EnvironmentType
           - OSName
       - Label:
-          default: Application Configuration
+          default: WindowsWebServer Application Configuration
         Parameters:
-          - ApplicationKey
-          - ApplicationName
-          - ApplicationDomain
-          - ApplicationVersion
+          - WindowsWebServerApplicationKey
+          - WindowsWebServerApplicationName
+          - WindowsWebServerApplicationVersion
+          - WindowsWebServerServiceName
           - DSnapshot
           - LogRetention
       - Label:
@@ -72,14 +72,14 @@ Metadata:
         default: Environment Type
       OSName:
         default: Operating System Name
-      ApplicationKey:
-        default: Application S3 Key
-      ApplicationName:
-        default: Application Name
-      ApplicationDomain:
-        default: Application Domain Name
-      ApplicationVersion:
-        default: Application Version
+      WindowsWebServerApplicationKey:
+        default: WindowsWebServer Application S3 Key
+      WindowsWebServerApplicationName:
+        default: WindowsWebServer Application Name
+      WindowsWebServerApplicationVersion:
+        default: WindowsWebServer Application Version
+      WindowsWebServerServiceName:
+        default: WindowsWebServer DNS Service Name
       DSnapshot:
         default: 'D: Snapshot'
       LogRetention:
@@ -144,6 +144,7 @@ Parameters:
   KeyName:
     Description: Name of an existing KeyPair to enable the Administrator Password
     Type: AWS::EC2::KeyPair::KeyName
+    MinLength: 2
     MaxLength: 32
     Default: example
     AllowedPattern: ^[_a-zA-Z0-9]*$
@@ -227,35 +228,36 @@ Parameters:
       - Windows Server 2012 R2
       - Windows Server 2016
     ConstraintDescription: must be "Windows Server 2012 R2" or "Windows Server 2016".
-  ApplicationKey:
-    Description: Optional key of Object within the S3 Bucket containing the Application
+  WindowsWebServerApplicationKey:
+    Description: Optional key of Object within the S3 Bucket containing the WindowsWebServer Application
     Type: String
     Default: ''
     AllowedPattern: (^$|^(?:Windows|WindowsWebServer)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
     ConstraintDescription: must be a valid filename, within the Windows or WindowsWebServer folders, if specified.
-  ApplicationName:
-    Description: Name of the Application associated with the Stack
+  WindowsWebServerApplicationName:
+    Description: Name of the WindowsWebServer Application
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: WindowsWebServer
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ApplicationDomain:
-    Description: DNS Name of the Application associated with the Stack
-    Type: String
-    MaxLength: 16
-    Default: wws
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
-  ApplicationVersion:
-    Description: Version of the Application
+  WindowsWebServerApplicationVersion:
+    Description: Version of the WindowsWebServer Application
     Type: String
     MinLength: 5
     MaxLength: 32
     Default: 1.0.0
     AllowedPattern: ^[0-9]*.[0-9]*.[0-9]*(-[a-zA-Z0-9][-a-zA-Z0-9]*)?$
     ConstraintDescription: must follow semantic versioning conventions.
+  WindowsWebServerServiceName:
+    Description: DNS Service Name of the WindowsWebServer Application
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: wws
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   DSnapshot:
     Description: 'Optional snapshot of previous EBS Volume containing D: drive'
     Type: String
@@ -377,8 +379,7 @@ Mappings:
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
-  InstallApplication: !Not [ !Equals [ !Ref ApplicationKey, '' ]]
-  ConfigureDomainName: !Not [ !Equals [ !Ref ApplicationDomain, '' ]]
+  InstallApplication: !Not [ !Equals [ !Ref WindowsWebServerApplicationKey, '' ]]
   ConfigureDSnapshot: !Not [ !Equals [ !Ref DSnapshot, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -489,7 +490,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref WindowsWebServerApplicationName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -499,7 +500,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${WindowsWebServerApplicationName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1625,7 +1626,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${WindowsWebServerApplicationName}-InstanceSecurityGroup
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -1646,7 +1647,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref WindowsWebServerApplicationName
       InstanceNumber: 01
       ZoneCode: a
   Instance:
@@ -1750,7 +1751,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${ApplicationName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}",
                     "metrics_collected" : {
                       "Memory" : {
                         "measurement" : [
@@ -1889,7 +1890,7 @@ Resources:
         InstallApplication:
           sources:
             C:\Inetpub\wwwroot: !Sub
-              - https://${ExamplesBucket}.${s3}.amazonaws.com/${ApplicationKey}
+              - https://${ExamplesBucket}.${s3}.amazonaws.com/${WindowsWebServerApplicationKey}
               - ExamplesBucket: !ImportValue
                   Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -1899,10 +1900,10 @@ Resources:
               content: !Sub |
                 <html>
                 <head>
-                <title>${ApplicationName} Test Application</title>
+                <title>${WindowsWebServerApplicationName} Test Application</title>
                 </head>
                 <body>
-                <h1>${ApplicationName} (${ApplicationVersion})</h1>
+                <h1>${WindowsWebServerApplicationName} (${WindowsWebServerApplicationVersion})</h1>
                 </body>
                 </html>
         SignalCloudFormation:
@@ -1916,7 +1917,7 @@ Resources:
       KeyName: !Ref KeyName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${ApplicationName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${WindowsWebServerApplicationName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-WebSubnetA
@@ -1937,9 +1938,9 @@ Resources:
             DeleteOnTermination: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-Instance
-#        - Key: HostName
-#          Value: !Ref HostName
+          Value: !Sub ${EnvironmentName}-${WindowsWebServerApplicationName}-Instance
+        #- Key: HostName
+        #  Value: !Ref HostName
       UserData:
         Fn::Base64: !Sub |
           <script>
@@ -1955,7 +1956,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName} Instance
+      Comment: !Sub Private DNS Host Name of the ${WindowsWebServerApplicationName} Instance
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1969,9 +1970,9 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS ServiceName for ${ApplicationName}
+      Comment: !Sub Private DNS Service Name of the ${WindowsWebServerApplicationName} Service
       Name: !Sub
-        - ${ApplicationDomain}.${VPCPrivateDomain}.
+        - ${WindowsWebServerServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
@@ -1981,7 +1982,6 @@ Resources:
           - ${HostName}.${VPCPrivateDomain}
           - VPCPrivateDomain: !ImportValue
               Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureDomainName
   EIP:
     Type: AWS::EC2::EIP
     Properties:
@@ -1996,7 +1996,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub Public DNS HostName for ${ApplicationName} Instance
+      Comment: !Sub Public DNS Host Name of the ${WindowsWebServerApplicationName} Instance
       Name: !Sub
         - ${HostName}.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
@@ -2010,9 +2010,9 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub Public DNS ServiceName for ${ApplicationName}
+      Comment: !Sub Public DNS Service Name of the ${WindowsWebServerApplicationName} Service
       Name: !Sub
-        - ${ApplicationDomain}.${VPCPublicDomain}.
+        - ${WindowsWebServerServiceName}.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: CNAME
@@ -2022,7 +2022,6 @@ Resources:
           - ${HostName}.${VPCPublicDomain}
           - VPCPublicDomain: !ImportValue
               Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName
   CPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -2047,7 +2046,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}
       MetricName: MemoryCommittedPercent
       Statistic: Average
       Period: 60
@@ -2066,7 +2065,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -2087,7 +2086,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -2105,7 +2104,7 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${ApplicationName}-${RegionName}
+        - ${EnvironmentName}-${WindowsWebServerApplicationName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -2116,7 +2115,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${ApplicationName}"
+              "markdown" : "# ${EnvironmentName}-${WindowsWebServerApplicationName}"
             }
           },
           {
@@ -2173,8 +2172,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "MemoryCommittedPercent", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "MemoryPageOps", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
+                [ "${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}", "MemoryCommittedPercent", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
+                [ "${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}", "MemoryPageOps", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2196,8 +2195,8 @@ Resources:
               "metrics" : [
                 [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
                 [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
+                [ "${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
+                [ "${SystemName}/${EnvironmentName}-${WindowsWebServerApplicationName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2303,22 +2302,20 @@ Outputs:
     Description: The Public Address of the WindowsWebServer Instance
     Value: !Ref EIP
   PublicHostName:
-    Description: The Public DNS HostName of the WindowsWebServer Instance
+    Description: The Public DNS Host Name of the WindowsWebServer Instance
     Value: !Sub
       - ${HostName}.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
   PublicServiceName:
-    Description: The Public DNS ServiceName of the WindowsWebServer Instance
+    Description: The Public DNS Service Name of the WindowsWebServer Service
     Value: !Sub
-      - ${ApplicationDomain}.${VPCPublicDomain}
+      - ${WindowsWebServerServiceName}.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName
   PublicWebsiteURL:
     Description: The Public Website URL
     Value: !Sub
-      - http://${ApplicationDomain}.${VPCPublicDomain}/
+      - http://${WindowsWebServerServiceName}.${VPCPublicDomain}/
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName
