@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Application-AutoSys-Database Template.
+Description: Application-Oracle-Database Template.
   This template implements an Oracle RDS Database and related resources.
 Metadata:
   AWS::CloudFormation::Interface:
@@ -27,27 +27,27 @@ Metadata:
           - EnvironmentType
           - EnvironmentZones
       - Label:
-          default: Application Configuration
+          default: Oracle Application Configuration
         Parameters:
-          - ApplicationName
-          - ComponentName
-          - ServiceName
+          - OracleApplicationName
+          - DatabaseComponentName
+          - OracleDatabaseServiceName
       - Label:
           default: Engine Configuration
         Parameters:
           - EngineType
           - EngineVersion
-          - MasterUsername
-          - MasterPassword
           - EncryptionType
           - BackupRetention
           - BackupWindow
           - MaintenanceWindow
           - LogRetention
       - Label:
-          default: Database Configuration
+          default: Oracle Database Configuration
         Parameters:
-          - DatabaseName
+          - OracleMasterUserName
+          - OracleMasterUserPassword
+          - OracleDatabaseName
       - Label:
           default: Security Configuration
         Parameters:
@@ -80,20 +80,16 @@ Metadata:
         default: Environment Type
       EnvironmentZones:
         default: Environment Zones
-      ApplicationName:
-        default: Application Name
-      ComponentName:
-        default: Component Name
-      ServiceName:
-        default: Service Name
+      OracleApplicationName:
+        default: Oracle Application Name
+      DatabaseComponentName:
+        default: Database Component Name
+      OracleDatabaseServiceName:
+        default: Oracle-Database DNS Service Name
       EngineType:
         default: Engine Type
       EngineVersion:
         default: Engine Version
-      MasterUsername:
-        default: Master Username
-      MasterPassword:
-        default: Master Password
       EncryptionType:
         default: Encryption Type
       BackupRetention:
@@ -104,8 +100,12 @@ Metadata:
         default: Maintenance Window
       LogRetention:
         default: Log Retention
-      DatabaseName:
-        default: Database Name
+      OracleMasterUserName:
+        default: Oracle Master User Name
+      OracleMasterUserPassword:
+        default: Oracle Master User Password
+      OracleDatabaseName:
+        default: Oracle Database Name
       AdministratorNetworks:
         default: Administrator Networks
       AdministratorNetworkDescriptions:
@@ -240,28 +240,29 @@ Parameters:
       - 1
       - 2
     ConstraintDescription: must be 1 or 2.
-  ApplicationName:
-    Description: Name of the Application associated with the Stack
+  OracleApplicationName:
+    Description: Name of the Oracle Application
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: Oracle
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ComponentName:
-    Description: Name of the Application Component associated with the Stack
+  DatabaseComponentName:
+    Description: Name of the Database Component
     Type: String
     Default: Database
     AllowedValues:
       - Database
     ConstraintDescription: must be Database.
-  ServiceName:
-    Description: Optional DNS Service Name
+  OracleDatabaseServiceName:
+    Description: DNS Service Name of the Oracle-Database Application Component
     Type: String
+    MinLength: 2
     MaxLength: 64
     Default: oracle-db
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   EngineType:
     Description: Type of Database Engine
     Type: String
@@ -276,21 +277,6 @@ Parameters:
     AllowedValues:
       - 12.1.0.2.v13
     ConstraintDescription: must be 12.1.0.2.v13.
-  MasterUsername:
-    Description: Name of the Master User
-    Type: String
-    MinLength: 2
-    MaxLength: 63
-    Default: oracle
-    AllowedPattern: ^[a-z][a-z0-9]*$
-    ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
-  MasterPassword:
-    Description: Optional password of the Master User (If unspecified, generate a random password)
-    Type: String
-    NoEcho: true
-    Default: ''
-    AllowedPattern: (^$|(?=^.{20,30}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
-    ConstraintDescription: must be 20 to 30 character random string format with at least one uppercase, lowercase and digit, if specified.
   EncryptionType:
     Description: Type of Encryption
     Type: String
@@ -349,11 +335,26 @@ Parameters:
       - 1827
       - 3653
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
-  DatabaseName:
-    Description: Optional name of the Database
+  OracleMasterUserName:
+    Description: Name of the Oracle Master User
+    Type: String
+    MinLength: 2
+    MaxLength: 63
+    Default: oracle
+    AllowedPattern: ^[a-z][a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
+  OracleMasterUserPassword:
+    Description: Optional password of the Oracle Master User (If unspecified, generate a random password)
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,30}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 30 character random string format with at least one uppercase, lowercase and digit, if specified.
+  OracleDatabaseName:
+    Description: Optional name of the Oracle Database
     Type: String
     MaxLength: 32
-    Default: prototype
+    Default: example
     AllowedPattern: (^$|^[-a-zA-Z0-9]*$)
     ConstraintDescription: must contain alphanumeric characters and dashes, if specified.
   AdministratorNetworks:
@@ -464,14 +465,13 @@ Conditions:
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
-  ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
-  ConfigureMasterPassword: !Not [ !Equals [ !Ref MasterPassword, '' ]]
-  GenerateMasterPassword: !Not [ !Condition ConfigureMasterPassword ]
+  ConfigureMasterUserPassword: !Not [ !Equals [ !Ref OracleMasterUserPassword, '' ]]
+  GenerateMasterUserPassword: !Not [ !Condition ConfigureMasterUserPassword ]
   ConfigureEncryption: !Not [ !Equals [ !Ref EncryptionType, none ]]
   ConfigureEncryptionKey: !Equals [ !Ref EncryptionType, custom ]
   ConfigureBackupWindow: !Not [ !Equals [ !Ref BackupWindow, '' ]]
   ConfigureMaintenanceWindow: !Not [ !Equals [ !Ref MaintenanceWindow, '' ]]
-  ConfigureDatabase: !Not [ !Equals [ !Ref DatabaseName, '' ]]
+  ConfigureDatabase: !Not [ !Equals [ !Ref OracleDatabaseName, '' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -499,32 +499,32 @@ Resources:
   MasterUserSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
-      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User
-      SecretString: !If [ ConfigureMasterPassword, !Sub '{"username": "${MasterUsername}", "password": "${MasterPassword}"}', !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-MasterUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${OracleApplicationName} ${DatabaseComponentName} Master User
+      SecretString: !If [ ConfigureMasterUserPassword, !Sub '{"username": "${OracleMasterUserName}", "password": "${OracleMasterUserPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
-        - GenerateMasterPassword
-        - SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
+        - GenerateMasterUserPassword
+        - SecretStringTemplate: !Sub '{"username": "${OracleMasterUserName}"}'
           GenerateStringKey: password
           PasswordLength: 30
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
+          Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-MasterUser
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-ClientSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup
+          Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-ClientSecurityGroup
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DatabaseSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-DatabaseSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -538,17 +538,17 @@ Resources:
           FromPort: 1521
           ToPort: 1521
           SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle)
+          Description: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-ClientSecurityGroup (Oracle)
         - IpProtocol: tcp
           FromPort: 2483
           ToPort: 2483
           SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle)
+          Description: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-ClientSecurityGroup (Oracle)
         - IpProtocol: tcp
           FromPort: 2484
           ToPort: 2484
           SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (Oracle-SSL)
+          Description: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-ClientSecurityGroup (Oracle-SSL)
         - !If
           - ConfigureWindowsBastionsIntegration
           - IpProtocol: tcp
@@ -849,7 +849,7 @@ Resources:
           Description: Global (All)
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DatabaseSecurityGroup
+          Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-DatabaseSecurityGroup
   HostName:
     Type: Custom::HostName
     Properties:
@@ -858,8 +858,8 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
-      ComponentName: !Ref ComponentName
+      ApplicationName: !Ref OracleApplicationName
+      ComponentName: !Ref DatabaseComponentName
   ErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -888,7 +888,7 @@ Resources:
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBSubnetGroup
+      DBSubnetGroupDescription: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-DBSubnetGroup
       SubnetIds:
         - !ImportValue
           Fn::Sub: ${VPCStackName}-DatabaseSubnetA
@@ -896,24 +896,24 @@ Resources:
           Fn::Sub: ${VPCStackName}-DatabaseSubnetB
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBSubnetGroup
+          Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-DBSubnetGroup
   DBParameterGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
-      Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
+      Description: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-DBParameterGroup
       Family: oracle-se2-12.1
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
+          Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-DBParameterGroup
   OptionGroup:
     Type: AWS::RDS::OptionGroup
     Properties:
       EngineName: oracle-se2
       MajorEngineVersion: '12.1'
-      OptionGroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-OptionGroup
+      OptionGroupDescription: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-OptionGroup
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-OptionGroup
+          Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-OptionGroup
   DBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -949,10 +949,10 @@ Resources:
       AutoMinorVersionUpgrade: true
       PubliclyAccessible: false
       CopyTagsToSnapshot: true
-      DBName: !If [ ConfigureDatabase, !Ref DatabaseName, !Ref 'AWS::NoValue' ]
+      DBName: !If [ ConfigureDatabase, !Ref OracleDatabaseName, !Ref 'AWS::NoValue' ]
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBInstance
+          Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-DBInstance
         - Key: HostName
           Value: !Ref HostName
     DependsOn: [ TraceLogGroup, AuditLogGroup, AlertLogGroup, ListenerLogGroup ]
@@ -961,7 +961,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName}-${ComponentName} DBInstance
+      Comment: !Sub Private DNS Host Name of the ${OracleApplicationName}-${DatabaseComponentName} DBInstance Endpoint
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -975,16 +975,15 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS ServiceName for ${ApplicationName}-${ComponentName} DBInstance
+      Comment: !Sub Private DNS Service Name of the ${OracleApplicationName}-${DatabaseComponentName} DBInstance Endpoint
       Name: !Sub
-        - ${ServiceName}.${VPCPrivateDomain}.
+        - ${OracleDatabaseServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
       TTL: 900
       ResourceRecords:
         - !GetAtt DBInstance.Endpoint.Address
-    Condition: ConfigureServiceName
   CPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -1031,7 +1030,7 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${ApplicationName}-${ComponentName}-${RegionName}
+        - ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -1042,7 +1041,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${ApplicationName}-${ComponentName}"
+              "markdown" : "# ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}"
             }
           },
           {
@@ -1083,7 +1082,7 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-DBInstanceEndpoint
   PrivateDBInstanceHostName:
-    Description: The Private DNS HostName of the Oracle DBInstance Endpoint
+    Description: The Private DNS Host Name of the Oracle-Database DBInstance Endpoint
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
@@ -1091,22 +1090,21 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-PrivateDBInstanceHostName
   PrivateDBInstanceServiceName:
-    Description: The Private DNS ServiceName of the Oracle DBInstance Endpoint
+    Description: The Private DNS Service Name of the Oracle-Database DBInstance Endpoint
     Value: !Sub
-      - ${ServiceName}.${VPCPrivateDomain}
+      - ${OracleDatabaseServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Export:
       Name: !Sub ${AWS::StackName}-PrivateDBInstanceServiceName
-    Condition: ConfigureServiceName
-  MasterUserSecret:
-    Description: The Master User Secret Name
-    Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
-    Export:
-      Name: !Sub ${AWS::StackName}-MasterUserSecret
   DatabaseName:
     Description: The Database Name
-    Value: !Ref DatabaseName
+    Value: !Ref OracleDatabaseName
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseName
     Condition: ConfigureDatabase
+  MasterUserSecret:
+    Description: The Master User Secret Name
+    Value: !Sub ${EnvironmentName}-${OracleApplicationName}-${DatabaseComponentName}-MasterUser
+    Export:
+      Name: !Sub ${AWS::StackName}-MasterUserSecret

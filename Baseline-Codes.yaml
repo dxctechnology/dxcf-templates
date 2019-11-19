@@ -533,7 +533,7 @@ Resources:
           Name: RabbitMQ
           Code: rmq
         - Type: Application
-          Name: RedShift
+          Name: Redshift
           Code: red
         - Type: Application
           Name: RStudio

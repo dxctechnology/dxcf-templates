@@ -35,7 +35,7 @@ Metadata:
           - EnvironmentType
           - OSName
       - Label:
-          default: Application Dependencies Configuration
+          default: Aurora Application Dependencies Configuration
         Parameters:
           - AwsCliProductKey
           - AwsPowerShellToolsProductKey
@@ -43,13 +43,13 @@ Metadata:
           - MySQLWebCommunityProductKey
           - DbForgeStudioExpressProductKey
       - Label:
-          default: Application Configuration
+          default: Aurora Application Configuration
         Parameters:
-          - ApplicationName
-          - ComponentName
-          - ServiceName
-          - AdministratorUsername
-          - AdministratorPassword
+          - AuroraApplicationName
+          - ManagementComponentName
+          - AuroraManagementServiceName
+          - AuroraAdministratorUserName
+          - AuroraAdministratorPassword
           - LogRetention
           - Schedule
       - Label:
@@ -104,16 +104,16 @@ Metadata:
         default: MySQL Web Community Product S3 Key
       DbForgeStudioExpressProductKey:
         default: dbForge Studio Express Product S3 Key
-      ApplicationName:
-        default: Application Name
-      ComponentName:
-        default: Component Name
-      ServiceName:
-        default: Service Name
-      AdministratorUsername:
-        default: Administrator Username
-      AdministratorPassword:
-        default: Administrator Password
+      AuroraApplicationName:
+        default: Aurora Application Name
+      ManagementComponentName:
+        default: Management Component Name
+      AuroraManagementServiceName:
+        default: Aurora-Management DNS Service Name
+      AuroraAdministratorUserName:
+        default: Aurora Administrator User Name
+      AuroraAdministratorPassword:
+        default: Aurora Administrator Password
       LogRetention:
         default: Log Retention
       Schedule:
@@ -309,39 +309,40 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^(?:Windows|dbForge)\/[-_.a-zA-Z0-9]*\.exe$)
     ConstraintDescription: must be a valid filename, within the Windows or dbForge folders, if specified.
-  ApplicationName:
-    Description: Name of the Application associated with the Stack
+  AuroraApplicationName:
+    Description: Name of the Aurora Application
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: Aurora
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ComponentName:
-    Description: Name of the Application Component associated with the Stack
+  ManagementComponentName:
+    Description: Name of the Management Component
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: Management
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ServiceName:
-    Description: Optional DNS Service Name
+  AuroraManagementServiceName:
+    Description: DNS Service Name of the Aurora-Management Application Component
     Type: String
+    MinLength: 2
     MaxLength: 64
     Default: aurora-management
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
-  AdministratorUsername:
-    Description: Name of the Administrator User
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
+  AuroraAdministratorUserName:
+    Description: Name of the Aurora Administrator
     Type: String
     MinLength: 2
     MaxLength: 63
     Default: admin
     AllowedPattern: ^[a-z][a-z0-9]*$
     ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
-  AdministratorPassword:
-    Description: Optional password of the Administrator User (If unspecified, generate a random password)
+  AuroraAdministratorPassword:
+    Description: Optional password of the Aurora Administrator User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
@@ -461,8 +462,7 @@ Conditions:
   InstallChrome: !Not [ !Equals [ !Ref ChromeProductKey, '' ]]
   InstallMySQLWebCommunity: !Not [ !Equals [ !Ref MySQLWebCommunityProductKey, '' ]]
   InstallDbForgeStudioExpress: !Not [ !Equals [ !Ref DbForgeStudioExpressProductKey, '' ]]
-  ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
-  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref AdministratorPassword, '' ]]
+  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref AuroraAdministratorPassword, '' ]]
   GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
   ConfigureSchedule: !Not [ !Equals [ !Ref Schedule, '' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -499,10 +499,10 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-Database-MasterUser-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${AuroraApplicationName}-Database-MasterUser-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-Administrator-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -555,22 +555,22 @@ Resources:
                     - arn:aws:s3:::${ProductsBucket}/Aurora/*
                     - ProductsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ProductsBucket
-  AdministratorUserSecret:
+  AdministratorSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
-      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Administrator User
-      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${AdministratorUsername}", "password": "${AdministratorPassword}"}', !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-Administrator
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${AuroraApplicationName} ${ManagementComponentName} Administrator
+      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${AuroraAdministratorUserName}", "password": "${AuroraAdministratorPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateAdministratorPassword
-        - SecretStringTemplate: !Sub '{"username": "${AdministratorUsername}"}'
+        - SecretStringTemplate: !Sub '{"username": "${AuroraAdministratorUserName}"}'
           GenerateStringKey: password
           PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
+          Value: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-Administrator
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -578,8 +578,8 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref ApplicationName
-      ComponentName: !Ref ComponentName
+      ApplicationName: !Ref AuroraApplicationName
+      ComponentName: !Ref ManagementComponentName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -589,7 +589,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -975,7 +975,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-InstanceSecurityGroup
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -996,8 +996,8 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
-      ComponentName: !Ref ComponentName
+      ApplicationName: !Ref AuroraApplicationName
+      ComponentName: !Ref ManagementComponentName
       InstanceNumber: 01
       ZoneCode: a
   Instance:
@@ -1107,7 +1107,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}",
                     "metrics_collected" : {
                       "Memory" : {
                         "measurement" : [
@@ -1252,13 +1252,13 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${PasswordSecretId}"
+                  -SecretId ${SecretId}"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-                  PasswordSecretId: !If
+                  SecretId: !If
                     - ConfigureActiveDirectoryIntegration
-                    - !Sub ${EnvironmentName}-ActiveDirectory-AdminPassword
-                    - !Sub ${EnvironmentName}-DirectoryService-AdminPassword
+                    - !Sub ${EnvironmentName}-ActiveDirectory-Administrator
+                    - !Sub ${EnvironmentName}-DirectoryService-Administrator
               ignoreErrors: false
               waitAfterCompletion: forever
         InstallWebServer:
@@ -1277,7 +1277,7 @@ Resources:
         InstallAwsPowerShellTools:
           packages:
             msi:
-              AwsCli: !Sub
+              AwsPowerShellTools: !Sub
                 - https://${ProductsBucket}.${s3}.amazonaws.com/${AwsPowerShellToolsProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
@@ -1316,10 +1316,10 @@ Resources:
               content: !Sub |
                 <html>
                 <head>
-                <title>${ApplicationName}-${ComponentName} Test Website</title>
+                <title>${AuroraApplicationName}-${ManagementComponentName} Test Website</title>
                 </head>
                 <body>
-                <h1>${ApplicationName}-${ComponentName}</h1>
+                <h1>${AuroraApplicationName}-${ManagementComponentName}</h1>
                 </body>
                 </html>
         SignalCloudFormation:
@@ -1333,7 +1333,7 @@ Resources:
       KeyName: !Ref KeyName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-DatabaseSubnetA
@@ -1355,7 +1355,7 @@ Resources:
             DeleteOnTermination: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-Instance
+          Value: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-Instance
         #- Key: HostName
         #  Value: !Ref HostName
         - !If
@@ -1378,7 +1378,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName}-${ComponentName} Instance
+      Comment: !Sub Private DNS Host Name of the ${AuroraApplicationName}-${ManagementComponentName} Instance
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1392,9 +1392,9 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS ServiceName for ${ApplicationName}
+      Comment: !Sub Private DNS Service Name of the ${AuroraApplicationName}-${ManagementComponentName} Service
       Name: !Sub
-        - ${ServiceName}.${VPCPrivateDomain}.
+        - ${AuroraManagementServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
@@ -1404,7 +1404,6 @@ Resources:
           - ${HostName}.${VPCPrivateDomain}
           - VPCPrivateDomain: !ImportValue
               Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureServiceName
   CPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -1429,7 +1428,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}
       MetricName: MemoryCommittedPercent
       Statistic: Average
       Period: 60
@@ -1448,7 +1447,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -1469,7 +1468,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -1487,7 +1486,7 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${ApplicationName}-${ComponentName}-${RegionName}
+        - ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -1498,7 +1497,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${ApplicationName}-${ComponentName}"
+              "markdown" : "# ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}"
             }
           },
           {
@@ -1555,8 +1554,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "MemoryCommittedPercent", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "MemoryPageOps", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
+                [ "${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}", "MemoryCommittedPercent", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
+                [ "${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}", "MemoryPageOps", "InstanceId", "${Instance}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -1578,8 +1577,8 @@ Resources:
               "metrics" : [
                 [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
                 [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}-${ComponentName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
+                [ "${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
+                [ "${SystemName}/${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}", "DiskFreePercent", "InstanceId", "${Instance}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -1682,27 +1681,25 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-InstanceSecurityGroup
   PrivateHostName:
-    Description: The Private DNS HostName of the Aurora-Management Instance
+    Description: The Private DNS Host Name of the Aurora-Management Instance
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
   PrivateServiceName:
-    Description: The Private DNS ServiceName of the Aurora-Management Instance
+    Description: The Private DNS Service Name of the Aurora-Management Service
     Value: !Sub
-      - ${ServiceName}.${VPCPrivateDomain}
+      - ${AuroraManagementServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureServiceName
   PrivateWebsiteURL:
     Description: The Private Website URL
     Value: !Sub
-      - http://${ServiceName}.${VPCPrivateDomain}/
+      - http://${AuroraManagementServiceName}.${VPCPrivateDomain}/
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureServiceName
-  AdministratorUserSecret:
-    Description: The Administrator User Secret Name
-    Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-AdministratorUser
+  AdministratorSecret:
+    Description: The Administrator Secret Name
+    Value: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-Administrator
     Export:
-      Name: !Sub ${AWS::StackName}-AdministratorUserSecret
+      Name: !Sub ${AWS::StackName}-AdministratorSecret

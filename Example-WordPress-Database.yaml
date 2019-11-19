@@ -27,27 +27,27 @@ Metadata:
           - EnvironmentType
           - EnvironmentZones
       - Label:
-          default: Application Configuration
+          default: WordPress Application Configuration
         Parameters:
-          - ApplicationName
-          - ComponentName
-          - ServiceName
+          - WordPressApplicationName
+          - DatabaseComponentName
+          - WordPressDatabaseServiceName
       - Label:
           default: Engine Configuration
         Parameters:
           - EngineType
           - EngineVersion
-          - MasterUsername
-          - MasterPassword
           - EncryptionType
           - BackupRetention
           - BackupWindow
           - MaintenanceWindow
           - LogRetention
       - Label:
-          default: Database Configuration
+          default: WordPress Database Configuration
         Parameters:
-          - DatabaseName
+          - WordPressMasterUserName
+          - WordPressMasterUserPassword
+          - WordPressDatabaseName
       - Label:
           default: Security Configuration
         Parameters:
@@ -80,20 +80,16 @@ Metadata:
         default: Environment Type
       EnvironmentZones:
         default: Environment Zones
-      ApplicationName:
-        default: Application Name
-      ComponentName:
-        default: Component Name
-      ServiceName:
-        default: Service Name
+      WordPressApplicationName:
+        default: WordPress Application Name
+      DatabaseComponentName:
+        default: Database Component Name
+      WordPressDatabaseServiceName:
+        default: WordPress-Database DNS Service Name
       EngineType:
         default: Engine Type
       EngineVersion:
         default: Engine Version
-      MasterUsername:
-        default: Master Username
-      MasterPassword:
-        default: Master Password
       EncryptionType:
         default: Encryption Type
       BackupRetention:
@@ -104,8 +100,12 @@ Metadata:
         default: Maintenance Window
       LogRetention:
         default: Log Retention
-      DatabaseName:
-        default: Database Name
+      WordPressMasterUserName:
+        default: WordPress Master User Name
+      WordPressMasterUserPassword:
+        default: WordPress Master User Password
+      WordPressDatabaseName:
+        default: WordPress Database Name
       AdministratorNetworks:
         default: Administrator Networks
       AdministratorNetworkDescriptions:
@@ -241,28 +241,29 @@ Parameters:
       - 1
       - 2
     ConstraintDescription: must be 1 or 2.
-  ApplicationName:
-    Description: Name of the Application associated with the Stack
+  WordPressApplicationName:
+    Description: Name of the WordPress Application
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: WordPress
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ComponentName:
-    Description: Name of the Application Component associated with the Stack
+  DatabaseComponentName:
+    Description: Name of the Database Component
     Type: String
     Default: Database
     AllowedValues:
       - Database
     ConstraintDescription: must be Database.
-  ServiceName:
-    Description: Optional DNS Service Name
+  WordPressDatabaseServiceName:
+    Description: DNS Service Name of the WordPress-Database Application Component
     Type: String
+    MinLength: 2
     MaxLength: 64
     Default: wordpress-db
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   EngineType:
     Description: Type of Database Engine
     Type: String
@@ -280,21 +281,6 @@ Parameters:
       - 10.1
       - 10.0
     ConstraintDescription: must be 10.3, 10.2, 10.1 or 10.0.
-  MasterUsername:
-    Description: Name of the Master User
-    Type: String
-    MinLength: 2
-    MaxLength: 63
-    Default: admin
-    AllowedPattern: ^[a-z][a-z0-9]*$
-    ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
-  MasterPassword:
-    Description: Optional password of the Master User (If unspecified, generate a random password)
-    Type: String
-    NoEcho: true
-    Default: ''
-    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
-    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   EncryptionType:
     Description: Type of Encryption
     Type: String
@@ -353,8 +339,23 @@ Parameters:
       - 1827
       - 3653
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
-  DatabaseName:
-    Description: Name of the Database
+  WordPressMasterUserName:
+    Description: Name of the WordPress Master User
+    Type: String
+    MinLength: 2
+    MaxLength: 63
+    Default: admin
+    AllowedPattern: ^[a-z][a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
+  WordPressMasterUserPassword:
+    Description: Optional password of the WordPress Master User (If unspecified, generate a random password)
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+  WordPressDatabaseName:
+    Description: Name of the WordPress Database
     Type: String
     MinLength: 3
     MaxLength: 32
@@ -473,9 +474,8 @@ Conditions:
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
-  ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
-  ConfigureMasterPassword: !Not [ !Equals [ !Ref MasterPassword, '' ]]
-  GenerateMasterPassword: !Not [ !Condition ConfigureMasterPassword ]
+  ConfigureMasterUserPassword: !Not [ !Equals [ !Ref WordPressMasterUserPassword, '' ]]
+  GenerateMasterUserPassword: !Not [ !Condition ConfigureMasterUserPassword ]
   ConfigureEncryption: !Not [ !Equals [ !Ref EncryptionType, none ]]
   ConfigureEncryptionKey: !Equals [ !Ref EncryptionType, custom ]
   ConfigureBackupWindow: !Not [ !Equals [ !Ref BackupWindow, '' ]]
@@ -507,32 +507,32 @@ Resources:
   MasterUserSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
-      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} ${ComponentName} Master User
-      SecretString: !If [ ConfigureMasterPassword, !Sub '{"username": "${MasterUsername}", "password": "${MasterPassword}"}', !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-MasterUser
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${WordPressApplicationName} ${DatabaseComponentName} Master User
+      SecretString: !If [ ConfigureMasterUserPassword, !Sub '{"username": "${WordPressMasterUserName}", "password": "${WordPressMasterUserPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
-        - GenerateMasterPassword
-        - SecretStringTemplate: !Sub '{"username": "${MasterUsername}"}'
+        - GenerateMasterUserPassword
+        - SecretStringTemplate: !Sub '{"username": "${WordPressMasterUserName}"}'
           GenerateStringKey: password
           PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-MasterUser
   ClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-ClientSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-ClientSecurityGroup
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DatabaseSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-DatabaseSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -546,7 +546,7 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !Ref ClientSecurityGroup
-          Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-ClientSecurityGroup (MySQL)
+          Description: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-ClientSecurityGroup (MySQL)
         - !If
           - ConfigureWindowsBastionsIntegration
           - IpProtocol: tcp
@@ -651,7 +651,7 @@ Resources:
           Description: Global (All)
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DatabaseSecurityGroup
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-DatabaseSecurityGroup
   HostName:
     Type: Custom::HostName
     Properties:
@@ -660,8 +660,8 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
-      ComponentName: !Ref ComponentName
+      ApplicationName: !Ref WordPressApplicationName
+      ComponentName: !Ref DatabaseComponentName
   ErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -680,7 +680,7 @@ Resources:
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBSubnetGroup
+      DBSubnetGroupDescription: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-DBSubnetGroup
       SubnetIds:
         - !ImportValue
           Fn::Sub: ${VPCStackName}-DatabaseSubnetA
@@ -688,11 +688,11 @@ Resources:
           Fn::Sub: ${VPCStackName}-DatabaseSubnetB
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBSubnetGroup
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-DBSubnetGroup
   DBParameterGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
-      Description: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
+      Description: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-DBParameterGroup
       Family: !Sub mariadb${EngineVersion}
       Parameters:
         log_output: FILE
@@ -702,7 +702,7 @@ Resources:
         log_queries_not_using_indexes: 0
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBParameterGroup
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-DBParameterGroup
   DBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -737,10 +737,10 @@ Resources:
       AutoMinorVersionUpgrade: true
       PubliclyAccessible: false
       CopyTagsToSnapshot: true
-      DBName: !Ref DatabaseName
+      DBName: !Ref WordPressDatabaseName
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-DBInstance
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-DBInstance
         - Key: HostName
           Value: !Ref HostName
     DependsOn: [ ErrorLogGroup, GeneralLogGroup, SlowQueryLogGroup ]
@@ -749,7 +749,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName}-${ComponentName} DBInstance
+      Comment: !Sub Private DNS Host Name of the ${WordPressApplicationName}-${DatabaseComponentName} DBInstance Endpoint
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -763,16 +763,15 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS ServiceName for ${ApplicationName}-${ComponentName} DBInstance
+      Comment: !Sub Private DNS Service Name of the ${WordPressApplicationName}-${DatabaseComponentName} DBInstance Endpoint
       Name: !Sub
-        - ${ServiceName}.${VPCPrivateDomain}.
+        - ${WordPressDatabaseServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
       TTL: 900
       ResourceRecords:
         - !GetAtt DBInstance.Endpoint.Address
-    Condition: ConfigureServiceName
   CPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -819,7 +818,7 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${ApplicationName}-${ComponentName}-${RegionName}
+        - ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -830,7 +829,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${ApplicationName}-${ComponentName}"
+              "markdown" : "# ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}"
             }
           },
           {
@@ -871,7 +870,7 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-DBInstanceEndpoint
   PrivateDBInstanceHostName:
-    Description: The Private DNS HostName of the WordPress DBInstance Endpoint
+    Description: The Private DNS Host Name of the WordPress-Database DBInstance Endpoint
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
@@ -879,21 +878,20 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-PrivateDBInstanceHostName
   PrivateDBInstanceServiceName:
-    Description: The Private DNS ServiceName of the WordPress DBInstance Endpoint
+    Description: The Private DNS Service Name of the WordPress-Database DBInstance Endpoint
     Value: !Sub
-      - ${ServiceName}.${VPCPrivateDomain}
+      - ${WordPressDatabaseServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
     Export:
       Name: !Sub ${AWS::StackName}-PrivateDBInstanceServiceName
-    Condition: ConfigureServiceName
-  MasterUserSecret:
-    Description: The Master User Secret Name
-    Value: !Sub ${EnvironmentName}-${ApplicationName}-${ComponentName}-MasterUser
-    Export:
-      Name: !Sub ${AWS::StackName}-MasterUserSecret
   DatabaseName:
     Description: The Database Name
-    Value: !Ref DatabaseName
+    Value: !Ref WordPressDatabaseName
     Export:
       Name: !Sub ${AWS::StackName}-DatabaseName
+  MasterUserSecret:
+    Description: The Master User Secret Name
+    Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-${DatabaseComponentName}-MasterUser
+    Export:
+      Name: !Sub ${AWS::StackName}-MasterUserSecret

@@ -32,17 +32,17 @@ Metadata:
           - EnvironmentName
           - EnvironmentType
       - Label:
-          default: Application Dependencies Configuration
+          default: WordPress Application Dependencies Configuration
         Parameters:
           - WordPressProductKey
       - Label:
-          default: Application Configuration
+          default: WordPress Application Configuration
         Parameters:
-          - ApplicationName
-          - ServiceName
-          - AdministratorUsername
-          - AdministratorPassword
-          - AdministratorEmail
+          - WordPressApplicationName
+          - WordPressServiceName
+          - WordPressAdministratorUserName
+          - WordPressAdministratorPassword
+          - WordPressAdministratorEmail
           - LogRetention
           - Schedule
       - Label:
@@ -85,16 +85,16 @@ Metadata:
         default: Environment Type
       WordPressProductKey:
         default: WordPress Product S3 Key
-      ApplicationName:
-        default: Application Name
-      ServiceName:
-        default: Service Name
-      AdministratorUsername:
-        default: Administrator Username
-      AdministratorPassword:
-        default: Administrator Password
-      AdministratorEmail:
-        default: Administrator Email Address
+      WordPressApplicationName:
+        default: WordPress Application Name
+      WordPressServiceName:
+        default: WordPress DNS Service Name
+      WordPressAdministratorUserName:
+        default: WordPress Administrator User Name
+      WordPressAdministratorPassword:
+        default: WordPress Administrator Password
+      WordPressAdministratorEmail:
+        default: WordPress Administrator Email Address
       LogRetention:
         default: Log Retention
       Schedule:
@@ -256,38 +256,39 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|^(?:Linux|WordPress)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
     ConstraintDescription: must be a valid filename, within the Linux or WordPress folders, if specified.
-  ApplicationName:
-    Description: Name of the Application associated with the Stack
+  WordPressApplicationName:
+    Description: Name of the WordPress Application
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: WordPress
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ServiceName:
-    Description: Optional DNS Service Name
+  WordPressServiceName:
+    Description: DNS Service Name of the WordPress Application
     Type: String
+    MinLength: 2
     MaxLength: 64
     Default: wordpress
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes, if specified.
-  AdministratorUsername:
-    Description: Name of the Administrator User
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
+  WordPressAdministratorUserName:
+    Description: Name of the WordPress Administrator
     Type: String
     MinLength: 2
     MaxLength: 63
     Default: admin
     AllowedPattern: ^[a-z][a-z0-9]*$
     ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
-  AdministratorPassword:
-    Description: Optional password of the Administrator User (If unspecified, generate a random password)
+  WordPressAdministratorPassword:
+    Description: Optional password for the WordPress Administrator (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
     AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
     ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
-  AdministratorEmail:
-    Description: Optional email address of the Administrator User (If unspecified, do not configure an email address)
+  WordPressAdministratorEmail:
+    Description: Optional email address of the Administrator (If unspecified, do not configure an email address)
     Type: String
     Default: ''
     AllowedPattern: (^$|[^\s@]+@[^\s@]+\.[^\s@]+$)
@@ -411,10 +412,9 @@ Conditions:
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
   InstallWordPress: !Not [ !Equals [ !Ref WordPressProductKey, '' ]]
-  ConfigureServiceName: !Not [ !Equals [ !Ref ServiceName, '' ]]
-  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref AdministratorPassword, '' ]]
+  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref WordPressAdministratorPassword, '' ]]
   GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
-  ConfigureAdministratorEmail: !Not [ !Equals [ !Ref AdministratorEmail, '' ]]
+  ConfigureAdministratorEmail: !Not [ !Equals [ !Ref WordPressAdministratorEmail, '' ]]
   ConfigureSchedule: !Not [ !Equals [ !Ref Schedule, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -458,8 +458,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-AdministratorUser-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${ApplicationName}-Database-MasterUser-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${WordPressApplicationName}-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${WordPressApplicationName}-Database-MasterUser-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -508,22 +508,22 @@ Resources:
                     - arn:aws:s3:::${ProductsBucket}/WordPress/*
                     - ProductsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ProductsBucket
-  AdministratorUserSecret:
+  AdministratorSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
-      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${ApplicationName} Administrator User
-      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${AdministratorUsername}", "password": "${AdministratorPassword}"}', !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${WordPressApplicationName}-Administrator
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${WordPressApplicationName} Administrator
+      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${WordPressAdministratorUserName}", "password": "${WordPressAdministratorPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateAdministratorPassword
-        - SecretStringTemplate: !Sub '{"username": "${AdministratorUsername}"}'
+        - SecretStringTemplate: !Sub '{"username": "${WordPressAdministratorUserName}"}'
           GenerateStringKey: password
           PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-Administrator
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -531,7 +531,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref WordPressApplicationName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -541,7 +541,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${WordPressApplicationName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1087,7 +1087,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-InstanceSecurityGroup
   AmazonLinux2Image:
     Type: Custom::AmazonLinux2Image
     Properties:
@@ -1107,7 +1107,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref WordPressApplicationName
       InstanceNumber: 01
       ZoneCode: a
   Instance:
@@ -1164,7 +1164,6 @@ Resources:
         ConfigureOS:
           packages:
             yum:
-              yum-utils: []
               git: []
           files:
             /etc/profile.d/local.sh:
@@ -1224,7 +1223,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${ApplicationName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${WordPressApplicationName}",
                     "metrics_collected" : {
                       "mem" : {
                         "measurement" : [
@@ -1436,13 +1435,13 @@ Resources:
             01-configure-wordpress:
               command: !Sub
                 - /root/bin/configure-wordpress -n
-                  -t "${CompanyName} ${SystemName} ${EnvironmentName} ${ApplicationName}"
-                  -h ${ServiceName}.${VPCPrivateDomain} -s ${AdministratorUserSecret}${AdministratorEmail}
+                  -t "${CompanyName} ${SystemName} ${EnvironmentName} ${WordPressApplicationName}"
+                  -h ${WordPressServiceName}.${VPCPrivateDomain} -s ${AdministratorSecret}${AdministratorEmail}
                   -H ${DBInstanceHostName} -D ${DatabaseName} -S ${MasterUserSecret}
                 - VPCPrivateDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-                  AdministratorUserSecret: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
-                  AdministratorEmail: !If [ ConfigureAdministratorEmail, !Sub ' -e ${AdministratorEmail}', '' ]
+                  AdministratorSecret: !Sub ${EnvironmentName}-${WordPressApplicationName}-Administrator
+                  AdministratorEmail: !If [ ConfigureAdministratorEmail, !Sub ' -e ${WordPressAdministratorEmail}', '' ]
                   DBInstanceHostName: !ImportValue
                     Fn::Sub: ${WordPressDatabaseStackName}-PrivateDBInstanceHostName
                   DatabaseName: !ImportValue
@@ -1457,7 +1456,7 @@ Resources:
       KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${ApplicationName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${WordPressApplicationName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-ApplicationSubnetA
@@ -1479,7 +1478,7 @@ Resources:
             DeleteOnTermination: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-Instance
+          Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-Instance
         #- Key: HostName
         #  Value: !Ref HostName
         - !If
@@ -1504,7 +1503,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName} Instance
+      Comment: !Sub Private DNS Host Name of the ${WordPressApplicationName} Instance
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1518,9 +1517,9 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS ServiceName for ${ApplicationName}
+      Comment: !Sub Private DNS Service Name of the ${WordPressApplicationName} Service
       Name: !Sub
-        - ${ServiceName}.${VPCPrivateDomain}.
+        - ${WordPressServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
@@ -1530,7 +1529,6 @@ Resources:
           - ${HostName}.${VPCPrivateDomain}
           - VPCPrivateDomain: !ImportValue
               Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureServiceName
   CPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -1555,7 +1553,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${WordPressApplicationName}
       MetricName: MemoryUsedPercent
       Statistic: Average
       Period: 60
@@ -1572,7 +1570,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${WordPressApplicationName}
       MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
@@ -1591,7 +1589,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${WordPressApplicationName}
       MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
@@ -1609,7 +1607,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[ip, identity, user_id, timestamp, request, status_code = 404, size, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${WordPressApplicationName}
           MetricName: 404Count
           MetricValue: 1
   404Alarm:
@@ -1619,7 +1617,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${WordPressApplicationName}
       MetricName: 404Count
       Statistic: Sum
       Period: 60
@@ -1630,7 +1628,7 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${ApplicationName}-${RegionName}
+        - ${EnvironmentName}-${WordPressApplicationName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -1641,7 +1639,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${ApplicationName}"
+              "markdown" : "# ${EnvironmentName}-${WordPressApplicationName}"
             }
           },
           {
@@ -1698,8 +1696,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "MemoryUsedPercent", "InstanceId", "${Instance}", { "label" : "Memory Used %" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "SwapUsedPercent", "InstanceId", "${Instance}", { "label" : "Swap Used %" } ]
+                [ "${SystemName}/${EnvironmentName}-${WordPressApplicationName}", "MemoryUsedPercent", "InstanceId", "${Instance}", { "label" : "Memory Used %" } ],
+                [ "${SystemName}/${EnvironmentName}-${WordPressApplicationName}", "SwapUsedPercent", "InstanceId", "${Instance}", { "label" : "Swap Used %" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -1719,8 +1717,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/", { "label" : "Disk Used % (/)" } ],
-                [ "${SystemName}/${EnvironmentName}-${ApplicationName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/var/www", { "label" : "Disk Used % (/var/www)" } ]
+                [ "${SystemName}/${EnvironmentName}-${WordPressApplicationName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/", { "label" : "Disk Used % (/)" } ],
+                [ "${SystemName}/${EnvironmentName}-${WordPressApplicationName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/var/www", { "label" : "Disk Used % (/var/www)" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -1838,27 +1836,25 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-InstanceSecurityGroup
   PrivateHostName:
-    Description: The Private DNS HostName of the WordPress Instance
+    Description: The Private DNS Host Name of the WordPress Instance
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
   PrivateServiceName:
-    Description: The Private DNS ServiceName of the WordPress Instance
+    Description: The Private DNS Service Name of the WordPress Service
     Value: !Sub
-      - ${ServiceName}.${VPCPrivateDomain}
+      - ${WordPressServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureServiceName
   PrivateWebsiteURL:
     Description: The Private Website URL
     Value: !Sub
-      - http://${ServiceName}.${VPCPrivateDomain}/
+      - http://${WordPressServiceName}.${VPCPrivateDomain}/
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
-    Condition: ConfigureServiceName
-  AdministratorUserSecret:
-    Description: The Administrator User Secret Name
-    Value: !Sub ${EnvironmentName}-${ApplicationName}-AdministratorUser
+  AdministratorSecret:
+    Description: The Administrator Secret Name
+    Value: !Sub ${EnvironmentName}-${WordPressApplicationName}-Administrator
     Export:
-      Name: !Sub ${AWS::StackName}-AdministratorUserSecret
+      Name: !Sub ${AWS::StackName}-AdministratorSecret
