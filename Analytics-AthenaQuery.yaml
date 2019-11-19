@@ -7,7 +7,7 @@ Metadata:
       # - Label:
       #     default: Stack Dependencies
       #   Parameters:
-      #     - WorkGroupStackName
+      #     - DBAthenaStackName
       - Label:
           default: Environment Configuration
         Parameters:
@@ -20,8 +20,8 @@ Metadata:
     ParameterLabels:
       EnvironmentType:
         default: environment type
-      # WorkGroupStackName:
-      #   default: workgroup stack name
+      # DBAthenaStackName:
+      #   default: DB Athena Stac kName
       CompanyName:
         default: company name
       ApplicationName:
@@ -31,7 +31,7 @@ Parameters:
     Description: Enter in Which region Analitics action will perform.
     Type: String
     Default: ''
-  # WorkGroupStackName:
+  # DBAthenaStackName:
   #   Description: Name of the CloudFormation Stack containing the Codes Resources
   #   Type: String
   #   MinLength: 2
