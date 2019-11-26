@@ -98,7 +98,7 @@ Resources:
       FunctionName: AmazonLinux2Image
       Description: A Lambda function that looks up the latest Amazon Linux 2 Image for a given OS Variant and Region (HVM64 only).
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -179,7 +179,7 @@ Resources:
       FunctionName: AmazonLinuxImage
       Description: A Lambda function that looks up the latest Amazon Linux Image for a given OS Variant and Region (HVM64 only).
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -264,7 +264,7 @@ Resources:
       FunctionName: WindowsImage
       Description: A Lambda function that looks up the latest Windows Image for a given OS Variant and Region, or a specific Windows Image if an additional OS Date is specified.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -353,7 +353,7 @@ Resources:
       FunctionName: RHELImage
       Description: A Lambda function that looks up the latest RHEL Image for a given OS Variant and Region. (x86_64 only)
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -449,7 +449,7 @@ Resources:
       FunctionName: UbuntuImage
       Description: A Lambda function that looks up the latest Ubuntu Image for a given OS Variant and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -532,7 +532,7 @@ Resources:
       FunctionName: AmazonNATImage
       Description: A Lambda function that looks up the latest Amazon NAT Image for a given Region (HVM64 only).
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue

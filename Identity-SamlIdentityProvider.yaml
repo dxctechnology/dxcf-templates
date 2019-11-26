@@ -159,12 +159,12 @@ Resources:
       FunctionName: MetadataDownloader
       Description: A Lambda function that can download Metadata from an URL.
       Role: !GetAtt MetadataDownloaderRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Handler: index.handler
       Code:
         ZipFile: |
-          const response = require('cfn-response');
+          const response = require('./cfn-response');
 
           const getContent = (url) => {
             return new Promise((resolve, reject) => {
@@ -252,12 +252,12 @@ Resources:
       FunctionName: SamlProvider
       Description: A Lambda function that can create, update or delete an IAM SAML Identity Provider.
       Role: !GetAtt SamlProviderRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Handler: index.handler
       Code:
         ZipFile: |
-          const response = require('cfn-response');
+          const response = require('./cfn-response');
 
           const AWS = require('aws-sdk');
           AWS.config.apiVersions = {

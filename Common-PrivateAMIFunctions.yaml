@@ -98,7 +98,7 @@ Resources:
       FunctionName: BaselineAmazonLinuxImage
       Description: A Lambda function that looks up the Baseline Amazon Linux Image for a given OS Variant and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue

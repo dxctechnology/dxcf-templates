@@ -349,7 +349,7 @@ Resources:
       FunctionName: CrossAccountStackExport
       Description: A Lambda function that returns information about a single Stack Export which may be in another Account and/or Region.
       Role: !GetAtt CrossAccountQueryRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -371,7 +371,7 @@ Resources:
       FunctionName: CrossAccountStackExports
       Description: A Lambda function that returns information about all Exports created by a Stack which may be in another Account and/or Region.
       Role: !GetAtt CrossAccountQueryRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -393,7 +393,7 @@ Resources:
       FunctionName: CrossAccountSecurityGroup
       Description: A Lambda function that returns information about a single Security Group which may be in another Account and/or Region.
       Role: !GetAtt CrossAccountQueryRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -415,7 +415,7 @@ Resources:
       FunctionName: CrossAccountSubnet
       Description: A Lambda function that returns information about a single Subnet which may be in another Account and/or Region.
       Role: !GetAtt CrossAccountQueryRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -437,7 +437,7 @@ Resources:
       FunctionName: CrossAccountVpc
       Description: A Lambda function that returns information about a single VPC which may be in another Account and/or Region.
       Role: !GetAtt CrossAccountQueryRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -484,7 +484,7 @@ Resources:
       FunctionName: CrossAccountDomainNameServers
       Description: A Lambda proxy function that calls another Lambda management function to update NameServers in a Route53 Domain in another Account.
       Role: !GetAtt CrossAccountDomainManagementRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 120
       Layers:
         - !ImportValue
@@ -531,7 +531,7 @@ Resources:
       FunctionName: CrossAccountHostedZoneDelegation
       Description: A Lambda proxy function that calls another Lambda management function to create Sub-Domain delegation records in a Route53 HostedZone in another Account.
       Role: !GetAtt CrossAccountHostedZoneManagementRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 120
       Layers:
         - !ImportValue

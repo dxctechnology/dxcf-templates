@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: 2010-09-09
+Runtime: nodejs10.xAWSTemplateFormatVersion: 2010-09-09
 Description: Common-DirectoryFunctions Template.
   This creates Lambda Functions related to Directory Services.
 Metadata:
@@ -198,7 +198,7 @@ Resources:
       FunctionName: DirectoryAlias
       Description: A Lambda function that creates an alias for a directory service.
       Role: !GetAtt DirectoryAliasRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -247,7 +247,7 @@ Resources:
       FunctionName: DirectoryConditionalForwarder
       Description: A Lambda function that creates an alias for a directory service.
       Role: !GetAtt DirectoryConditionalForwarderRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -296,7 +296,7 @@ Resources:
       FunctionName: DirectoryLogSubscription
       Description: A Lambda function that creates an alias for a directory service.
       Role: !GetAtt DirectoryLogSubscriptionRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
