@@ -1,4 +1,4 @@
-Runtime: nodejs10.xAWSTemplateFormatVersion: 2010-09-09
+AWSTemplateFormatVersion: 2010-09-09
 Description: Common-DirectoryFunctions Template.
   This creates Lambda Functions related to Directory Services.
 Metadata:
