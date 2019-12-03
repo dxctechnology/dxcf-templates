@@ -26,6 +26,7 @@ Metadata:
           - SBachhuPassword
           - RKalakotlaPassword
           - AMohammedPassword
+          - PGlukhikhPassword
           - DLondonPassword
       - Label:
           default: Systems Manager Configuration
@@ -72,6 +73,8 @@ Metadata:
         default: RKalakotla Password
       AMohammedPassword:
         default: AMohammed Password
+      PGlukhikhPassword:
+        default: PGlukhikh Password
       DLondonPassword:
         default: DLondon Password
       SaveGeneratedPasswords:
@@ -198,6 +201,13 @@ Parameters:
     Default: ''
     AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
     ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
+  PGlukhikhPassword:
+    Description: Optional password for the pglukhikh User
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: (^$|(?=^.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*)
+    ConstraintDescription: must be 20 to 64 alphanumeric characters with at least one uppercase, lowercase and digit, if specified.
   DLondonPassword:
     Description: Optional password for the dlondon User
     Type: String
@@ -267,6 +277,9 @@ Conditions:
   GenerateAMohammedPassword: !Equals [ !Ref AMohammedPassword, '' ]
   SaveAMohammedPassword: !And [ !Condition GenerateAMohammedPassword, !Condition ConfigureSecureParameters ]
   SendAMohammedPassword: !And [ !Condition GenerateAMohammedPassword, !Condition ConfigureNotifications ]
+  GeneratePGlukhikhPassword: !Equals [ !Ref PGlukhikhPassword, '' ]
+  SavePGlukhikhPassword: !And [ !Condition GeneratePGlukhikhPassword, !Condition ConfigureSecureParameters ]
+  SendPGlukhikhPassword: !And [ !Condition GeneratePGlukhikhPassword, !Condition ConfigureNotifications ]
   GenerateDLondonPassword: !Equals [ !Ref DLondonPassword, '' ]
   SaveDLondonPassword: !And [ !Condition GenerateDLondonPassword, !Condition ConfigureSecureParameters ]
   SendDLondonPassword: !And [ !Condition GenerateDLondonPassword, !Condition ConfigureNotifications ]
@@ -700,6 +713,44 @@ Resources:
       TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
       Message: !If [ GenerateAMohammedPassword, !Sub 'Temporary password for the amohammed User: ${AMohammedRandomPassword.Password}', !Ref 'AWS::NoValue' ]
     Condition: SendAMohammedPassword
+  PGlukhikhRandomPassword:
+    Type: Custom::RandomPassword
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${BaselineStackName}-RandomPasswordFunctionArn
+      ExcludePunctuation: true
+    Condition: GeneratePGlukhikhPassword
+  PGlukhikhUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: pglukhikh
+      Path: /
+      LoginProfile:
+        Password: !If [ GeneratePGlukhikhPassword, !GetAtt PGlukhikhRandomPassword.Password, !Ref PGlukhikhPassword ]
+        PasswordResetRequired: !If [ GeneratePGlukhikhPassword, true, !Ref 'AWS::NoValue' ]
+      Groups:
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-AdministratorsGroup
+        - !ImportValue
+          Fn::Sub: ${GroupsStackName}-BastionAdministratorsGroup
+  PGlukhikhPasswordSecureParameter:
+    Type: Custom::SecureParameter
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${BaselineStackName}-SecureParameterFunctionArn
+      Name: PGlukhikhPassword
+      Value: !If [ GeneratePGlukhikhPassword, !GetAtt PGlukhikhRandomPassword.Password, !Ref 'AWS::NoValue' ]
+      AllowedPattern: ^[a-zA-Z0-9]{16,64}$
+      Description: Temporary password for the amohammed User
+    Condition: SavePGlukhikhPassword
+  PGlukhikhPasswordMessage:
+    Type: Custom::Message
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${BaselineStackName}-MessageFunctionArn
+      TopicArn: !If [ ConfigureNotifications, !Ref PasswordsTopic, !Ref 'AWS::NoValue' ]
+      Message: !If [ GeneratePGlukhikhPassword, !Sub 'Temporary password for the amohammed User: ${PGlukhikhRandomPassword.Password}', !Ref 'AWS::NoValue' ]
+    Condition: SendPGlukhikhPassword
   DLondonRandomPassword:
     Type: Custom::RandomPassword
     Properties:
