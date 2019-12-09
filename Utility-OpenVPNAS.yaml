@@ -18,7 +18,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -64,8 +64,8 @@ Metadata:
         default: Topics Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -154,7 +154,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable SSH access to the Instances
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -269,7 +269,7 @@ Parameters:
       - openvpn
     ConstraintDescription: must be openvpn.
   OpenVPNAdministratorPassword:
-    Description: Optional password for the OpenVPN Administrator User (If unspecified, generate a random password)
+    Description: Optional password of the OpenVPN Administrator User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
@@ -285,7 +285,7 @@ Parameters:
       - OpenVPN Server
     ConstraintDescription:  must be OpenVPN Server.
   OpenVPNLDAPBindPassword:
-    Description: Optional password for the OpenVPN LDAP Bind User (If unspecified, LDAPBindSecret is not created)
+    Description: Optional password of the OpenVPN LDAP Bind User (If unspecified, LDAPBindSecret is not created)
     Type: String
     NoEcho: true
     Default: ''
@@ -415,7 +415,7 @@ Conditions:
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
   ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
-  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
+  ConfigureKeyPair: !Not [ !Equals [ !Ref KeyPairName, '' ]]
   ConfigureSSMAgent: !Not [ !Equals [ !Ref OpenVPNUtilityVersion, '2.6.1' ]]
   ConfigureRestore: !Not [ !Equals [ !Ref RestoreVersion, '' ]]
   ConfigureAdministratorPassword: !Not [ !Equals [ !Ref OpenVPNAdministratorPassword, '' ]]
@@ -531,7 +531,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-Administrator
-      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${OpenVPNUtilityName} Utility Administrator
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${OpenVPNUtilityName} Administrator
       SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${OpenVPNAdministratorUserName}", "password": "${OpenVPNAdministratorPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateAdministratorPassword
@@ -547,7 +547,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-LDAPBind
-      Description: !Sub Common Name and Password for the ${EnvironmentName} Environment ${OpenVPNUtilityName} Utility LDAP Bind
+      Description: !Sub Common Name and Password for the ${EnvironmentName} Environment ${OpenVPNUtilityName} LDAP Bind User
       SecretString: !If [ ConfigureLDAPBindPassword, !Sub '{"cn": "${OpenVPNLDAPBindCN}", "password": "${OpenVPNLDAPBindPassword}"}', !Ref 'AWS::NoValue' ]
       Tags:
         - Key: Name
@@ -2010,7 +2010,7 @@ Resources:
       ImageId: !Ref OpenVPNASImage
       InstanceType: !FindInMap [ InstanceTypeMap, OpenVPNAS, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       Monitoring: true
       NetworkInterfaces:
         - Description: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-NetworkInterface-eth0
