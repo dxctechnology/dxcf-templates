@@ -13,15 +13,13 @@ Metadata:
           - DirectoryStackName
           - VPCStackName
           - AMIFunctionsStackName
-          - BuildBucketsStackName
           - BucketsStackName
           - TopicsStackName
-          - KeysStackName
           - CodesStackName
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -70,18 +68,14 @@ Metadata:
         default: VPC Stack Name
       AMIFunctionsStackName:
         default: AMIFunctions Stack Name
-      BuildBucketsStackName:
-        default: Build Buckets Stack Name
       BucketsStackName:
         default: Buckets Stack Name
       TopicsStackName:
         default: Topics Stack Name
-      KeysStackName:
-        default: Keys Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -168,14 +162,6 @@ Parameters:
     Default: AMIFunctions
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  BuildBucketsStackName:
-    Description: Name of the CloudFormation Stack containing Build Buckets
-    Type: String
-    MinLength: 2
-    MaxLength: 64
-    Default: BuildBuckets
-    AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
-    ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
   BucketsStackName:
     Description: Name of the CloudFormation Stack containing Buckets
     Type: String
@@ -200,7 +186,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable the Administrator Password
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -342,7 +328,7 @@ Parameters:
     AllowedPattern: ^[a-z][a-z0-9]*$
     ConstraintDescription: must begin with a lower case letter and contain lower case alphanumeric characters.
   AuroraAdministratorPassword:
-    Description: Optional password of the Aurora Administrator User (If unspecified, generate a random password)
+    Description: Optional password of the Aurora Administrator (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
@@ -1330,7 +1316,7 @@ Resources:
       ImageId: !Ref WindowsImage
       InstanceType: !FindInMap [ InstanceTypeMap, Management, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !Ref KeyName
+      KeyName: !Ref KeyPairName
       Monitoring: true
       NetworkInterfaces:
         - Description: !Sub ${EnvironmentName}-${AuroraApplicationName}-${ManagementComponentName}-NetworkInterface-eth0

@@ -19,7 +19,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -74,8 +74,8 @@ Metadata:
         default: Codes Stack Name
       BaselineStackName:
         default: Baseline Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -187,7 +187,7 @@ Parameters:
     Default: Baseline
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable SSH access to the Instances
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -452,7 +452,7 @@ Conditions:
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
   #ConfigureEncryption: !Not [ !Equals [ !Ref KeysStackName, '' ]] # ToDo: Fix how we configure Encryption, custom vs user keys
   #ConfigureEncryptionKey: !Not [ !Equals [ !Ref KmsKey, 'aws/rds' ]]
-  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
+  ConfigureKeyPair: !Not [ !Equals [ !Ref KeyPairName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
   ConfigureAMZN: !Equals [ !Select [ 0, !Split [ ' ', !Ref OSName ]], Amazon ]
   ConfigureRHEL: !Equals [ !Select [ 0, !Split [ ' ', !Ref OSName ]], RHEL ]
@@ -995,7 +995,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName}-FileSystem MountTargetA
+      Comment: !Sub Private DNS Host Name of the ${ApplicationName}-FileSystem MountTargetA
       Name: !Sub
         - ${MountTargetHostNameA}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1031,7 +1031,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName}-FileSystem MountTargetB
+      Comment: !Sub Private DNS Host Name of the ${ApplicationName}-FileSystem MountTargetB
       Name: !Sub
         - ${MountTargetHostNameB}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1515,7 +1515,7 @@ Resources:
       ImageId: !If [ ConfigureAMZN, !Ref AmazonLinux2Image, !Ref RHELImage ]
       InstanceType: !FindInMap [ InstanceTypeMap, Queue, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       NetworkInterfaces:
         - Description: !Sub ${EnvironmentName}-${ApplicationName}-NetworkInterfaceA-eth0
           DeviceIndex: 0
@@ -1593,7 +1593,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName} InstanceA
+      Comment: !Sub Private DNS Host Name of the ${ApplicationName} InstanceA
       Name: !Sub
         - ${HostNameA}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -2055,7 +2055,7 @@ Resources:
       ImageId: !If [ ConfigureAMZN, !Ref AmazonLinux2Image, !Ref RHELImage ]
       InstanceType: !FindInMap [ InstanceTypeMap, Queue, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       NetworkInterfaces:
         - Description: !Sub ${EnvironmentName}-${ApplicationName}-NetworkInterfaceB-eth0
           DeviceIndex: 0
@@ -2134,7 +2134,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${ApplicationName} InstanceB
+      Comment: !Sub Private DNS Host Name of the ${ApplicationName} InstanceB
       Name: !Sub
         - ${HostNameB}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue

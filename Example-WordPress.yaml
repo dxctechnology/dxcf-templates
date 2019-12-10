@@ -19,7 +19,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -71,8 +71,8 @@ Metadata:
         default: Keys Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -178,7 +178,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable SSH access to the Instance
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -408,7 +408,7 @@ Mappings:
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
-  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
+  ConfigureKeyPair: !Not [ !Equals [ !Ref KeyPairName, '' ]]
   ConfigureWindowsBastionsIntegration: !Not [ !Equals [ !Ref WindowsBastionsStackName, '' ]]
   ConfigureVPNIntegration: !Not [ !Equals [ !Ref VPNStackName, '' ]]
   InstallWordPress: !Not [ !Equals [ !Ref WordPressProductKey, '' ]]
@@ -1453,7 +1453,7 @@ Resources:
       ImageId: !Ref AmazonLinux2Image
       InstanceType: !FindInMap [ InstanceTypeMap, WordPress, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       Monitoring: true
       NetworkInterfaces:
         - Description: !Sub ${EnvironmentName}-${WordPressApplicationName}-NetworkInterface-eth0
