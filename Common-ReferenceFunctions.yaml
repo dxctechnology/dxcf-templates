@@ -353,7 +353,7 @@ Resources:
       FunctionName: RoleReference
       Description: A Lambda function that returns information about an IAM Role in another Region and/or Account.
       Role: !GetAtt ReferenceRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -376,7 +376,7 @@ Resources:
       FunctionName: VpcReference
       Description: A Lambda function that returns information about an EC2 VPC in another Region and/or Account.
       Role: !GetAtt ReferenceRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -399,7 +399,7 @@ Resources:
       FunctionName: SubnetReference
       Description: A Lambda function that returns information about an EC2 Subnet in another Region and/or Account.
       Role: !GetAtt ReferenceRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -422,7 +422,7 @@ Resources:
       FunctionName: SecurityGroupReference
       Description: A Lambda function that returns information about an EC2 Security Group in another Region and/or Account.
       Role: !GetAtt ReferenceRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -445,7 +445,7 @@ Resources:
       FunctionName: StackExportReference
       Description: A Lambda function that returns the value of a single Stack Export in another Region and/or Account.
       Role: !GetAtt ReferenceRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -468,7 +468,7 @@ Resources:
       FunctionName: StackExportsReference
       Description: A Lambda function that returns the values of all Exports for a single CloudFormation Stack in another Region and/or Account.
       Role: !GetAtt ReferenceRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue

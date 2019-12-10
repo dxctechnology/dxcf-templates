@@ -98,7 +98,7 @@ Resources:
       FunctionName: CISAmazonLinuxImage
       Description: A Lambda function that looks up the latest Center for Internet Security Amazon Linux Image for a given OS Variant, CIS Baseline, CIS Level and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -179,7 +179,7 @@ Resources:
       FunctionName: CISWindowsImage
       Description: A Lambda function that looks up the latest Center for Internet Security Windows Image for a given OS Variant, CIS Baseline, CIS Level and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -266,7 +266,7 @@ Resources:
       FunctionName: CISRHELImage
       Description: A Lambda function that looks up the latest Center for Internet Security RHEL Image for a given OS Variant, CIS Baseline, CIS Level and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -348,7 +348,7 @@ Resources:
       FunctionName: CISCentosImage
       Description: A Lambda function that looks up the latest Center for Internet Security Centos Image for a given OS Variant, CIS Baseline, CIS Level and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -434,7 +434,7 @@ Resources:
       FunctionName: CISUbuntuImage
       Description: A Lambda function that looks up the latest Center for Internet Security Ubuntu Image for a given Version and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -517,7 +517,7 @@ Resources:
       FunctionName: OpenVPNASImage
       Description: A Lambda function that looks up the latest OpenVPN Access Server Image for a given License, Version and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -603,7 +603,7 @@ Resources:
       FunctionName: DeepSecurityImage
       Description: A Lambda function that looks up the latest Trend Micro Deep Security Image for a given License, Version and Region.
       Role: !GetAtt Role.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue

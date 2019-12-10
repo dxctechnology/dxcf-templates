@@ -18,7 +18,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -31,17 +31,19 @@ Metadata:
           - EnvironmentName
           - EnvironmentType
       - Label:
-          default: Utility Configuration
+          default: OpenVPN Utility Configuration
         Parameters:
-          - UtilityName
-          - UtilityDomain
-          - UtilityVersion
-          - UtilityLicense
+          - OpenVPNUtilityName
+          - OpenVPNUtilityVersion
+          - OpenVPNUtilityLicense
+          - OpenVPNServiceName
+          - OpenVPNAdministratorUserName
           - OpenVPNAdministratorPassword
           - OpenVPNLDAPBindCN
           - OpenVPNLDAPBindPassword
           - RestoreVersion
           - LogRetention
+          - Schedule
       - Label:
           default: Security Configuration
         Parameters:
@@ -62,8 +64,8 @@ Metadata:
         default: Topics Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -74,14 +76,16 @@ Metadata:
         default: Environment Name
       EnvironmentType:
         default: Environment Type
-      UtilityName:
-        default: Utility Name
-      UtilityDomain:
-        default: Utility Domain
-      UtilityVersion:
-        default: Utility Version
-      UtilityLicense:
-        default: Utility License
+      OpenVPNUtilityName:
+        default: OpenVPN Utility Name
+      OpenVPNUtilityVersion:
+        default: OpenVPN Utility Version
+      OpenVPNUtilityLicense:
+        default: OpenVPN Utility License
+      OpenVPNServiceName:
+        default: OpenVPN DNS Service Name
+      OpenVPNAdministratorUserName:
+        default: OpenVPN Administrator User Name
       OpenVPNAdministratorPassword:
         default: OpenVPN Administrator Password
       OpenVPNLDAPBindCN:
@@ -92,6 +96,8 @@ Metadata:
         default: Restore Version
       LogRetention:
         default: Log Retention
+      Schedule:
+        default: Schedule
       UserNetworks:
         default: User Networks
       UserNetworkDescriptions:
@@ -148,7 +154,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable SSH access to the Instances
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -220,29 +226,22 @@ Parameters:
       - large
       - xlarge
     ConstraintDescription: must be micro, small, medium, large or xlarge.
-  UtilityName:
-    Description: Name of the Utility associated with the Stack
+  OpenVPNUtilityName:
+    Description: Name of the OpenVPN Utility
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: OpenVPNAS
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  UtilityDomain:
-    Description: DNS Name of the Utility associated with the Stack
-    Type: String
-    MaxLength: 16
-    Default: vpn
-    AllowedPattern: ^[a-z][-a-z0-9]*$
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
-  UtilityVersion:
-    Description: OpenVPN Access Server Version. Used to select a specific OpenVPN Access Server version if non-blank
+  OpenVPNUtilityVersion:
+    Description: Version of the OpenVPN Access Server. Used to select a specific OpenVPN Access Server version if non-blank
     Type: String
     Default: ''
     AllowedPattern: (^$|^[2-9]\.[0-9]\.[0-9]$)
     ConstraintDescription: must be a version of the form x.y.z.
-  UtilityLicense:
-    Description: OpenVPN Access Server License. Used to select the OpenVPN Access Server AMI, which limits the number of Users
+  OpenVPNUtilityLicense:
+    Description: License of the OpenVPN Access Server. Used to select the OpenVPN Access Server AMI, which limits the number of Users
     Type: String
     Default: OpenVPNAS2
     AllowedValues:
@@ -253,33 +252,47 @@ Parameters:
       - OpenVPNAS50
       - OpenVPNAS100
     ConstraintDescription: must be OpenVPNAS2, OpenVPNAS5, OpenVPNAS10, OpenVPNAS25, OpenVPNAS50 or OpenVPNAS100.
+  OpenVPNServiceName:
+    Description: DNS Service Name of the OpenVPN Utility
+    Type: String
+    MaxLength: 64
+    Default: vpn
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
+  OpenVPNAdministratorUserName:
+    Description: Name of the OpenVPN Administrator User
+    Type: String
+    MinLength: 2
+    MaxLength: 63
+    Default: openvpn
+    AllowedValues:
+      - openvpn
+    ConstraintDescription: must be openvpn.
   OpenVPNAdministratorPassword:
-    Description: Optional password for the OpenVPN Administrator User (If unspecified, generate a random password)
+    Description: Optional password of the OpenVPN Administrator User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   OpenVPNLDAPBindCN:
     Description: Common Name for the OpenVPN LDAP Bind User
     Type: String
     Default: OpenVPN Server
-    MinLength: 6
-    MaxLength: 32
+    MinLength: 2
+    MaxLength: 63
     AllowedValues:
       - OpenVPN Server
     ConstraintDescription:  must be OpenVPN Server.
   OpenVPNLDAPBindPassword:
-    Description: Optional password for the OpenVPN LDAP Bind User (If unspecified, LDAPBindSecret is not created)
+    Description: Optional password of the OpenVPN LDAP Bind User (If unspecified, LDAPBindSecret is not created)
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   RestoreVersion:
-    Description: Optional version of OpenVPNAS Backup to restore (if blank, install new configuration)
+    Description: Optional version of an OpenVPNAS Backup to restore (if blank, install new configuration)
     Type: String
     MaxLength: 32
     Default: ''
@@ -308,6 +321,12 @@ Parameters:
       - 1827
       - 3653
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
+  Schedule:
+    Description: Optional Schedule Tag
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|^(([01][0-9]|2[0-3]):[0-5][0-9]-|-([01][0-9]|2[0-3]):[0-5][0-9]|([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])( ([A-Z][_A-Za-z0-9]*\/[A-Z][_+A-Za-z0-9]*))?$)
+    ConstraintDescription: See Scheduler Lambda Function description for Tag format.
   UserNetworks:
     Description: Networks that can use the Utility
     Type: String
@@ -386,21 +405,21 @@ Mappings:
       Code: se1
   InstanceTypeMap:
     OpenVPNAS:
-      micro: t2.micro
-      small: t2.small
-      medium: t2.medium
-      large: c4.large
-      xlarge: c4.xlarge
+      micro: t3.micro
+      small: t3.small
+      medium: t3.medium
+      large: c5.large
+      xlarge: c5.xlarge
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
   ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
-  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
-  ConfigureSSMAgent: !Not [ !Equals [ !Ref UtilityVersion, '2.6.1' ]]
+  ConfigureKeyPair: !Not [ !Equals [ !Ref KeyPairName, '' ]]
+  ConfigureSSMAgent: !Not [ !Equals [ !Ref OpenVPNUtilityVersion, '2.6.1' ]]
   ConfigureRestore: !Not [ !Equals [ !Ref RestoreVersion, '' ]]
-  ConfigureAdminPassword: !Not [ !Equals [ !Ref OpenVPNAdministratorPassword, '' ]]
-  GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
+  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref OpenVPNAdministratorPassword, '' ]]
+  GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
   ConfigureLDAPBindPassword: !Not [ !Equals [ !Ref OpenVPNLDAPBindPassword, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -444,7 +463,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
-        - PolicyName: GetPasswordSecretPolicy
+        - PolicyName: GetSecretPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -452,8 +471,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-LDAPBindPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${OpenVPNUtilityName}-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${OpenVPNUtilityName}-LDAPBind-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -508,6 +527,32 @@ Resources:
                     - arn:aws:s3:::${BackupsBucket}/OpenVPNAS/*
                     - BackupsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-BackupsBucket
+  AdministratorSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-Administrator
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${OpenVPNUtilityName} Administrator
+      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "${OpenVPNAdministratorUserName}", "password": "${OpenVPNAdministratorPassword}"}', !Ref 'AWS::NoValue' ]
+      GenerateSecretString: !If
+        - GenerateAdministratorPassword
+        - SecretStringTemplate: !Sub '{"username": "${OpenVPNAdministratorUserName}"}'
+          GenerateStringKey: password
+          PasswordLength: 32
+          ExcludePunctuation: true
+        - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-Administrator
+  LDAPBindSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-LDAPBind
+      Description: !Sub Common Name and Password for the ${EnvironmentName} Environment ${OpenVPNUtilityName} LDAP Bind User
+      SecretString: !If [ ConfigureLDAPBindPassword, !Sub '{"cn": "${OpenVPNLDAPBindCN}", "password": "${OpenVPNLDAPBindPassword}"}', !Ref 'AWS::NoValue' ]
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-LDAPBind
+    Condition: ConfigureLDAPBindPassword
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -515,41 +560,17 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref OpenVPNUtilityName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogRetention
-  AdminPasswordSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User (openvpn)
-      SecretString: !If [ ConfigureAdminPassword, !Ref OpenVPNAdministratorPassword, !Ref 'AWS::NoValue' ]
-      GenerateSecretString: !If
-        - GenerateAdminPassword
-        - PasswordLength: 32
-          ExcludePunctuation: true
-        - !Ref AWS::NoValue
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
-  LDAPBindPasswordSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-LDAPBindPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility LDAP Bind Common Name (${OpenVPNLDAPBindCN})
-      SecretString: !Ref OpenVPNLDAPBindPassword
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-LDAPBindPassword
-    Condition: ConfigureLDAPBindPassword
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1601,14 +1622,14 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-InstanceSecurityGroup
   OpenVPNASImage:
     Type: Custom::OpenVPNASImage
     Properties:
       ServiceToken: !ImportValue
         Fn::Sub: ${MarketplaceAMIFunctionsStackName}-OpenVPNASImageFunctionArn
-      License: !Ref UtilityLicense
-      Version: !Ref UtilityVersion
+      License: !Ref OpenVPNUtilityLicense
+      Version: !Ref OpenVPNUtilityVersion
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -1623,7 +1644,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref OpenVPNUtilityName
       InstanceNumber: 01
       ZoneCode: a
   Instance:
@@ -1739,7 +1760,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}",
                     "metrics_collected" : {
                       "mem" : {
                         "measurement" : [
@@ -1938,14 +1959,12 @@ Resources:
             01-configure-openvpnas:
               command: !Sub
                 - /root/bin/configure-openvpnas -n -l -a local
-                  -h ${UtilityDomain} -d ${VPCPublicDomain}
-                  ${AdminUserOptions}
+                  -h ${OpenVPNServiceName}.${VPCPublicDomain}
+                  -s ${AdministratorSecret} -S ${LDAPBindSecret}
                 - VPCPublicDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCPublicDomain
-                  AdminUserOptions: !If
-                    - ConfigureAdminPassword
-                    - !Sub '-p ${OpenVPNAdministratorPassword}'
-                    - !Sub '-s ${EnvironmentName}-${UtilityName}-AdminPassword'
+                  AdministratorSecret: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-Administrator
+                  LDAPBindSecret: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-LDAPBind
               ignoreErrors: false
         RestoreOpenVPNAS:
           files:
@@ -1991,10 +2010,10 @@ Resources:
       ImageId: !Ref OpenVPNASImage
       InstanceType: !FindInMap [ InstanceTypeMap, OpenVPNAS, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-Public1SubnetA
@@ -2024,7 +2043,7 @@ Resources:
             DeleteOnTermination: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-Instance
+          Value: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-Instance
 #        - Key: HostName
 #          Value: !Ref HostName
       UserData:
@@ -2058,7 +2077,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${UtilityName} Instance
+      Comment: !Sub Private DNS Host Name of the ${OpenVPNUtilityName} Instance
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -2072,9 +2091,9 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS ServiceName for ${UtilityName}
+      Comment: !Sub Private DNS Service Name of the ${OpenVPNUtilityName} Service
       Name: !Sub
-        - ${UtilityDomain}.${VPCPrivateDomain}.
+        - ${OpenVPNServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
@@ -2098,7 +2117,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub Public DNS HostName for ${UtilityName} Instance
+      Comment: !Sub Public DNS Host Name of the ${OpenVPNUtilityName} Instance
       Name: !Sub
         - ${HostName}.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
@@ -2112,9 +2131,9 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub Public DNS ServiceName for ${UtilityName}
+      Comment: !Sub Public DNS Service Name of the ${OpenVPNUtilityName} Service
       Name: !Sub
-        - ${UtilityDomain}.${VPCPublicDomain}.
+        - ${OpenVPNServiceName}.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: CNAME
@@ -2148,7 +2167,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}
       MetricName: MemoryUsedPercent
       Statistic: Average
       Period: 60
@@ -2165,7 +2184,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}
       MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
@@ -2184,7 +2203,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}
       MetricName: DiskUsedPercent
       Statistic: Average
       Period: 60
@@ -2200,7 +2219,7 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${UtilityName}-${RegionName}
+        - ${EnvironmentName}-${OpenVPNUtilityName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -2211,7 +2230,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${UtilityName}"
+              "markdown" : "# ${EnvironmentName}-${OpenVPNUtilityName}"
             }
           },
           {
@@ -2268,8 +2287,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryUsedPercent", "InstanceId", "${Instance}", { "label" : "Memory Used %" } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "SwapUsedPercent", "InstanceId", "${Instance}", { "label" : "Swap Used %" } ]
+                [ "${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}", "MemoryUsedPercent", "InstanceId", "${Instance}", { "label" : "Memory Used %" } ],
+                [ "${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}", "SwapUsedPercent", "InstanceId", "${Instance}", { "label" : "Swap Used %" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2289,8 +2308,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/", { "label" : "Disk Used % (/)" } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/var/www", { "label" : "Disk Used % (/var/www)" } ]
+                [ "${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/", { "label" : "Disk Used % (/)" } ],
+                [ "${SystemName}/${EnvironmentName}-${OpenVPNUtilityName}", "DiskUsedPercent", "InstanceId", "${Instance}", "path", "/var/www", { "label" : "Disk Used % (/var/www)" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2396,26 +2415,36 @@ Outputs:
     Description: The Public Address of the OpenVPN Instance
     Value: !Ref EIP
   PublicHostName:
-    Description: The Public DNS HostName of the OpenVPN Instance
+    Description: The Public DNS Host Name of the OpenVPN Instance
     Value: !Sub
       - ${HostName}.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
   PublicServiceName:
-    Description: The Public DNS ServiceName of the OpenVPN Instance
+    Description: The Public DNS Service Name of the OpenVPN Service
     Value: !Sub
-      - ${UtilityDomain}.${VPCPublicDomain}
+      - ${OpenVPNServiceName}.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
   UserWebsiteURL:
     Description: The User Website URL
     Value: !Sub
-      - https://${UtilityDomain}.${VPCPublicDomain}/
+      - https://${OpenVPNServiceName}.${VPCPublicDomain}/
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
   AdministratorWebsiteURL:
     Description: The Administration Website URL
     Value: !Sub
-      - https://${UtilityDomain}.${VPCPublicDomain}:943/admin/
+      - https://${OpenVPNServiceName}.${VPCPublicDomain}:943/admin/
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
+  AdministratorSecret:
+    Description: The Administrator Secret Name
+    Value: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-Administrator
+    Export:
+      Name: !Sub ${AWS::StackName}-AdministratorSecret
+  LDAPBindSecret:
+    Description: The LDAP Bind Secret Name
+    Value: !Sub ${EnvironmentName}-${OpenVPNUtilityName}-LDAPBind
+    Export:
+      Name: !Sub ${AWS::StackName}-LDAPBindSecret

@@ -16,7 +16,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -30,12 +30,12 @@ Metadata:
           - EnvironmentType
           - OSName
       - Label:
-          default: Application Configuration
+          default: UbuntuWebServers Application Configuration
         Parameters:
-          - ApplicationObject
-          - ApplicationName
-          - ApplicationDomain
-          - ApplicationVersion
+          - UbuntuWebServersApplicationKey
+          - UbuntuWebServersApplicationName
+          - UbuntuWebServersApplicationVersion
+          - UbuntuWebServersServiceName
           - WebSnapshot
           - LogRetention
           - NormalSchedule
@@ -60,8 +60,8 @@ Metadata:
         default: Topics Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -74,14 +74,14 @@ Metadata:
         default: Environment Type
       OSName:
         default: Operating System Name
-      ApplicationObject:
-        default: Application Object
-      ApplicationName:
-        default: Application Name
-      ApplicationDomain:
-        default: Application Domain Name
-      ApplicationVersion:
-        default: Application Version
+      UbuntuWebServersApplicationKey:
+        default: UbuntuWebServers Application S3 Key
+      UbuntuWebServersApplicationName:
+        default: UbuntuWebServers Application Name
+      UbuntuWebServersApplicationVersion:
+        default: UbuntuWebServers Application Version
+      UbuntuWebServersServiceName:
+        default: UbuntuWebServers DNS Service Name
       WebSnapshot:
         default: Web Snapshot
       LogRetention:
@@ -147,7 +147,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable SSH access to the Instances
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -227,36 +227,36 @@ Parameters:
       - Ubuntu 16.04
       - Ubuntu
     ConstraintDescription: must be "Ubuntu 16.04" (latest), "Ubuntu".
-  ApplicationObject:
-    Description: Object within the S3 bucket and folder containing the Application
+  UbuntuWebServersApplicationKey:
+    Description: Optional key of Object within the S3 Bucket containing the UbuntuWebServers Application
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  ApplicationName:
-    Description: Name of the Application associated with the Stack
+    AllowedPattern: (^$|^(?:Linux|LinuxWebServer|UbuntuWebServer)\/[-_.a-zA-Z0-9]*\.(?:zip|tgz|tar\.gz)$)
+    ConstraintDescription: must be a valid filename, within the Linux, LinuxWebServer or UbuntuWebServer folders, if specified.
+  UbuntuWebServersApplicationName:
+    Description: Name of the UbuntuWebServers Application
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: UbuntuWebServers
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  ApplicationDomain:
-    Description: DNS Name of the Application associated with the Stack
-    Type: String
-    MaxLength: 16
-    Default: uwsm
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
-    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
-  ApplicationVersion:
-    Description: Version of the Application
+  UbuntuWebServersApplicationVersion:
+    Description: Version of the UbuntuWebServers Application
     Type: String
     MinLength: 5
     MaxLength: 32
     Default: 1.0.0
     AllowedPattern: ^[0-9]*.[0-9]*.[0-9]*(-[a-zA-Z0-9][-a-zA-Z0-9]*)?$
     ConstraintDescription: must follow semantic versioning conventions.
+  UbuntuWebServersServiceName:
+    Description: DNS Service Name of the UbuntuWebServers Application
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: uwsm
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   WebSnapshot:
     Description: Optional snapshot of previous EBS Volume containing Web directories
     Type: String
@@ -412,9 +412,8 @@ Mappings:
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
-  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
-  InstallApplication: !Not [ !Equals [ !Ref ApplicationObject, '' ]]
-  ConfigureDomainName: !Not [ !Equals [ !Ref ApplicationDomain, '' ]]
+  ConfigureKeyPair: !Not [ !Equals [ !Ref KeyPairName, '' ]]
+  InstallApplication: !Not [ !Equals [ !Ref UbuntuWebServersApplicationKey, '' ]]
   ConfigureWebSnapshot: !Not [ !Equals [ !Ref WebSnapshot, '' ]]
   ConfigureNormalSchedule: !Not [ !Equals [ !Ref NormalSchedule, '' ]]
   ConfigureReducedSchedule: !Not [ !Equals [ !Ref ReducedSchedule, '' ]]
@@ -516,6 +515,10 @@ Resources:
                     - arn:aws:s3:::${ExamplesBucket}/LinuxWebServer/*
                     - ExamplesBucket: !ImportValue
                         Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
+                  - !Sub
+                    - arn:aws:s3:::${ExamplesBucket}/UbuntuWebServer/*
+                    - ExamplesBucket: !ImportValue
+                        Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
   LogGroupName:
     Type: Custom::LogGroupName
     Properties:
@@ -523,7 +526,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref UbuntuWebServersApplicationName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -533,7 +536,7 @@ Resources:
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-LoadBalancerSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${UbuntuWebServersApplicationName}-LoadBalancerSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1019,11 +1022,11 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-LoadBalancerSecurityGroup
+          Value: !Sub ${EnvironmentName}-${UbuntuWebServersApplicationName}-LoadBalancerSecurityGroup
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${UbuntuWebServersApplicationName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1679,7 +1682,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${UbuntuWebServersApplicationName}-InstanceSecurityGroup
   LoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -1708,7 +1711,7 @@ Resources:
         Timeout: 5
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-LoadBalancer
+          Value: !Sub ${EnvironmentName}-${UbuntuWebServersApplicationName}-LoadBalancer
   UbuntuImage:
     Type: Custom::UbuntuImage
     Properties:
@@ -1729,7 +1732,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref ApplicationName
+      ApplicationName: !Ref UbuntuWebServersApplicationName
       # This is a partial hostname - Due to the use of AutoScaling, we can't know the InstanceNumber or ZoneCode at this time.
       # However, by use of the PrivateRecordSet CloudWatchEvents Function, Instances can still be given DNS names.
   LaunchConfiguration:
@@ -1842,7 +1845,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${ApplicationName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${UbuntuWebServersApplicationName}",
                     "metrics_collected" : {
                       "mem" : {
                         "measurement" : [
@@ -2038,7 +2041,7 @@ Resources:
         InstallApplication:
           sources:
             /var/www: !Sub
-              - https://${ExamplesBucket}.${s3}.amazonaws.com/LinuxWebServer/${ApplicationObject}
+              - https://${ExamplesBucket}.${s3}.amazonaws.com/${UbuntuWebServersApplicationKey}
               - ExamplesBucket: !ImportValue
                   Fn::Sub: ${BuildBucketsStackName}-ExamplesBucket
                 s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -2052,10 +2055,10 @@ Resources:
               content: !Sub |
                 <html>
                 <head>
-                <title>${ApplicationName} Test Application</title>
+                <title>${UbuntuWebServersApplicationName} Test Application</title>
                 </head>
                 <body>
-                <h1>${ApplicationName} (${ApplicationVersion})</h1>
+                <h1>${UbuntuWebServersApplicationName} (${UbuntuWebServersApplicationVersion})</h1>
 
                 <p>This page displays data obtained from the meta-data service via SSI.</p>
 
@@ -2079,7 +2082,7 @@ Resources:
       ImageId: !Ref UbuntuImage
       InstanceType: !FindInMap [ InstanceTypeMap, Web, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       InstanceMonitoring: true
       SecurityGroups:
         - !Ref InstanceSecurityGroup
@@ -2136,7 +2139,7 @@ Resources:
         - !Ref LoadBalancer
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${ApplicationName}-Instance
+          Value: !Sub ${EnvironmentName}-${UbuntuWebServersApplicationName}-Instance
           PropagateAtLaunch: true
         - Key: HostName
           Value: !Ref HostName
@@ -2223,7 +2226,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[ip, identity, user_id, timestamp, request, status_code = 404, size, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${UbuntuWebServersApplicationName}
           MetricName: 404Count
           MetricValue: 1
   BytesTransferredMetricFilter:
@@ -2232,7 +2235,7 @@ Resources:
       LogGroupName: !Ref LogGroup
       FilterPattern: '[ip, identity, user_id, timestamp, request, status_code, size, ...]'
       MetricTransformations:
-        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+        - MetricNamespace: !Sub ${SystemName}/${EnvironmentName}-${UbuntuWebServersApplicationName}
           MetricName: BytesTransferred
           MetricValue: $size
   404Alarm:
@@ -2242,7 +2245,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UbuntuWebServersApplicationName}
       MetricName: 404Count
       Statistic: Sum
       Period: 60
@@ -2256,7 +2259,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${ApplicationName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UbuntuWebServersApplicationName}
       MetricName: BytesTransferred
       Statistic: Average
       Period: 60
@@ -2268,17 +2271,16 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub Public DNS ServiceName for ${ApplicationName}.
+      Comment: !Sub Public DNS Service Name of the ${UbuntuWebServersApplicationName} Service
       RecordSets:
         - Name: !Sub
-            - ${ApplicationDomain}.${VPCPublicDomain}.
+            - ${UbuntuWebServersServiceName}.${VPCPublicDomain}.
             - VPCPublicDomain: !ImportValue
                 Fn::Sub: ${VPCStackName}-VPCPublicDomain
           Type: A
           AliasTarget:
             HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneNameID
             DNSName: !GetAtt LoadBalancer.DNSName
-    Condition: ConfigureDomainName
 Outputs:
   LoadBalancerSecurityGroup:
     Description: The LoadBalancer SecurityGroup
@@ -2290,10 +2292,15 @@ Outputs:
     Value: !Ref InstanceSecurityGroup
     Export:
       Name: !Sub ${AWS::StackName}-InstanceSecurityGroup
+  PublicServiceName:
+    Description: The Public DNS Service Name of the UbuntuWebServers Service
+    Value: !Sub
+      - ${UbuntuWebServersServiceName}.${VPCPublicDomain}
+      - VPCPublicDomain: !ImportValue
+          Fn::Sub: ${VPCStackName}-VPCPublicDomain
   PublicWebsiteURL:
     Description: The Public Website URL
     Value: !Sub
-      - http://${ApplicationDomain}.${VPCPublicDomain}/
+      - http://${UbuntuWebServersServiceName}.${VPCPublicDomain}/
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName

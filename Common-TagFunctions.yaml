@@ -124,7 +124,7 @@ Resources:
       FunctionName: VpcDefaultResourceTagger
       Description: A Lambda function that tags the default resources created along with a VPC, which are otherwise untagged.
       Role: !GetAtt VpcDefaultResourceTaggerRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue

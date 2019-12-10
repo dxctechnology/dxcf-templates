@@ -18,7 +18,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -33,34 +33,30 @@ Metadata:
           - EnvironmentZones
           - OSName
       - Label:
-          default: Utility Dependencies Configuration
+          default: Windows Bastions Utility Dependencies Configuration
         Parameters:
-          - AwsCliProductObject
-          - ChromeProductObject
-          - RoyalTSProductObject
-          - PuTTYProductObject
+          - AwsCliProductKey
+          - AwsPowerShellToolsProductKey
+          - ChromeProductKey
+          - RoyalTSProductKey
+          - PuTTYProductKey
       - Label:
-          default: Utility Configuration
+          default: Windows Bastions Utility Configuration
         Parameters:
-          - UtilityName
-          - UtilityDomain
-          - UseStaticPublicAddress
+          - WindowsBastionsUtilityName
+          - WindowsBastionsServiceName
           - UseFedRAMP
           - LogRetention
           - OnSchedule
           - OffSchedule
-      - Label:
-          default: Directory Configuration
-        Parameters:
-          - DirectoryAdministratorPassword
       - Label:
           default: Security Configuration
         Parameters:
           - UserNetworks
           - UserNetworkDescriptions
     ParameterLabels:
-      ActiveDirectoryStackName:
-        default: Active Directory Stack Name
+      DirectoryStackName:
+        default: Directory Stack Name
       VPCStackName:
         default: VPC Stack Name
       AMIFunctionsStackName:
@@ -71,8 +67,8 @@ Metadata:
         default: Topics Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -87,20 +83,20 @@ Metadata:
         default: Environment Zones
       OSName:
         default: Operating System Name
-      AwsCliProductObject:
-        default: AWS CLI Product Object
-      ChromeProductObject:
-        default: Chrome Product Object
-      RoyalTSProductObject:
-        default: RoyalTS Product Object
-      PuTTYProductObject:
-        default: PuTTY Product Object
+      AwsCliProductKey:
+        default: AWS CLI Product S3 Key
+      AwsPowerShellToolsProductKey:
+        default: AWS PowerShell Tools Product S3 Key
+      ChromeProductKey:
+        default: Chrome Product S3 Key
+      RoyalTSProductKey:
+        default: RoyalTS Product S3 Key
+      PuTTYProductKey:
+        default: PuTTY Product S3 Key
       UtilityName:
-        default: Utility Name
-      UtilityDomain:
-        default: Utility Domain
-      UseStaticPublicAddress:
-        default: Use Static Public Address
+        default: Windows Bastions Utility Name
+      WindowsBastionsServiceName:
+        default: Windows Bastions DNS Service Name
       UseFedRAMP:
         default: Harden for FedRAMP Security Standards
       LogRetention:
@@ -109,8 +105,6 @@ Metadata:
         default: On Schedule
       OffSchedule:
         default: Off Schedule
-      DirectoryAdministratorPassword:
-        default: Directory Administrator Password
       UserNetworks:
         default: User Networks
       UserNetworkDescriptions:
@@ -163,7 +157,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable the Administrator Password
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -252,57 +246,52 @@ Parameters:
       - Windows Server 2012 R2
       - Windows Server 2016
     ConstraintDescription: must be "Windows Server 2012 R2" or "Windows Server 2016".
-  AwsCliProductObject:
-    Description: Object within the S3 bucket and folder containing the AWS CLI installer
+  AwsCliProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the AWS CLI installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  ChromeProductObject:
-    Description: Object within the S3 bucket and folder containing the Chrome installer
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, in the Windows folder, if specified.
+  AwsPowerShellToolsProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the AWS PowerShell Tools installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  RoyalTSProductObject:
-    Description: Object within the S3 bucket and folder containing the RoyalTS installer
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
+  ChromeProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the Chrome installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  PuTTYProductObject:
-    Description: Object within the S3 bucket and folder containing the PuTTY installer
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
+  RoyalTSProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the RoyalTS installer
     Type: String
-    MaxLength: 64
     Default: ''
-    AllowedPattern: (^$|^[-_.a-zA-Z0-9]*$)
-    ConstraintDescription: must be a valid filename, not containing slashes.
-  UtilityName:
-    Description: Name of the Utility associated with the Stack
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
+  PuTTYProductKey:
+    Description: Optional key of Object within the S3 Bucket containing the PuTTY installer
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|^Windows\/[-_.a-zA-Z0-9]*\.msi$)
+    ConstraintDescription: must be a valid filename, within the Windows folder, if specified.
+  WindowsBastionsUtilityName:
+    Description: Name of the Windows Bastions Utility
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: WindowsBastions
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
-  UtilityDomain:
-    Description: DNS Name of the Utility associated with the Stack
+  WindowsBastionsServiceName:
+    Description: DNS Service Name of the Windows Bastions Utility
     Type: String
-    MaxLength: 16
+    MinLength: 2
+    MaxLength: 64
     Default: wbastion
-    AllowedPattern: (^$|^[a-z][-a-z0-9]*$)
+    AllowedPattern: ^[a-z][-a-z0-9]*$
     ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
-  UseStaticPublicAddress:
-    Description: Create and associate a separate Static Public Address
-    Type: String
-    Default: true
-    AllowedValues:
-      - true
-      - false
-    ConstraintDescription: must be either true or false.
   UseFedRAMP:
     Description: Harden Bastions for FedRAMP Security Standards
     Type: String
@@ -335,25 +324,17 @@ Parameters:
       - 3653
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
   OnSchedule:
-    Description: On Schedule in constrained Cron format (UTC)
+    Description: Optional On Schedule in constrained Cron format (UTC)
     Type: String
-    Default: 0 11 * * 1-5
-    AllowedPattern: (^$|^0 ([5-9]|1[0-6]) \* \* 1-5$)
-    ConstraintDescription: 'must follow constrained cron syntax: "0 H * * 1-5", where H = 5-16.'
-  OffSchedule:
-    Description: Off Schedule in constrained Cron format (UTC)
-    Type: String
-    Default: 0 4 * * *
-    AllowedPattern: (^$|^0 [0-7] \* \* \*$)
-    ConstraintDescription: 'must follow constrained cron syntax: "0 H * * *", where H = 0-7.'
-  DirectoryAdministratorPassword:
-    Description: Optional password for the Enterprise Admin User (If unspecified, value obtained via Secret)
-    Type: String
-    NoEcho: true
     Default: ''
-    AllowedPattern: (^$|(?=^.{20,64}$)(^[a-z]{4,32}(-[a-z]{4,32}){2,7}$|(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*))
-    ConstraintDescription: must be 20 to 64 alphanumeric characters, in either hyphenated multiword format,
-      or random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|^0 ([5-9]|1[0-6]) \* \* 1-5$)
+    ConstraintDescription: 'must follow constrained cron syntax: "0 H * * 1-5", where H = 5-16, if specified.'
+  OffSchedule:
+    Description: Optional Off Schedule in constrained Cron format (UTC)
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|^0 [0-7] \* \* \*$)
+    ConstraintDescription: 'must follow constrained cron syntax: "0 H * * *", where H = 0-7, if specified.'
   UserNetworks:
     Description: Networks that can use the Utility
     Type: String
@@ -433,21 +414,17 @@ Conditions:
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   ConfigureDirectoryIntegration: !Not [ !Equals [ !Ref DirectoryStackName, '' ]]
   ConfigureActiveDirectoryIntegration: !Equals [ !Select [ 1, !Split [ '-', !Ref DirectoryStackName ]], 'ActiveDirectory' ]
-  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
+  ConfigureKeyPair: !Not [ !Equals [ !Ref KeyPairName, '' ]]
   ConfigureStandby: !Equals [ !Ref EnvironmentType, standby ]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
-  InstallAwsCliProduct: !Not [ !Equals [ !Ref AwsCliProductObject, '' ]]
-  InstallChromeProduct: !Not [ !Equals [ !Ref ChromeProductObject, '' ]]
-  InstallRoyalTSProduct: !Not [ !Equals [ !Ref RoyalTSProductObject, '' ]]
-  InstallPuTTYProduct: !Not [ !Equals [ !Ref PuTTYProductObject, '' ]]
-  ConfigureStaticPublicAddress: !Equals [ !Ref UseStaticPublicAddress, true ]
-  ConfigureStaticPublicAddress&MultiZone: !And [ !Condition ConfigureStaticPublicAddress, !Condition ConfigureMultiZone ]
+  InstallAwsCli: !Not [ !Equals [ !Ref AwsCliProductKey, '' ]]
+  InstallAwsPowerShellTools: !Not [ !Equals [ !Ref AwsPowerShellToolsProductKey, '' ]]
+  InstallChrome: !Not [ !Equals [ !Ref ChromeProductKey, '' ]]
+  InstallRoyalTS: !Not [ !Equals [ !Ref RoyalTSProductKey, '' ]]
+  InstallPuTTY: !Not [ !Equals [ !Ref PuTTYProductKey, '' ]]
   ConfigureFedRAMP: !Equals [ !Ref UseFedRAMP, true ]
-  ConfigureDomainName: !And [ !Not [ !Equals [ !Ref UtilityDomain, '' ]], !Condition ConfigureStaticPublicAddress ]
-  ConfigureDomainName&MultiZone: !And [ !Condition ConfigureDomainName, !Condition ConfigureMultiZone ]
   ConfigureOnSchedule: !And [ !Not [ !Equals [ !Ref OnSchedule, '' ]], !Not [ !Condition ConfigureStandby ]]
   ConfigureOffSchedule: !And [ !Not [ !Equals [ !Ref OffSchedule , '' ]], !Not [ !Condition ConfigureStandby ]]
-  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
   ConfigureUserNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref UserNetworks ]], '-' ]]
   ConfigureUserNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref UserNetworks ]], '-' ]]
@@ -482,7 +459,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
       Policies:
-        - PolicyName: GetPasswordSecretPolicy
+        - PolicyName: GetSecretPolicy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -490,8 +467,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-AdminPassword-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-DirectoryService-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-ActiveDirectory-Administrator-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -501,15 +478,15 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub
-                    - arn:aws:s3:::${ScriptsBucket}/Modules/*
-                    - ScriptsBucket: !ImportValue
-                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
-                  - !Sub
                     - arn:aws:s3:::${ScriptsBucket}/Windows/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
                   - !Sub
                     - arn:aws:s3:::${ScriptsBucket}/WindowsBastions/*
+                    - ScriptsBucket: !ImportValue
+                        Fn::Sub: ${BucketsStackName}-ScriptsBucket
+                  - !Sub
+                    - arn:aws:s3:::${ScriptsBucket}/Modules/*
                     - ScriptsBucket: !ImportValue
                         Fn::Sub: ${BucketsStackName}-ScriptsBucket
         - PolicyName: DownloadConfigurationFromS3Policy
@@ -560,7 +537,7 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref WindowsBastionsUtilityName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName , !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -570,7 +547,7 @@ Resources:
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${WindowsBastionsUtilityName}-InstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -1062,30 +1039,16 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-InstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${WindowsBastionsUtilityName}-InstanceSecurityGroup
   EIPA:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-    Condition: ConfigureStaticPublicAddress
   EIPB:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-    Condition: ConfigureStaticPublicAddress&MultiZone
-  HostName:
-    Type: Custom::HostName
-    Properties:
-      ServiceToken: !ImportValue
-        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
-      CompanyName: !Ref CompanyName
-      LocationName: !Ref AWS::Region
-      EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
-      InstanceNumber: 01
-      # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
-      #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
-      #       HostName without Zone Code created here.
+    Condition: ConfigureMultiZone
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -1099,6 +1062,19 @@ Resources:
       Path: /
       Roles:
         - !Ref Role
+  HostName:
+    Type: Custom::HostName
+    Properties:
+      ServiceToken: !ImportValue
+        Fn::Sub: ${CodesStackName}-HostNameFunctionArn
+      CompanyName: !Ref CompanyName
+      LocationName: !Ref AWS::Region
+      EnvironmentName: !Ref EnvironmentName
+      ApplicationName: !Ref WindowsBastionsUtilityName
+      InstanceNumber: 01
+      # Note: ZoneCode cannot be used here, as it will not be known. AutoScaling may create Instances in more than one
+      #       AvailabilityZone. So, we have to use a script run during initial boot that appends the Zone Code to the
+      #       HostName without Zone Code created here.
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Metadata:
@@ -1128,11 +1104,12 @@ Resources:
             - InstallRDSGateway
             - ConfigureRDSGateway
             - ConfigureRemoteDesktopUsers
-            - !If [ ConfigureStaticPublicAddress, ConfigureStaticPublicAddress, !Ref 'AWS::NoValue' ]
-            - !If [ InstallAwsCliProduct, InstallAwsCliProduct, !Ref 'AWS::NoValue' ]
-            - !If [ InstallChromeProduct, InstallChromeProduct, !Ref 'AWS::NoValue' ]
-            - !If [ InstallRoyalTSProduct, InstallRoyalTSProduct, !Ref 'AWS::NoValue' ]
-            - !If [ InstallPuTTYProduct, InstallPuTTYProduct, !Ref 'AWS::NoValue' ]
+            - ConfigureStaticPublicAddress
+            - !If [ InstallAwsCli, InstallAwsCli, !Ref 'AWS::NoValue' ]
+            - !If [ InstallAwsPowerShellTools, InstallAwsPowerShellTools, !Ref 'AWS::NoValue' ]
+            - !If [ InstallChrome, InstallChrome, !Ref 'AWS::NoValue' ]
+            - !If [ InstallRoyalTS, InstallRoyalTS, !Ref 'AWS::NoValue' ]
+            - !If [ InstallPuTTY, InstallPuTTY, !Ref 'AWS::NoValue' ]
             - SignalCloudFormation
         InstallCloudFormationModule:
           files:
@@ -1204,7 +1181,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${WindowsBastionsUtilityName}",
                     "metrics_collected" : {
                       "Memory" : {
                         "measurement" : [
@@ -1350,14 +1327,13 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${PasswordSecretId}
-                  -Password '${DirectoryAdministratorPassword}'"
+                  -SecretId ${SecretId}"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
-                  PasswordSecretId: !If
+                  SecretId: !If
                     - ConfigureActiveDirectoryIntegration
-                    - !Sub ${EnvironmentName}-ActiveDirectory-AdminPassword
-                    - !Sub ${EnvironmentName}-DirectoryService-AdminPassword
+                    - !Sub ${EnvironmentName}-ActiveDirectory-Administrator
+                    - !Sub ${EnvironmentName}-DirectoryService-Administrator
               ignoreErrors: false
               waitAfterCompletion: forever
         InstallRDSGateway:
@@ -1437,39 +1413,47 @@ Resources:
                 - powershell.exe -Command "C:\cfn\scripts\Associate-EIP.ps1
                   -EIPAAllocationId ${EIPAAllocationId}
                   -EIPBAllocationId ${EIPBAllocationId}"
-                - EIPAAllocationId: !If [ ConfigureStaticPublicAddress, !GetAtt EIPA.AllocationId, NONE ]
-                  EIPBAllocationId: !If [ ConfigureStaticPublicAddress&MultiZone, !GetAtt EIPB.AllocationId, NONE ]
+                - EIPAAllocationId: !GetAtt EIPA.AllocationId
+                  EIPBAllocationId: !If [ ConfigureMultiZone, !GetAtt EIPB.AllocationId, NONE ]
               ignoreErrors: false
               waitAfterCompletion: 15
-        InstallAwsCliProduct:
+        InstallAwsCli:
           packages:
             msi:
               AwsCli: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${AwsCliProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${AwsCliProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallChromeProduct:
+        InstallAwsPowerShellTools:
+          packages:
+            msi:
+              AwsCli: !Sub
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${AwsPowerShellToolsProductKey}
+                - ProductsBucket: !ImportValue
+                    Fn::Sub: ${BucketsStackName}-ProductsBucket
+                  s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
+        InstallChrome:
           packages:
             msi:
               Chrome: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${ChromeProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${ChromeProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallRoyalTSProduct:
+        InstallRoyalTS:
           packages:
             msi:
               RoyalTS: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${RoyalTSProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${RoyalTSProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
-        InstallPuTTYProduct:
+        InstallPuTTY:
           packages:
             msi:
               PuTTY: !Sub
-                - https://${ProductsBucket}.${s3}.amazonaws.com/Windows/${PuTTYProductObject}
+                - https://${ProductsBucket}.${s3}.amazonaws.com/${PuTTYProductKey}
                 - ProductsBucket: !ImportValue
                     Fn::Sub: ${BucketsStackName}-ProductsBucket
                   s3: !If [ ConfigureGlobal, s3, !Sub 's3-${AWS::Region}' ]
@@ -1481,7 +1465,7 @@ Resources:
       ImageId: !Ref WindowsImage
       InstanceType: !FindInMap [ InstanceTypeMap, Bastion, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !Ref KeyName
+      KeyName: !Ref KeyPairName
       InstanceMonitoring: true
       SecurityGroups:
         - !Ref InstanceSecurityGroup
@@ -1523,7 +1507,7 @@ Resources:
       Cooldown: 300
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-Instance
+          Value: !Sub ${EnvironmentName}-${WindowsBastionsUtilityName}-Instance
           PropagateAtLaunch: true
     CreationPolicy:
       ResourceSignal:
@@ -1558,50 +1542,49 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
-      Comment: !Sub DNS name for ${UtilityName} Instance
+      Comment: !Sub Public DNS Service Name of the ${WindowsBastionsUtilityName} Instance
       Name: !Sub
-        - ${UtilityDomain}.${VPCPublicDomain}.
+        - ${WindowsBastionsServiceName}.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPA
-    Condition: ConfigureDomainName
   PublicServiceNameRecordSetA:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
       Comment: !Sub
-        - DNS name for ${UtilityName} Instance in ${ZoneA}
+        - Public DNS Service Name of the ${WindowsBastionsUtilityName} Instance in ${ZoneA}
         - ZoneA: !Select [ 0, !GetAZs '' ]
       Name: !Sub
-        - ${UtilityDomain}a.${VPCPublicDomain}.
+        - ${WindowsBastionsServiceName}a.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPA
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceNameRecordSetB:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PublicHostedZone
       Comment: !Sub
-        - DNS name for ${UtilityName} Instance in ${ZoneB}
+        - Public DNS Service Name of the ${WindowsBastionsUtilityName} Instance in ${ZoneB}
         - ZoneB: !Select [ 1, !GetAZs '' ]
       Name: !Sub
-        - ${UtilityDomain}b.${VPCPublicDomain}.
+        - ${WindowsBastionsServiceName}b.${VPCPublicDomain}.
         - VPCPublicDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPublicDomain
       Type: A
       TTL: 900
       ResourceRecords:
         - !Ref EIPB
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
 Outputs:
   InstanceSecurityGroup:
     Description: The Instance SecurityGroup
@@ -1611,29 +1594,27 @@ Outputs:
   EIPA:
     Description: The Public Address of the Bastion in Availability Zone A
     Value: !Ref EIPA
-    Condition: ConfigureStaticPublicAddress
   EIPB:
     Description: The Public Address of the Bastion in Availability Zone B
     Value: !Ref EIPB
-    Condition: ConfigureStaticPublicAddress&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceName:
-    Description: The Public DNS ServiceName of the Bastion
+    Description: The Public DNS Service Name of the Bastion
     Value: !Sub
-      - ${UtilityDomain}.${VPCPublicDomain}
+      - ${WindowsBastionsServiceName}.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName
   PublicServiceNameA:
-    Description: The Public DNS ServiceName of the Bastion in Availability Zone A
+    Description: The Public DNS Service Name of the Bastion in Availability Zone A
     Value: !Sub
-      - ${UtilityDomain}a.${VPCPublicDomain}
+      - ${WindowsBastionsServiceName}a.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone
   PublicServiceNameB:
-    Description: The Public DNS ServiceName of the Bastion in Availability Zone B
+    Description: The Public DNS Service Name of the Bastion in Availability Zone B
     Value: !Sub
-      - ${UtilityDomain}b.${VPCPublicDomain}
+      - ${WindowsBastionsServiceName}b.${VPCPublicDomain}
       - VPCPublicDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPublicDomain
-    Condition: ConfigureDomainName&MultiZone
+    Condition: ConfigureMultiZone

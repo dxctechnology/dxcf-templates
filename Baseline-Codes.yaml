@@ -172,7 +172,7 @@ Resources:
       FunctionName: CodesLoader
       Description: A Lambda function which loads data into the DynamoDB Codes Table, used to construct Identifiers used by the DXC Framework.
       Role: !GetAtt CodesLoaderRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -196,7 +196,7 @@ Resources:
 
             switch (event.RequestType) {
               case 'Create':
-              case 'Update':
+              case 'Update': // Note this logic can be run to create or modify records, but currently does not delete
                 try {
                   const codes = event.ResourceProperties.Codes;
                   if (! codes) {
@@ -243,7 +243,7 @@ Resources:
     Properties:
       ServiceToken: !GetAtt CodesLoaderFunction.Arn
       TableName: !Ref TableName
-      Codes:
+      Codes: # Please keep Application and Component records in alphabetical order by Code
         - Type: Company
           Name: Demo
           Code: demo
@@ -440,6 +440,9 @@ Resources:
           Name: AutoSys
           Code: as
         - Type: Application
+          Name: Aurora
+          Code: aur
+        - Type: Application
           Name: LinuxBastion
           Code: bl
         - Type: Application
@@ -464,8 +467,14 @@ Resources:
           Name: Duo
           Code: duo
         - Type: Application
+          Name: EMR
+          Code: emr
+        - Type: Application
           Name: Engine
           Code: eng
+        - Type: Application
+          Name: ETL
+          Code: etl
         - Type: Application
           Name: FederatedSecurity
           Code: fs
@@ -475,6 +484,9 @@ Resources:
         - Type: Application
           Name: GitHubEnterprise
           Code: git
+        - Type: Application
+          Name: Glue
+          Code: glue
         - Type: Application
           Name: Hadoop
           Code: had
@@ -506,6 +518,12 @@ Resources:
           Name: Octopus
           Code: oct
         - Type: Application
+          Name: Okta
+          Code: okta
+        - Type: Application
+          Name: Oracle
+          Code: ora
+        - Type: Application
           Name: PAX
           Code: pax
         - Type: Application
@@ -514,6 +532,9 @@ Resources:
         - Type: Application
           Name: RabbitMQ
           Code: rmq
+        - Type: Application
+          Name: Redshift
+          Code: red
         - Type: Application
           Name: RStudio
           Code: rs
@@ -572,11 +593,14 @@ Resources:
           Name: WindowsWebServerNested
           Code: wwsn
         - Type: Application
-          Name: UbuntuWebServer
-          Code: uws
+          Name: WordPress
+          Code: wp
         - Type: Application
-          Name: UbuntuWebServers
-          Code: uwsm
+          Name: Zeppelin
+          Code: zep
+        - Type: Component
+          Name: Agent
+          Code: a
         - Type: Component
           Name: Ambari
           Code: a
@@ -588,6 +612,9 @@ Resources:
           Code: as
         - Type: Component
           Name: Calculation
+          Code: c
+        - Type: Component
+          Name: Cache
           Code: c
         - Type: Component
           Name: Data
@@ -629,14 +656,26 @@ Resources:
           Name: Executor
           Code: e
         - Type: Component
+          Name: ElastiCache
+          Code: ec
+        - Type: Component
           Name: SFTP
           Code: ft
+        - Type: Component
+          Name: FileSystem
+          Code: fs
+        - Type: Component
+          Name: Glue
+          Code: g
         - Type: Component
           Name: Logging
           Code: l
         - Type: Component
           Name: LoadBalancer
           Code: lb
+        - Type: Component
+          Name: Management
+          Code: m
         - Type: Component
           Name: Manager
           Code: m
@@ -651,7 +690,7 @@ Resources:
           Code: mc
         - Type: Component
           Name: ManagementWorkstation
-          Code: mc
+          Code: mw
         - Type: Component
           Name: Professional
           Code: p
@@ -722,7 +761,7 @@ Resources:
       FunctionName: AliasName
       Description: A Lambda function which creates an AliasName that conforms to DXC Framework Naming Conventions.
       Role: !GetAtt IdentifierRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -806,7 +845,7 @@ Resources:
       FunctionName: LogGroupName
       Description: A Lambda function which creates a LogGroupName that conforms to DXC Framework Naming Conventions.
       Role: !GetAtt IdentifierRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -857,10 +896,13 @@ Resources:
                   const applicationName = event.ResourceProperties.ApplicationName;
                   const applicationSegment = (applicationName) ? `/${applicationName}` : '';
 
+                  const componentName = event.ResourceProperties.ComponentName;
+                  const componentSegment = (componentName) ? `-${componentName}` : '';
+
                   const environmentName = event.ResourceProperties.EnvironmentName;
                   const environmentSegment = (environmentName) ? `/${environmentName}` : '';
 
-                  const loggroupname = `${companySegment}${systemSegment}${applicationSegment}${environmentSegment}`;
+                  const loggroupname = `${companySegment}${systemSegment}${applicationSegment}${componentSegment}${environmentSegment}`;
                   console.info('LogGroupName: ' + loggroupname);
                   await response.send(event, context, response.SUCCESS, null, loggroupname);
                 }
@@ -887,7 +929,7 @@ Resources:
       FunctionName: HostName
       Description: A Lambda function which creates a HostName that conforms to DXC Framework Naming Conventions.
       Role: !GetAtt IdentifierRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue
@@ -989,7 +1031,7 @@ Resources:
       FunctionName: DomainName
       Description: A Lambda function which creates a DomainName that conforms to DXC Framework Naming Conventions.
       Role: !GetAtt IdentifierRole.Arn
-      Runtime: nodejs8.10
+      Runtime: nodejs10.x
       Timeout: 30
       Layers:
         - !ImportValue

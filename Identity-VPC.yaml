@@ -14,7 +14,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -47,8 +47,8 @@ Metadata:
         default: AMIFunctions Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -109,7 +109,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable SSH access to the Instances
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -258,7 +258,7 @@ Mappings:
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigurePublicHostedZone: !Not [ !Equals [ !Ref PublicHostedZoneStackName, '' ]]
-  ConfigureKey: !Not [ !Equals [ !Ref KeyName, '' ]]
+  ConfigureKeyPair: !Not [ !Equals [ !Ref KeyPairName, '' ]]
   ConfigureMultiZone: !Not [ !Equals [ !Ref EnvironmentZones, 1 ]]
   ConfigurePrivateDomain: !Not [ !Equals [ !Ref PrivateDomain, '' ]]
   ConfigureDirectoryDomain: !Not [ !Equals [ !Ref DirectoryDomain, '' ]]
@@ -580,7 +580,7 @@ Resources:
     Properties:
       ImageId: !Ref AmazonNATImage
       InstanceType: !FindInMap [ InstanceTypeMap, NAT, !Ref EnvironmentType ]
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       NetworkInterfaces:
         - Description: !Sub ${EnvironmentName}-NAT-NetworkInterfaceA-eth0
           DeviceIndex: 0
@@ -601,7 +601,7 @@ Resources:
     Properties:
       ImageId: !Ref AmazonNATImage
       InstanceType: !FindInMap [ InstanceTypeMap, NAT, !Ref EnvironmentType ]
-      KeyName: !If [ ConfigureKey, !Ref KeyName, !Ref 'AWS::NoValue' ]
+      KeyName: !If [ ConfigureKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue' ]
       NetworkInterfaces:
         - Description: !Sub ${EnvironmentName}-NAT-NetworkInterfaceB-eth0
           DeviceIndex: 0

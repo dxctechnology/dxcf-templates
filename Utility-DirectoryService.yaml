@@ -16,7 +16,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -30,15 +30,17 @@ Metadata:
           - EnvironmentType
           - OSName
       - Label:
-          default: Utility Configuration
+          default: Directory Utility Configuration
         Parameters:
-          - UtilityName
+          - DirectoryUtilityName
+          - DirectoryManagementServiceName
           - DirectoryAlias
           - DirectoryEdition
           - DirectoryAdministratorPassword
           - DirectorySeedDataEncryptionKey
           - UseSso
           - LogRetention
+          - Schedule
       - Label:
           default: Security Configuration
         Parameters:
@@ -57,8 +59,8 @@ Metadata:
         default: Topics Stack Name
       CodesStackName:
         default: Codes Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -71,8 +73,10 @@ Metadata:
         default: Environment Type
       OSName:
         default: Operating System Name
-      UtilityName:
-        default: Utility Name
+      DirectoryUtilityName:
+        default: Directory Utility Name
+      DirectoryManagementServiceName:
+        default: Directory-Management DNS Service Name
       DirectoryAlias:
         default: Directory Alias
       DirectoryEdition:
@@ -85,6 +89,8 @@ Metadata:
         default: Use SSO
       LogRetention:
         default: Log Retention
+      Schedule:
+        default: Schedule
       AdministratorNetworks:
         default: Administrator Networks
       AdministratorNetworkDescriptions:
@@ -138,7 +144,7 @@ Parameters:
     Default: Codes
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable the Administrator Password
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -217,22 +223,30 @@ Parameters:
       - Windows Server 2012 R2
       - Windows Server 2016
     ConstraintDescription: must be "Windows Server 2012 R2" or "Windows Server 2016".
-  UtilityName:
-    Description: Name of the Utility associated with the Stack
+  DirectoryUtilityName:
+    Description: Name of the Directory Utility
     Type: String
     MinLength: 2
     MaxLength: 32
     Default: DirectoryService
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
+  DirectoryManagementServiceName:
+    Description: DNS Service Name of the Directory-Management Application Component
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    Default: directory-management
+    AllowedPattern: ^[a-z][-a-z0-9]*$
+    ConstraintDescription: must begin with a lower case letter and contain only lower case letters, numbers and dashes.
   DirectoryAlias:
-    Description: Alias of the Directory Service created by the Stack
+    Description: Alias of the Directory
     Type: String
     Default: dxcapp-us-west-2
     AllowedPattern: ^(?!d-)(?=^.{6,62}$)[a-zA-Z0-9]+(-[a-zA-Z0-9]*)*$
     ConstraintDescription: must be 6 to 62 character alphanumeric hyphenated multiword format.
   DirectoryEdition:
-    Description: Type of Directory Service to build
+    Description: Type of the Directory Service
     Type: String
     Default: Standard
     AllowedValues:
@@ -240,13 +254,12 @@ Parameters:
       - Enterprise
     ConstraintDescription: must be Standard or Enterprise.
   DirectoryAdministratorPassword:
-    Description: Optional password for the Directory Service Admin User (If unspecified, generate a random password)
+    Description: Optional password for the Directory Administrator User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   DirectorySeedDataEncryptionKey:
     Description: Encryption Key used to encrypt sensitive Directory Seed Data used to populate the Directory, mainly User initial passwords
     Type: String
@@ -284,6 +297,12 @@ Parameters:
       - 1827
       - 3653
     ConstraintDescription: must be 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653.
+  Schedule:
+    Description: Optional Schedule Tag
+    Type: String
+    Default: '-22:00'
+    AllowedPattern: (^$|^(([01][0-9]|2[0-3]):[0-5][0-9]-|-([01][0-9]|2[0-3]):[0-5][0-9]|([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])( ([A-Z][_A-Za-z0-9]*\/[A-Z][_+A-Za-z0-9]*))?$)
+    ConstraintDescription: See Scheduler Lambda Function description for Tag format.
   AdministratorNetworks:
     Description: Networks that can administer the Application
     Type: String
@@ -359,8 +378,9 @@ Mappings:
 Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
-  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
-  GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
+  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
+  GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
+  ConfigureSchedule: !Not [ !Equals [ !Ref Schedule, '' ]]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork1: !Not [ !Equals [ !Select [ 1, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
   ConfigureAdministratorNetwork2: !Not [ !Equals [ !Select [ 2, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -391,8 +411,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-EncryptionKey-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${DirectoryUtilityName}-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${DirectoryUtilityName}-Encryption-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -444,36 +464,38 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref DirectoryUtilityName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogRetention
-  AdminPasswordSecret:
+  AdministratorSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User
-      SecretString: !If [ ConfigureAdminPassword, !Ref DirectoryAdministratorPassword, !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${DirectoryUtilityName} Administrator
+      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "Admin", "password": "${DirectoryAdministratorPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
-        - GenerateAdminPassword
-        - PasswordLength: 32
+        - GenerateAdministratorPassword
+        - SecretStringTemplate: !Sub '{"username": "Admin"}'
+          GenerateStringKey: password
+          PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
-  EncryptionKeySecret:
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+  EncryptionSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
-      Description: !Sub EncryptionKey used to encrypt Seed Data for the ${EnvironmentName} Environment ${UtilityName} Utility
-      SecretString: !Ref DirectorySeedDataEncryptionKey
+      Name: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Encryption
+      Description: !Sub Key used to encrypt Seed Data for the ${EnvironmentName} Environment ${DirectoryUtilityName} Utility
+      SecretString: !Sub '{"purpose": "SeedData", "key": "${DirectorySeedDataEncryptionKey}"}'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Encryption
   MicrosoftAD:
     Type: AWS::DirectoryService::MicrosoftAD
     Properties:
@@ -484,7 +506,7 @@ Resources:
       CreateAlias: false
       Edition: !Ref DirectoryEdition
       EnableSso: false
-      Password: !Sub '{{resolve:secretsmanager:${AdminPasswordSecret}}}'
+      Password: !Sub '{{resolve:secretsmanager:${AdministratorSecret}:SecretString:password}}'
       VpcSettings:
         VpcId: !ImportValue
           Fn::Sub: ${VPCStackName}-VPC
@@ -493,7 +515,7 @@ Resources:
             Fn::Sub: ${VPCStackName}-IdentitySubnetA
           - !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetB
-    DependsOn: AdminPasswordSecret
+    DependsOn: AdministratorSecret
   Alias:
     Type: Custom::DirectoryAlias
     Properties:
@@ -530,7 +552,7 @@ Resources:
       - !Select [ 1, !GetAtt MicrosoftAD.DnsIpAddresses ]
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-DirectoryDHCPOptions
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DirectoryDHCPOptions
     DependsOn: MicrosoftAD
   VPCDHCPOptionsAssociation:
     Type: AWS::EC2::VPCDHCPOptionsAssociation
@@ -541,16 +563,16 @@ Resources:
   AdministratorSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AdministratorSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AdministratorSecurityGroup
   ManagementInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-ManagementInstanceSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${DirectoryUtilityName}-ManagementInstanceSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -578,7 +600,7 @@ Resources:
           FromPort: 3389
           ToPort: 3389
           SourceSecurityGroupId: !Ref AdministratorSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup (RDP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AdministratorSecurityGroup (RDP)
         - !If
           - ConfigureAdministratorNetwork0
           - IpProtocol: tcp
@@ -621,7 +643,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-ManagementInstanceSecurityGroup
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-ManagementInstanceSecurityGroup
   HostName:
     Type: Custom::HostName
     Properties:
@@ -630,7 +652,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref DirectoryUtilityName
       InstanceNumber: 01
       ZoneCode: a
   WindowsImage:
@@ -750,7 +772,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}",
                     "metrics_collected" : {
                       "Memory" : {
                         "measurement" : [
@@ -885,7 +907,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               ignoreErrors: false
@@ -926,7 +948,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
                   -GroupsPath C:\cfn\conf\Groups.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -936,7 +958,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
                   -GroupsPath C:\cfn\conf\CustomGroups.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -970,8 +992,8 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
-                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+                  -EncryptionSecretId ${EnvironmentName}-${DirectoryUtilityName}-Encryption
                   -UsersPath C:\cfn\conf\Users.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -981,8 +1003,8 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
-                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+                  -EncryptionSecretId ${EnvironmentName}-${DirectoryUtilityName}-Encryption
                   -UsersPath C:\cfn\conf\CustomUsers.csv
                   -DirectoryService"
                 - VPCDirectoryDomain: !ImportValue
@@ -1059,10 +1081,10 @@ Resources:
       ImageId: !Ref WindowsImage
       InstanceType: !FindInMap [ InstanceTypeMap, Management, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !Ref KeyName
+      KeyName: !Ref KeyPairName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetA # Adding ZoneCode: a to HostName, so don't change this!
@@ -1075,13 +1097,14 @@ Resources:
             VolumeSize: 32
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-ManagementInstance
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-ManagementInstance
 #        - Key: HostName
 #          Value: !Ref HostName
-        - Key: Schedule
-          Value: '-22:00'
-        - Key: ScheduleDescription
-          Value: This Instance only needs to run while managing the Directory, so stop every night at 10pm
+        - !If
+          - ConfigureSchedule
+          - Key: Schedule
+            Value: !Ref Schedule
+          - !Ref AWS::NoValue
       UserData:
         Fn::Base64: !Sub |
           <script>
@@ -1098,7 +1121,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${UtilityName} ManagementInstance
+      Comment: !Sub Private DNS Host Name of the ${DirectoryUtilityName} ManagementInstance
       Name: !Sub
         - ${HostName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1112,9 +1135,9 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS ServiceName for ${UtilityName} ManagementInstance
+      Comment: !Sub Private DNS Service Name of the ${DirectoryUtilityName} ManagementInstance
       Name: !Sub
-        - directory-management.${VPCPrivateDomain}.
+        - ${DirectoryManagementServiceName}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
             Fn::Sub: ${VPCStackName}-VPCPrivateDomain
       Type: CNAME
@@ -1158,14 +1181,24 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ManagementInstanceSecurityGroup
   PrivateHostName:
-    Description: The Private HostName
+    Description: The Private DNS Host Name of the DirectoryService ManagementInstance
     Value: !Sub
       - ${HostName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
   PrivateServiceName:
-    Description: The Private ServiceName
+    Description: The Private DNS Service Name of the DirectoryService ManagementInstance
     Value: !Sub
-      - directory-management.${VPCPrivateDomain}
+      - ${DirectoryManagementServiceName}.${VPCPrivateDomain}
       - VPCPrivateDomain: !ImportValue
           Fn::Sub: ${VPCStackName}-VPCPrivateDomain
+  AdministratorSecret:
+    Description: The Administrator Secret Name
+    Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+    Export:
+      Name: !Sub ${AWS::StackName}-AdministratorSecret
+  EncryptionSecret:
+    Description: The Seed Data Encryption Secret Name
+    Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Encryption
+    Export:
+      Name: !Sub ${AWS::StackName}-EncryptionSecret

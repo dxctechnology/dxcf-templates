@@ -17,7 +17,7 @@ Metadata:
       - Label:
           default: Resource Dependencies
         Parameters:
-          - KeyName
+          - KeyPairName
       - Label:
           default: System Configuration
         Parameters:
@@ -32,9 +32,9 @@ Metadata:
           - OSName
           - OSDate
       - Label:
-          default: Utility Configuration
+          default: Directory Utility Configuration
         Parameters:
-          - UtilityName
+          - DirectoryUtilityName
           - DirectoryAdministratorPassword
           - DirectorySafeModePassword
           - DirectorySeedDataEncryptionKey
@@ -57,8 +57,8 @@ Metadata:
         default: Codes Stack Name
       BaselineStackName:
         default: Baseline Stack Name
-      KeyName:
-        default: Key Name
+      KeyPairName:
+        default: KeyPair Name
       CompanyName:
         default: Company Name
       SystemName:
@@ -73,8 +73,8 @@ Metadata:
         default: Operating System Name
       OSDate:
         default: Operating System Date
-      UtilityName:
-        default: Utility Name
+      DirectoryUtilityName:
+        default: Directory Utility Name
       DirectoryAdministratorPassword:
         default: Directory Administrator Password
       DirectorySafeModePassword:
@@ -136,7 +136,7 @@ Parameters:
     Default: Baseline
     AllowedPattern: ^[A-Z][-a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters and dashes.
-  KeyName:
+  KeyPairName:
     Description: Name of an existing KeyPair to enable the Administrator Password
     Type: AWS::EC2::KeyPair::KeyName
     MaxLength: 32
@@ -221,8 +221,8 @@ Parameters:
     Default: '20190911'
     AllowedPattern: (^$|^20(1[7-9]|[2-9][0-9])(0[1-9]|1[0-2])(0[1-9]|[1-2][0-9]|3[0-1])$)
     ConstraintDescription: Must be a valid date in YYYYMMDD format.
-  UtilityName:
-    Description: Name of the Utility associated with the Stack
+  DirectoryUtilityName:
+    Description: Name of the Directory Utility
     Type: String
     MinLength: 2
     MaxLength: 32
@@ -230,21 +230,19 @@ Parameters:
     AllowedPattern: ^[A-Z][a-zA-Z0-9]*$
     ConstraintDescription: must begin with an upper case letter and contain alphanumeric characters.
   DirectoryAdministratorPassword:
-    Description: Optional password for the Enterprise Admin User (If unspecified, generate a random password)
+    Description: Optional password for the Directory Administrator User (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   DirectorySafeModePassword:
     Description: Optional password allowing recovery when the domain controller is restarted in Safe Mode (If unspecified, generate a random password)
     Type: String
     NoEcho: true
     Default: ''
-    AllowedPattern: (^$|((?=^.{20,64}$)^[a-z]{1,32}(-[a-z]{1,32}){2,7}$|(?=^.{12,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$))
-    ConstraintDescription: must be 20 to 64 character lowercase hyphenated multiword format,
-      or 12 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
+    AllowedPattern: (^$|(?=^.{20,32}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])^.*$)
+    ConstraintDescription: must be 20 to 32 character random string format with at least one uppercase, lowercase and digit, if specified.
   DirectorySeedDataEncryptionKey:
     Description: Encryption Key used to encrypt sensitive Directory Seed Data used to populate the Directory, mainly User initial passwords
     Type: String
@@ -350,42 +348,61 @@ Mappings:
   # this table is edited to remove AMI lines VERY, VERY carefully, once systems are in operation.
   ImageIdMap:
     AMI: # Descending date sort. Keep any Old AMI versions which may be in use, to prevent unexpected Instance updates.
+      '20191009': Windows_Server-2012-R2_RTM-English-64Bit-Base-2019.10.09
       '20190911': Windows_Server-2012-R2_RTM-English-64Bit-Base-2019.09.11
     us-east-1:
+      '20191009': ami-028be67c2aa2f1ce1
       '20190911': ami-05ad3e9ea4dcd9863
     us-east-2:
+      '20191009': ami-09ee46c8d9abcb966
       '20190911': ami-06d29c77f7ab40cf2
     us-west-1:
+      '20191009': ami-05cd4c9c42e255074
       '20190911': ami-05c71b3ca4af2fbee
     us-west-2:
+      '20191009': ami-095f164d8ca0bdbbf
       '20190911': ami-083ae6bd726521e4a
     ap-east-1:
+      '20191009': ami-0966d14af125960f2
       '20190911': ami-0c76f133f3777d320
     ap-south-1:
+      '20191009': ami-0c317e1f81c5fb88c
       '20190911': ami-0773dc0299ece2df6
     ap-northeast-2:
+      '20191009': ami-0a0b21dd07f1083bf
       '20190911': ami-053df08898d96e587
     ap-southeast-1:
+      '20191009': ami-0364b7df071ead294
       '20190911': ami-003bcb0466a4c1ee8
     ap-southeast-2:
+      '20191009': ami-0b90712bab07bff79
       '20190911': ami-061e7ecf5eb3633e2
     ap-northeast-1:
+      '20191009': ami-005ee2767c33f46f6
       '20190911': ami-0a7f0aeadc4d0fbfe
     ca-central-1:
+      '20191009': ami-077aa0feeb9f0276a
       '20190911': ami-0c2b4ed63c22f1ea9
     eu-central-1:
+      '20191009': ami-0987d7897f512004d
       '20190911': ami-09a023d2317d65420
     eu-west-1:
+      '20191009': ami-0927c25b5177ff0de
       '20190911': ami-0c43411b5fd2c1129
     eu-west-2:
+      '20191009': ami-0e90780577bc9d091
       '20190911': ami-010ae2c4ae830c4dd
     eu-west-3:
+      '20191009': ami-0d0feff63441edc49
       '20190911': ami-05e9b803073bb06b8
     eu-north-1:
+      '20191009': ami-0ae9f5980b0d12eda
       '20190911': ami-08f045fc3b43c4b16
     me-south-1:
+      '20191009': ami-0ee9a2cef77c91144
       '20190911': ami-0fd110515ba1a3c70
     sa-east-1:
+      '20191009': ami-03fb3b14747ca1fe6
       '20190911': ami-041a00620190a86f9
   InstanceTypeMap:
     DomainController:
@@ -424,8 +441,8 @@ Conditions:
   ConfigureAccountEnvironment: !Or [ !Not [ !Equals [ !Ref AccountName, !Ref EnvironmentName ]], !Equals [ !Ref AccountName, Jumpstart ]]
   ConfigureGlobal: !Equals [ !Ref 'AWS::Region', us-east-1 ]
   GetImageID: !Equals [ !Ref OSDate, '' ]
-  ConfigureAdminPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
-  GenerateAdminPassword: !Not [ !Condition ConfigureAdminPassword ]
+  ConfigureAdministratorPassword: !Not [ !Equals [ !Ref DirectoryAdministratorPassword, '' ]]
+  GenerateAdministratorPassword: !Not [ !Condition ConfigureAdministratorPassword ]
   ConfigureSafeModePassword: !Not [ !Equals [ !Ref DirectorySafeModePassword, '' ]]
   GenerateSafeModePassword: !Not [ !Condition ConfigureSafeModePassword ]
   ConfigureAdministratorNetwork0: !Not [ !Equals [ !Select [ 0, !Split [ ',', !Ref AdministratorNetworks ]], '-' ]]
@@ -458,9 +475,9 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-AdminPassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-SafeModePassword-*
-                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${UtilityName}-EncryptionKey-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${DirectoryUtilityName}-Administrator-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${DirectoryUtilityName}-SafeMode-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EnvironmentName}-${DirectoryUtilityName}-Encryption-*
         - PolicyName: DownloadScriptFromS3Policy
           PolicyDocument:
             Version: 2012-10-17
@@ -534,81 +551,85 @@ Resources:
         Fn::Sub: ${CodesStackName}-LogGroupNameFunctionArn
       CompanyName: !Ref CompanyName
       SystemName: !Ref SystemName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref DirectoryUtilityName
       EnvironmentName: !If [ ConfigureAccountEnvironment, !Ref EnvironmentName, !Ref 'AWS::NoValue' ]
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogRetention
-  AdminPasswordSecret:
+  AdministratorSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Admin User
-      SecretString: !If [ ConfigureAdminPassword, !Ref DirectoryAdministratorPassword, !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${DirectoryUtilityName} Administrator
+      SecretString: !If [ ConfigureAdministratorPassword, !Sub '{"username": "Admin", "password": "${DirectoryAdministratorPassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
-        - GenerateAdminPassword
-        - PasswordLength: 32
+        - GenerateAdministratorPassword
+        - SecretStringTemplate: !Sub '{"username": "Admin"}'
+          GenerateStringKey: password
+          PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-AdminPassword
-  SafeModePasswordSecret:
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+  SafeModeSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-SafeModePassword
-      Description: !Sub Password for the ${EnvironmentName} Environment ${UtilityName} Utility Safe Mode
-      SecretString: !If [ ConfigureSafeModePassword, !Ref DirectorySafeModePassword, !Ref 'AWS::NoValue' ]
+      Name: !Sub ${EnvironmentName}-${DirectoryUtilityName}-SafeMode
+      Description: !Sub Username and Password for the ${EnvironmentName} Environment ${DirectoryUtilityName} Utility Safe Mode Administrator
+      SecretString: !If [ ConfigureSafeModePassword, !Sub '{"username": "SafeMode", "password": "${DirectorySafeModePassword}"}', !Ref 'AWS::NoValue' ]
       GenerateSecretString: !If
         - GenerateSafeModePassword
-        - PasswordLength: 32
+        - SecretStringTemplate: !Sub '{"username": "SafeMode"}'
+          GenerateStringKey: password
+          PasswordLength: 32
           ExcludePunctuation: true
         - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-SafeModePassword
-  EncryptionKeySecret:
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-SafeMode
+  EncryptionSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
-      Description: !Sub EncryptionKey used to encrypt Seed Data for the ${EnvironmentName} Environment ${UtilityName} Utility
-      SecretString: !Ref DirectorySeedDataEncryptionKey
+      Name: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Encryption
+      Description: !Sub Key used to encrypt Seed Data for the ${EnvironmentName} Environment ${DirectoryUtilityName} Utility
+      SecretString: !Sub '{"purpose": "SeedData", "key": "${DirectorySeedDataEncryptionKey}"}'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-EncryptionKey
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Encryption
   DomainMemberSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup
   AuthenticatorSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AuthenticatorSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AuthenticatorSecurityGroup
   AdministratorSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AdministratorSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AdministratorSecurityGroup
   DomainControllerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup
+      GroupDescription: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup
       VpcId: !ImportValue
         Fn::Sub: ${VPCStackName}-VPC
       SecurityGroupIngress:
@@ -646,127 +667,127 @@ Resources:
           FromPort: 80
           ToPort: 80
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (HTTP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (HTTP)
         - IpProtocol: tcp
           FromPort: 88
           ToPort: 88
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (Kerberos)
         - IpProtocol: udp
           FromPort: 88
           ToPort: 88
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (Kerberos)
         - IpProtocol: udp
           FromPort: 123
           ToPort: 123
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (NTP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (NTP)
         - IpProtocol: tcp
           FromPort: 135
           ToPort: 135
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (RPC EPM)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (RPC EPM)
         - IpProtocol: udp
           FromPort: 138
           ToPort: 138
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (NetBIOS Datagram)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (NetBIOS Datagram)
         - IpProtocol: tcp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (LDAP)
         - IpProtocol: udp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (LDAP)
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (HTTPS)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (HTTPS)
         - IpProtocol: tcp
           FromPort: 445
           ToPort: 445
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (SMB)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (SMB)
         - IpProtocol: udp
           FromPort: 445
           ToPort: 445
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (SMB)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (SMB)
         - IpProtocol: udp
           FromPort: 464
           ToPort: 464
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos Password)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (Kerberos Password)
         - IpProtocol: tcp
           FromPort: 464
           ToPort: 464
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Kerberos Password)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (Kerberos Password)
         - IpProtocol: tcp
           FromPort: 636
           ToPort: 636
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAPS)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (LDAPS)
         - IpProtocol: tcp
           FromPort: 3268
           ToPort: 3268
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAP Global Catalog)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (LDAP Global Catalog)
         - IpProtocol: tcp
           FromPort: 3269
           ToPort: 3269
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (LDAPS Global Catalog)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (LDAPS Global Catalog)
         - IpProtocol: tcp
           FromPort: 9389
           ToPort: 9389
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (ADWS)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (ADWS)
         - IpProtocol: tcp
           FromPort: 49152
           ToPort: 65535
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Ephemeral)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (Ephemeral)
         - IpProtocol: udp
           FromPort: 49152
           ToPort: 65535
           SourceSecurityGroupId: !Ref DomainMemberSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-DomainMemberSecurityGroup (Ephemeral)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainMemberSecurityGroup (Ephemeral)
         - IpProtocol: tcp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AuthenticatorSecurityGroup (LDAP)
         - IpProtocol: udp
           FromPort: 389
           ToPort: 389
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AuthenticatorSecurityGroup (LDAP)
         - IpProtocol: tcp
           FromPort: 636
           ToPort: 636
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAPS)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AuthenticatorSecurityGroup (LDAPS)
         - IpProtocol: tcp
           FromPort: 3268
           ToPort: 3268
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAP Global Catalog)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AuthenticatorSecurityGroup (LDAP Global Catalog)
         - IpProtocol: tcp
           FromPort: 3269
           ToPort: 3269
           SourceSecurityGroupId: !Ref AuthenticatorSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-AuthenticatorSecurityGroup (LDAPS Global Catalog)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AuthenticatorSecurityGroup (LDAPS Global Catalog)
         - IpProtocol: tcp
           FromPort: 3389
           ToPort: 3389
           SourceSecurityGroupId: !Ref AdministratorSecurityGroup
-          Description: !Sub ${EnvironmentName}-${UtilityName}-AdministratorSecurityGroup (RDP)
+          Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-AdministratorSecurityGroup (RDP)
         - !If
           - ConfigureAdministratorNetwork0
           - IpProtocol: tcp
@@ -809,7 +830,7 @@ Resources:
           - !Ref AWS::NoValue
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup
   DomainControllerSecurityGroupIngress88u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -818,7 +839,7 @@ Resources:
       FromPort: 88
       ToPort: 88
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (Kerberos)
   DomainControllerSecurityGroupIngress88t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -827,7 +848,7 @@ Resources:
       FromPort: 88
       ToPort: 88
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (Kerberos)
   DomainControllerSecurityGroupIngress123:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -836,7 +857,7 @@ Resources:
       FromPort: 123
       ToPort: 123
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NTP)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (NTP)
   DomainControllerSecurityGroupIngress135:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -845,7 +866,7 @@ Resources:
       FromPort: 135
       ToPort: 135
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (RPC EPM)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (RPC EPM)
   DomainControllerSecurityGroupIngress137:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -854,7 +875,7 @@ Resources:
       FromPort: 137
       ToPort: 137
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Name)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (NetBIOS Name)
   DomainControllerSecurityGroupIngress138:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -863,7 +884,7 @@ Resources:
       FromPort: 138
       ToPort: 138
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Datagram)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (NetBIOS Datagram)
   DomainControllerSecurityGroupIngress139:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -872,7 +893,7 @@ Resources:
       FromPort: 139
       ToPort: 139
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (NetBIOS Session)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (NetBIOS Session)
   DomainControllerSecurityGroupIngress389t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -881,7 +902,7 @@ Resources:
       FromPort: 389
       ToPort: 389
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAP)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (LDAP)
   DomainControllerSecurityGroupIngress389u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -890,7 +911,7 @@ Resources:
       FromPort: 389
       ToPort: 389
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAP)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (LDAP)
   DomainControllerSecurityGroupIngress445t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -899,7 +920,7 @@ Resources:
       FromPort: 445
       ToPort: 445
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (SMB)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (SMB)
   DomainControllerSecurityGroupIngress445u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -908,7 +929,7 @@ Resources:
       FromPort: 445
       ToPort: 445
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (SMB)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (SMB)
   DomainControllerSecurityGroupIngress464t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -917,7 +938,7 @@ Resources:
       FromPort: 464
       ToPort: 464
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos Password)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (Kerberos Password)
   DomainControllerSecurityGroupIngress464u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -926,7 +947,7 @@ Resources:
       FromPort: 464
       ToPort: 464
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Kerberos Password)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (Kerberos Password)
   DomainControllerSecurityGroupIngress636:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -935,7 +956,7 @@ Resources:
       FromPort: 636
       ToPort: 636
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAPS)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (LDAPS)
   DomainControllerSecurityGroupIngress3268:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -944,7 +965,7 @@ Resources:
       FromPort: 3268
       ToPort: 3268
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAP Global Catalog)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (LDAP Global Catalog)
   DomainControllerSecurityGroupIngress3269:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -953,7 +974,7 @@ Resources:
       FromPort: 3269
       ToPort: 3269
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (LDAPS Global Catalog)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (LDAPS Global Catalog)
   DomainControllerSecurityGroupIngress5985:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -962,7 +983,7 @@ Resources:
       FromPort: 5985
       ToPort: 5985
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (WinRM)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (WinRM)
   DomainControllerSecurityGroupIngress5986:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -971,7 +992,7 @@ Resources:
       FromPort: 5986
       ToPort: 5986
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (WinRM)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (WinRM)
   DomainControllerSecurityGroupIngress9389:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -980,7 +1001,7 @@ Resources:
       FromPort: 9389
       ToPort: 9389
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (ADWS)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (ADWS)
   DomainControllerSecurityGroupIngress49152t:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -989,7 +1010,7 @@ Resources:
       FromPort: 49152
       ToPort: 65535
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Ephemeral)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (Ephemeral)
   DomainControllerSecurityGroupIngress49152u:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -998,7 +1019,7 @@ Resources:
       FromPort: 49152
       ToPort: 65535
       SourceSecurityGroupId: !Ref DomainControllerSecurityGroup
-      Description: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerSecurityGroup (Ephemeral)
+      Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerSecurityGroup (Ephemeral)
   WindowsImage:
     Type: Custom::WindowsImage
     Properties:
@@ -1021,7 +1042,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref DirectoryUtilityName
       ComponentName: DomainController
       InstanceNumber: 01
       ZoneCode: a
@@ -1144,7 +1165,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}",
                     "metrics_collected" : {
                       "Memory" : {
                         "measurement" : [
@@ -1298,7 +1319,7 @@ Resources:
                 - powershell.exe -Command "C:\cfn\scripts\Install-ADDSForest.ps1
                   -DomainName ${VPCDirectoryDomain}
                   -DomainNetbiosName ${VPCDirectoryNetBIOSDomain}
-                  -SafeModePasswordSecretId ${EnvironmentName}-${UtilityName}-SafeModePassword"
+                  -SafeModeSecretId ${EnvironmentName}-${DirectoryUtilityName}-SafeMode"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
                   VPCDirectoryNetBIOSDomain: !ImportValue
@@ -1374,7 +1395,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\New-EnterpriseAdmin.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               ignoreErrors: false
@@ -1407,7 +1428,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
                   -GroupsPath C:\cfn\conf\Groups.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -1416,7 +1437,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADGroups.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
                   -GroupsPath C:\cfn\conf\CustomGroups.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -1449,8 +1470,8 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
-                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+                  -EncryptionSecretId ${EnvironmentName}-${DirectoryUtilityName}-Encryption
                   -UsersPath C:\cfn\conf\Users.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -1459,8 +1480,8 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Configure-ADUsers.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
-                  -EncryptionKeySecretId ${EnvironmentName}-${UtilityName}-EncryptionKey
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+                  -EncryptionSecretId ${EnvironmentName}-${DirectoryUtilityName}-Encryption
                   -UsersPath C:\cfn\conf\CustomUsers.csv"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
@@ -1498,7 +1519,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command C:\cfn\scripts\New-CertificateAuthority.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -1555,10 +1576,10 @@ Resources:
       ImageId: !If [ GetImageID, !Ref WindowsImage, !FindInMap [ ImageIdMap, !Ref 'AWS::Region', !Ref OSDate ]]
       InstanceType: !FindInMap [ InstanceTypeMap, DomainController, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !Ref KeyName
+      KeyName: !Ref KeyPairName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetA
@@ -1577,7 +1598,7 @@ Resources:
             VolumeType: !FindInMap [ VolumeTypeMap, DomainControllerBackup, !Ref EnvironmentType ]
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerA
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerA
 #        - Key: HostName
 #          Value: !Ref HostNameA
       UserData:
@@ -1595,7 +1616,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${UtilityName} DomainControllerA
+      Comment: !Sub Private DNS Host Name of the ${DirectoryUtilityName} DomainControllerA
       Name: !Sub
         - ${HostNameA}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -1628,7 +1649,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${DirectoryUtilityName}
       MetricName: MemoryCommittedPercent
       Statistic: Average
       Period: 60
@@ -1647,7 +1668,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${DirectoryUtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -1668,7 +1689,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${DirectoryUtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -1690,7 +1711,7 @@ Resources:
       CompanyName: !Ref CompanyName
       LocationName: !Ref AWS::Region
       EnvironmentName: !Ref EnvironmentName
-      ApplicationName: !Ref UtilityName
+      ApplicationName: !Ref DirectoryUtilityName
       ComponentName: DomainController
       InstanceNumber: 01
       ZoneCode: b
@@ -1809,7 +1830,7 @@ Resources:
                     "debug" : false
                   },
                   "metrics" : {
-                    "namespace" : "${SystemName}/${EnvironmentName}-${UtilityName}",
+                    "namespace" : "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}",
                     "metrics_collected" : {
                       "Memory" : {
                         "measurement" : [
@@ -1958,7 +1979,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Join-Domain.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               ignoreErrors: false
@@ -1982,8 +2003,8 @@ Resources:
               command: !Sub
                 - powershell.exe -Command "C:\cfn\scripts\Install-ADDSDomainController.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword
-                  -SafeModePasswordSecretId ${EnvironmentName}-${UtilityName}-SafeModePassword"
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator
+                  -SafeModeSecretId ${EnvironmentName}-${DirectoryUtilityName}-SafeMode"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               ignoreErrors: false
@@ -2021,7 +2042,7 @@ Resources:
               command: !Sub
                 - powershell.exe -Command C:\cfn\scripts\New-CertificateAuthority.ps1
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -2041,7 +2062,7 @@ Resources:
                   -DomainControllerAHostName ${HostNameA}
                   -DomainControllerAPrivateIp ${DomainControllerA.PrivateIp}
                   -DomainName ${VPCDirectoryDomain}
-                  -PasswordSecretId ${EnvironmentName}-${UtilityName}-AdminPassword"
+                  -SecretId ${EnvironmentName}-${DirectoryUtilityName}-Administrator"
                 - VPCDirectoryDomain: !ImportValue
                     Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
               waitAfterCompletion: 0
@@ -2097,10 +2118,10 @@ Resources:
       ImageId: !If [ GetImageID, !Ref WindowsImage, !FindInMap [ ImageIdMap, !Ref 'AWS::Region', !Ref OSDate ]]
       InstanceType: !FindInMap [ InstanceTypeMap, DomainController, !Ref EnvironmentType ]
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !Ref KeyName
+      KeyName: !Ref KeyPairName
       Monitoring: true
       NetworkInterfaces:
-        - Description: !Sub ${EnvironmentName}-${UtilityName}-NetworkInterface-eth0
+        - Description: !Sub ${EnvironmentName}-${DirectoryUtilityName}-NetworkInterface-eth0
           DeviceIndex: 0
           SubnetId: !ImportValue
             Fn::Sub: ${VPCStackName}-IdentitySubnetB
@@ -2119,7 +2140,7 @@ Resources:
             VolumeType: !FindInMap [ VolumeTypeMap, DomainControllerBackup, !Ref EnvironmentType ]
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-DomainControllerB
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DomainControllerB
 #        - Key: HostName
 #          Value: !Ref HostNameB
       UserData:
@@ -2138,7 +2159,7 @@ Resources:
     Properties:
       HostedZoneId: !ImportValue
         Fn::Sub: ${VPCStackName}-PrivateHostedZone
-      Comment: !Sub Private DNS HostName for ${UtilityName} DomainControllerB
+      Comment: !Sub Private DNS Host Name of the ${DirectoryUtilityName} DomainControllerB
       Name: !Sub
         - ${HostNameB}.${VPCPrivateDomain}.
         - VPCPrivateDomain: !ImportValue
@@ -2171,7 +2192,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${DirectoryUtilityName}
       MetricName: MemoryCommittedPercent
       Statistic: Average
       Period: 60
@@ -2190,7 +2211,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${DirectoryUtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -2211,7 +2232,7 @@ Resources:
       AlarmActions:
         - !ImportValue
           Fn::Sub: ${TopicsStackName}-AlarmsTopic
-      Namespace: !Sub ${SystemName}/${EnvironmentName}-${UtilityName}
+      Namespace: !Sub ${SystemName}/${EnvironmentName}-${DirectoryUtilityName}
       MetricName: DiskFreePercent
       Statistic: Average
       Period: 60
@@ -2229,7 +2250,7 @@ Resources:
     Type: AWS::CloudWatch::Dashboard
     Properties:
       DashboardName: !Sub
-        - ${EnvironmentName}-${UtilityName}-${RegionName}
+        - ${EnvironmentName}-${DirectoryUtilityName}-${RegionName}
         - RegionName: !FindInMap [ RegionNameMap, !Ref 'AWS::Region', Name ]
       DashboardBody: !Sub |
         {
@@ -2240,7 +2261,7 @@ Resources:
             "width" : 24,
             "height" : 1,
             "properties" : {
-              "markdown" : "# ${EnvironmentName}-${UtilityName}"
+              "markdown" : "# ${EnvironmentName}-${DirectoryUtilityName}"
             }
           },
           {
@@ -2297,8 +2318,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerA}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2320,8 +2341,8 @@ Resources:
               "metrics" : [
                 [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
                 [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerA}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2470,8 +2491,8 @@ Resources:
               "period" : 60,
               "region" : "${AWS::Region}",
               "metrics" : [
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "MemoryCommittedPercent", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Memory Committed %" } ],
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "MemoryPageOps", "InstanceId", "${DomainControllerB}", "objectname", "Memory", { "label" : "Hard Page Faults / second", "yAxis" : "right" } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2493,8 +2514,8 @@ Resources:
               "metrics" : [
                 [ { "expression" : "100-m1", "label" : "Disk Used % (C:)", "id" : "e1" } ],
                 [ { "expression" : "100-m2", "label" : "Disk Used % (D:)", "id" : "e2" } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
-                [ "${SystemName}/${EnvironmentName}-${UtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "C:", { "label" : "Disk Free % (C:)", "id" : "m1", "visible" : false } ],
+                [ "${SystemName}/${EnvironmentName}-${DirectoryUtilityName}", "DiskFreePercent", "InstanceId", "${DomainControllerB}", "objectname", "LogicalDisk", "instance", "D:", { "label" : "Disk Free % (D:)", "id" : "m2", "visible" : false } ]
               ],
               "yAxis" : {
                 "left" : { "min" : 0, "max" : 100 }
@@ -2599,7 +2620,7 @@ Resources:
       - !Sub ${DomainControllerA.PrivateIp}, ${DomainControllerB.PrivateIp}
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-${UtilityName}-DHCPOptions
+          Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-DHCPOptions
     DependsOn: DomainControllerB
   VPCDHCPOptionsAssociation:
     Type: AWS::EC2::VPCDHCPOptionsAssociation
@@ -2628,11 +2649,18 @@ Outputs:
     Value: !Ref DomainControllerSecurityGroup
     Export:
       Name: !Sub ${AWS::StackName}-DomainControllerSecurityGroup
-  AdministratorUserName:
-    Description: The Administrator UserName
-    Value: !Sub
-      - Admin@${VPCDirectoryDomain}
-      - VPCDirectoryDomain: !ImportValue
-          Fn::Sub: ${VPCStackName}-VPCDirectoryDomain
+  AdministratorSecret:
+    Description: The Administrator Secret Name
+    Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Administrator
     Export:
-      Name: !Sub ${AWS::StackName}-AdministratorUserName
+      Name: !Sub ${AWS::StackName}-AdministratorSecret
+  SafeModeSecret:
+    Description: The Safe Mode Administrator Secret Name
+    Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-SafeMode
+    Export:
+      Name: !Sub ${AWS::StackName}-SafeModeSecret
+  EncryptionSecret:
+    Description: The Seed Data Encryption Secret Name
+    Value: !Sub ${EnvironmentName}-${DirectoryUtilityName}-Encryption
+    Export:
+      Name: !Sub ${AWS::StackName}-EncryptionSecret
