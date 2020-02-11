@@ -17,6 +17,7 @@ Metadata:
       - Label:
           default: TransitGateway Configuration
         Parameters:
+          - TransitGatewayAccount
           - TransitGatewayASN
           - AutoAcceptSharedAttachments
           - DnsSupport
@@ -51,6 +52,8 @@ Metadata:
         default: Account Name
       EnvironmentName:
         default: Environment Name
+      TransitGatewayAccount:
+        default: TransitGateway Account
       TransitGatewayASN:
         default: TransitGateway ASN
       AutoAcceptSharedAttachments:
@@ -111,6 +114,7 @@ Parameters:
     Type: String
     Default: Core
     AllowedValues:
+      - Build
       - Core
       - Jumpstart
     ConstraintDescription: must be Core or Jumpstart.
@@ -119,8 +123,16 @@ Parameters:
     Type: String
     Default: Core
     AllowedValues:
+      - Build
       - Core
     ConstraintDescription: must be Core (may expand later).
+  TransitGatewayAccount:
+    Description: AWS Account ID of the Account where TransitGateway should be created.
+      All other accounts will attempt to share the TransitGateway created in this Account
+    Type: String
+    Default: ''
+    AllowedPattern: (^$|^[0-9]{12}$)
+    ConstraintDescription: must be a valid AWS Account ID, or blank.
   TransitGatewayASN:
     Description: Autonomous System Number for the TransitGateway
     Type: Number
@@ -245,20 +257,36 @@ Parameters:
     AllowedPattern: (^$|^[0-9]{12}$)
     ConstraintDescription: must be a valid AWS Account ID, or blank.
 Conditions:
+  CreateTransitGateway: !Or [ !Equals [ !Ref TransitGatewayAccount, '' ],
+                              !Equals [ !Ref TransitGatewayAccount, 'AWS::AccountId' ]]
+  ShareTransitGateway: !Not [ !Condition CreateTransitGateway ]
   ConfigureOrganization: !Not [ !Equals [ !Ref Organization, '' ]]
-  ConfigureOrganizationAccount: !Not [ !Equals [ !Ref OrganizationAccount, '' ]]
-  ConfigureJumpstartAccount: !Not [ !Equals [ !Ref JumpstartAccount, '' ]]
-  ConfigureManagementAccount: !Not [ !Equals [ !Ref ManagementAccount, '' ]]
-  ConfigureLogAccount: !Not [ !Equals [ !Ref LogAccount, '' ]]
-  ConfigureRecoveryAccount: !Not [ !Equals [ !Ref RecoveryAccount, '' ]]
-  ConfigureBuildAccount: !Not [ !Equals [ !Ref BuildAccount, '' ]]
-  ConfigureCoreAccount: !Not [ !Equals [ !Ref CoreAccount, '' ]]
-  ConfigureProductionAccount: !Not [ !Equals [ !Ref ProductionAccount, '' ]]
-  ConfigureStagingAccount: !Not [ !Equals [ !Ref StagingAccount, '' ]]
-  ConfigureUATAccount: !Not [ !Equals [ !Ref UATAccount, '' ]]
-  ConfigureQAAccount: !Not [ !Equals [ !Ref QAAccount, '' ]]
-  ConfigureTestingAccount: !Not [ !Equals [ !Ref TestingAccount, '' ]]
-  ConfigureDevelopmentAccount: !Not [ !Equals [ !Ref DevelopmentAccount, '' ]]
+  ConfigureOrganizationAccount: !And [ !Not [ !Equals [ !Ref OrganizationAccount, '' ]],
+                                       !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureJumpstartAccount: !And [ !Not [ !Equals [ !Ref JumpstartAccount, '' ]],
+                                    !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureManagementAccount: !And [ !Not [ !Equals [ !Ref ManagementAccount, '' ]],
+                                     !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureLogAccount: !And [ !Not [ !Equals [ !Ref LogAccount, '' ]],
+                              !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureRecoveryAccount: !And [ !Not [ !Equals [ !Ref RecoveryAccount, '' ]],
+                                   !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureBuildAccount: !And [ !Not [ !Equals [ !Ref BuildAccount, '' ]],
+                                !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureCoreAccount: !And [ !Not [ !Equals [ !Ref CoreAccount, '' ]],
+                               !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureProductionAccount: !And [ !Not [ !Equals [ !Ref ProductionAccount, '' ]],
+                                     !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureStagingAccount: !And [ !Not [ !Equals [ !Ref StagingAccount, '' ]],
+                                  !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureUATAccount: !And [ !Not [ !Equals [ !Ref UATAccount, '' ]],
+                              !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureQAAccount: !And [ !Not [ !Equals [ !Ref QAAccount, '' ]],
+                             !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureTestingAccount: !And [ !Not [ !Equals [ !Ref TestingAccount, '' ]],
+                                  !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
+  ConfigureDevelopmentAccount: !And [ !Not [ !Equals [ !Ref DevelopmentAccount, '' ]],
+                                      !Not [ !Equals [ !Ref CoreAccount, 'AWS::AccountId' ]]]
   ConfigureExternalAccounts: !Or [ !Not [ !Condition ConfigureOrganization ],
                                    !Or [ !Condition ConfigureOrganizationAccount,
                                          !Condition ConfigureJumpstartAccount,
@@ -286,6 +314,7 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-TransitGateway
+    Condition: CreateTransitGateway
   TransitGatewayResourceShare:
     Type: AWS::RAM::ResourceShare
     Properties:
@@ -309,9 +338,109 @@ Resources:
 #       Tags:
 #         - Key: Name
 #           Value: !Sub ${EnvironmentName}-TransitGatewayResourceShare
+    Condition: CreateTransitGateway
+  SharedTransitGatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ManageSharedTransitGatewayPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ram:GetResourceShareInvitations
+                  - ram:AcceptResourceShareInvitation
+                Resource: "*"
+    Condition: ShareTransitGateway
+  SharedTransitGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/SharedTransitGateway
+      RetentionInDays: 30 # !Ref SharedTransitGatewayLogRetention
+    Condition: ShareTransitGateway
+  SharedTransitGatewayFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: SharedTransitGateway
+      Description: A Lambda function that can create, update or delete a TransitGateway Shared via RAM.
+      Role: !GetAtt SharedTransitGatewayRole.Arn
+      Runtime: nodejs12.x
+      Timeout: 30
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          const response = require('./cfn-response');
+
+          const AWS = require('aws-sdk');
+          AWS.config.apiVersions = {
+            ram: '2018-01-04'
+          };
+
+          const ram = new AWS.RAM();
+
+          exports.handler = (event, context) => {
+            console.info(`Request Body:\n${JSON.stringify(event)}`);
+
+            const resourceShareName = event.ResourceProperties.ResourceShareName;
+            if (! resourceShareName) {
+              const responseData = {Error: `Error: ResourceShareName missing`};
+              console.error(responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const transitGatewayAccount = event.ResourceProperties.TransitGatewayAccount;
+            if (! transitGatewayAccount && event.RequestType != 'Delete') {
+              const responseData = {Error: `Error: TransitGatewayAccount missing`};
+              console.error(responseData.Error);
+              response.send(event, context, response.FAILED, responseData);
+              return;
+            }
+
+            const accountId=event.StackId.split(':')[4];
+
+            let params = {};
+            switch (event.RequestType) {
+              case 'Create':
+                console.info(`Calling: Create...`);
+                response.send(event, context, response.SUCCESS, {}, 'tgw-099d1af845a8e4e10');
+                break;
+
+              case 'Update':
+                console.info(`Calling: Update...`);
+                response.send(event, context, response.SUCCESS, {}, 'tgw-099d1af845a8e4e10');
+                break;
+
+              case 'Delete':
+                console.info(`Calling: Delete...`);
+                response.send(event, context, response.SUCCESS);
+            }
+          };
+    DependsOn: SharedTransitGatewayLogGroup
+    Condition: ShareTransitGateway
+  SharedTransitGateway:
+    Type: Custom::SharedTransitGateway
+    Properties:
+      ServiceToken: !GetAtt SharedTransitGatewayFunction.Arn
+      ResourceShareName: 'Core-TransitGatewayResourceShare'
+      TransitGatewayAccount: !Ref TransitGatewayAccount
+    Condition: ShareTransitGateway
 Outputs:
   TransitGateway:
     Description: The TransitGateway
-    Value: !Ref TransitGateway
+    Value: !If [ CreateTransitGateway, !Ref TransitGateway, !Ref SharedTransitGateway ]
     Export:
       Name: !Sub ${AWS::StackName}-TransitGateway
